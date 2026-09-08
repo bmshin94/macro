@@ -4,7 +4,7 @@ use agent_harness::inbound::model_load::{
     self, AgentModelDto, AgentModelsStatusDto, LoadAgentModelsRequest, LoadAgentModelsResponse,
     ModelHarnessDto,
 };
-use agent_runtime_protocol::domain::action::{AgentAction, AgentActionId};
+use agent_runtime_protocol::domain::action::{AgentAction, AgentActionId, PromptAttachment};
 use agent_session::domain::model::{SandboxSize, SessionBot};
 use agent_session::inbound::axum_router::{
     self, AgentSessionLogEntryDto, AgentSessionLogResponse, AgentSessionPreviewData,
@@ -73,6 +73,7 @@ impl Modify for SecurityAddon {
         EditQueuedActionRequest,
         AgentAction,
         AgentActionId,
+        PromptAttachment,
         AgentSessionResponse,
         PreviewAgentSessionsRequest,
         PreviewAgentSessionsResponse,

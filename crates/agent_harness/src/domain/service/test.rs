@@ -94,6 +94,7 @@ fn open_command() -> OpenSession {
             message_id: thread_id,
             sender: sender(),
             content: "@claude fix the failing test".to_owned(),
+            attachments: vec![],
         },
     }
 }
@@ -104,7 +105,7 @@ fn forward_message(content: &str) -> DeliverAction {
     // Staff: `disconnected_session` is a Daytona coder bot, and the
     // execute() gate admits only macro.com actors onto those.
     DeliverAction::prompt(
-        content,
+        AgentAction::prompt(content),
         Some(staff_sender()),
         Some(AnnounceOrigin {
             channel_id: macro_uuid::Uuid::from_u128(0xf0),
@@ -1890,7 +1891,11 @@ async fn prompt(
     service
         .execute(
             id,
-            HarnessCommand::Deliver(DeliverAction::prompt(content, Some(sender()), None)),
+            HarnessCommand::Deliver(DeliverAction::prompt(
+                AgentAction::prompt(content),
+                Some(sender()),
+                None,
+            )),
         )
         .await
 }
