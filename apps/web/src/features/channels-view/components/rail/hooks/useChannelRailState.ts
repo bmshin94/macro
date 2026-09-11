@@ -2,7 +2,12 @@ import { useGlobalNotificationSource } from '@components/app/GlobalAppState';
 import { isMutedItem } from '@entity/utils/notification';
 import { type Accessor, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { VirtualizerHandle } from 'virtua/solid';
-import type { ChannelsGroup, ChannelsQueryScope } from '../../../types';
+import type { ChannelsSources } from '../../../queries';
+import type {
+  ChannelsGroup,
+  ChannelsQueryScope,
+  ChannelsRailScope,
+} from '../../../types';
 import {
   domIdForRow,
   rowKeyForChannel,
@@ -12,13 +17,16 @@ import {
 
 const LOAD_MORE_THRESHOLD = 300;
 
-export function useChannelRailItemState(channelId: Accessor<string>) {
+export function useChannelRailItemState(
+  channelId: Accessor<string>,
+  group?: Accessor<ChannelsGroup | undefined>
+) {
   const rail = useChannelsRail();
   const notificationSource = useGlobalNotificationSource();
 
   return createMemo(() => {
     const id = channelId();
-    const rowId = rowKeyForChannel(id);
+    const rowId = rowKeyForChannel(id, group?.());
 
     return {
       domId: domIdForRow(rail.railId, rowId),
@@ -54,7 +62,7 @@ export function useChannelRailScopeState(scope: Accessor<ChannelsQueryScope>) {
     const activityIndex =
       targetChannelId === undefined
         ? -1
-        : items.findIndex((channel) => channel.id === targetChannelId);
+        : items.findIndex((item) => item.channelId === targetChannelId);
     const keepMounted = [...new Set([focusedIndex, activityIndex])].filter(
       (index) => index >= 0
     );
@@ -69,7 +77,7 @@ export function useChannelRailScopeState(scope: Accessor<ChannelsQueryScope>) {
   });
 }
 
-export function useChannelRailVirtualizer(scope: Accessor<ChannelsQueryScope>) {
+export function useChannelRailVirtualizer(scope: Accessor<ChannelsRailScope>) {
   const rail = useChannelsRail();
   const [virtualizer, setVirtualizer] = createSignal<VirtualizerHandle>();
   let unregister: (() => void) | undefined;
@@ -90,7 +98,8 @@ export function useChannelRailVirtualizer(scope: Accessor<ChannelsQueryScope>) {
     const handle = virtualizer();
     if (!handle) return;
 
-    const source = rail.sources[scope()];
+    const currentScope = scope();
+    const source = rail.sources[currentScope];
     const distance =
       handle.scrollSize - handle.viewportSize - (offset ?? handle.scrollOffset);
     if (
@@ -107,9 +116,39 @@ export function useChannelRailVirtualizer(scope: Accessor<ChannelsQueryScope>) {
   return { registerVirtualizer, loadMoreNearEnd };
 }
 
-export function useChannelRailSectionState(group: Accessor<ChannelsGroup>) {
+export function useChannelRailSectionState<Group extends ChannelsGroup>(
+  group: Accessor<Group>
+) {
   const rail = useChannelsRail();
-  const scope = useChannelRailScopeState(group);
+  const scope = createMemo(() => {
+    const currentGroup = group();
+    const source: ChannelsSources[Group] = rail.sources[currentGroup];
+    const items = source.items();
+    const focusedRow = rail.list.focus.item();
+    const focusedIndex =
+      focusedRow?.kind === 'conversation' && focusedRow.scope === currentGroup
+        ? focusedRow.localIndex
+        : -1;
+    const targetChannelId =
+      currentGroup === 'favorites'
+        ? undefined
+        : rail.channelActivity.targetChannelId(currentGroup);
+    const activityIndex =
+      targetChannelId === undefined
+        ? -1
+        : items.findIndex((item) => item.channelId === targetChannelId);
+    const keepMounted = [...new Set([focusedIndex, activityIndex])].filter(
+      (index) => index >= 0
+    );
+
+    return {
+      items,
+      source,
+      focusedIndex,
+      activityIndex,
+      keepMounted: keepMounted.length > 0 ? keepMounted : undefined,
+    };
+  });
   const state = createMemo(() => {
     const section = group();
     const rowId = rowKeyForSection(section);
@@ -119,7 +158,9 @@ export function useChannelRailSectionState(group: Accessor<ChannelsGroup>) {
       ...scope(),
       open: rail.isGroupOpen(section),
       fillAvailable:
-        section === 'direct_messages' && !rail.isGroupOpen('channels'),
+        section === 'direct_messages' &&
+        !rail.isGroupOpen('favorites') &&
+        !rail.isGroupOpen('channels'),
       focused: rail.list.focus.key() === rowId,
       containsFocus: rail.list.focus.item()?.group === section,
       domId: domIdForRow(rail.railId, rowId),
@@ -127,7 +168,10 @@ export function useChannelRailSectionState(group: Accessor<ChannelsGroup>) {
       targetId:
         targetChannelId === undefined
           ? undefined
-          : domIdForRow(rail.railId, rowKeyForChannel(targetChannelId)),
+          : domIdForRow(
+              rail.railId,
+              rowKeyForChannel(targetChannelId, section)
+            ),
       label: rail.channelActivity.targetLabel(section),
     };
   });
@@ -137,7 +181,7 @@ export function useChannelRailSectionState(group: Accessor<ChannelsGroup>) {
     const targetChannelId = rail.channelActivity.targetChannelId(section);
     if (
       targetChannelId === undefined ||
-      domIdForRow(rail.railId, rowKeyForChannel(targetChannelId)) !==
+      domIdForRow(rail.railId, rowKeyForChannel(targetChannelId, section)) !==
         visibleTargetId
     ) {
       return;

@@ -6,13 +6,16 @@ import {
 } from '@app/features/next-soup/filters/filter-store';
 import { compareDateDesc } from '@core/util/date';
 import { type ChannelEntity, type EntityData, isChannelEntity } from '@entity';
+import { useFavoritesQuery } from '@queries/favorites/favorites';
 import {
   type SoupAstItemsQueryArgs,
   type SoupAstParams,
   useSoupAstItemsQuery,
 } from '@queries/soup/items';
+import type { Favorite } from '@service-storage/generated/schemas/favorite';
+import type { ListFavoritesParams } from '@service-storage/generated/schemas/listFavoritesParams';
 import { type Accessor, createMemo } from 'solid-js';
-import type { ChannelsQueryScope } from './types';
+import type { ChannelsQueryScope, ChannelsRailScope } from './types';
 import { channelHasMessages, isDirectMessage } from './utils';
 
 const CHANNELS_QUERY_PARAMS = {
@@ -25,9 +28,34 @@ type ChannelsQueryDefinition = {
   matches: (channel: ChannelEntity) => boolean;
 };
 
-export type ChannelsDataSource = ListDataSource<ChannelEntity>;
+export type ChannelSourceItem = {
+  kind: 'channel';
+  channelId: string;
+  channel: ChannelEntity;
+};
 
-export type ChannelsSources = Record<ChannelsQueryScope, ChannelsDataSource>;
+export type FavoriteSourceItem = {
+  kind: 'favorite';
+  channelId: string;
+  favorite: Favorite;
+};
+
+export type ChannelsSourceItem = ChannelSourceItem | FavoriteSourceItem;
+
+export type ChannelsDataSource<
+  TItem extends ChannelsSourceItem = ChannelsSourceItem,
+> = ListDataSource<TItem>;
+
+export type ChannelsSources = {
+  favorites: ChannelsDataSource<FavoriteSourceItem>;
+  channels: ChannelsDataSource<ChannelSourceItem>;
+  direct_messages: ChannelsDataSource<ChannelSourceItem>;
+  recents: ChannelsDataSource<ChannelSourceItem>;
+};
+
+const CHANNEL_FAVORITES_PARAMS = {
+  entityType: ['channel'],
+} satisfies ListFavoritesParams;
 
 export const CHANNELS_QUERY_DEFINITIONS = {
   recents: {
@@ -95,31 +123,31 @@ export function channelByIdQueryArgs(channelId: string): SoupAstItemsQueryArgs {
   };
 }
 
-export function deduplicateChannels(
-  collections: readonly (readonly ChannelEntity[])[]
-): ChannelEntity[] {
-  const channelsById = new Map<string, ChannelEntity>();
+export function deduplicateChannelItems(
+  collections: readonly (readonly ChannelSourceItem[])[]
+): ChannelSourceItem[] {
+  const itemsByChannelId = new Map<string, ChannelSourceItem>();
 
-  for (const channels of collections) {
-    for (const channel of channels) {
-      if (!channelsById.has(channel.id)) {
-        channelsById.set(channel.id, channel);
+  for (const items of collections) {
+    for (const item of items) {
+      if (!itemsByChannelId.has(item.channelId)) {
+        itemsByChannelId.set(item.channelId, item);
       }
     }
   }
 
-  return [...channelsById.values()];
+  return [...itemsByChannelId.values()];
 }
 
 export function resolveSelectedChannel(
   selectedChannelId: string | undefined,
-  loadedChannels: readonly ChannelEntity[],
+  loadedItems: readonly ChannelSourceItem[],
   fallbackEntities: readonly EntityData[] = []
 ): ChannelEntity | undefined {
   if (selectedChannelId === undefined) return;
 
   return (
-    loadedChannels.find((channel) => channel.id === selectedChannelId) ??
+    loadedItems.find((item) => item.channelId === selectedChannelId)?.channel ??
     fallbackEntities.find(
       (entity): entity is ChannelEntity =>
         isChannelEntity(entity) && entity.id === selectedChannelId
@@ -130,12 +158,12 @@ export function resolveSelectedChannel(
 function useChannelsDataSource(
   scope: ChannelsQueryScope,
   enabled: Accessor<boolean>
-): ChannelsDataSource {
+): ChannelsDataSource<ChannelSourceItem> {
   const query = useSoupAstItemsQuery(
     () => channelsQueryArgs(scope),
     () => ({ enabled: enabled(), staleTime: 30_000 })
   );
-  const items = createMemo<ChannelEntity[]>((previous) => {
+  const items = createMemo<ChannelSourceItem[]>((previous) => {
     if (!query.isEnabled || query.isLoading) return previous;
 
     const channels = filterChannelsForScope(
@@ -143,11 +171,20 @@ function useChannelsDataSource(
       (query.data?.entities ?? []).filter(isChannelEntity)
     );
 
-    if (scope !== 'direct_messages') return channels;
+    const orderedChannels =
+      scope === 'direct_messages'
+        ? channels
+            .slice()
+            .sort((left, right) =>
+              compareDateDesc(left.updatedAt, right.updatedAt)
+            )
+        : channels;
 
-    return channels
-      .slice()
-      .sort((left, right) => compareDateDesc(left.updatedAt, right.updatedAt));
+    return orderedChannels.map((channel) => ({
+      kind: 'channel',
+      channelId: channel.id,
+      channel,
+    }));
   }, []);
 
   return {
@@ -171,10 +208,38 @@ function useChannelsDataSource(
   };
 }
 
+function useFavoritesDataSource(
+  enabled: Accessor<boolean>
+): ChannelsDataSource<FavoriteSourceItem> {
+  const query = useFavoritesQuery(CHANNEL_FAVORITES_PARAMS, { enabled });
+  const items = createMemo<FavoriteSourceItem[]>((previous) => {
+    if (!query.isSuccess) return previous;
+    return query.data.favorites.map((favorite) => ({
+      kind: 'favorite',
+      channelId: favorite.entityId,
+      favorite,
+    }));
+  }, []);
+
+  return {
+    items,
+    isLoading: () => enabled() && query.isLoading && items().length === 0,
+    isFetching: () => enabled() && query.isFetching,
+    error: () => (enabled() ? (query.error ?? undefined) : undefined),
+    hasMore: () => false,
+    isLoadingMore: () => false,
+    loadMore: () => Promise.resolve(),
+    refresh: async () => {
+      if (enabled()) await query.refetch();
+    },
+  };
+}
+
 export function useChannelsSources(
-  enabled: (scope: ChannelsQueryScope) => boolean
+  enabled: (scope: ChannelsRailScope) => boolean
 ): ChannelsSources {
   return {
+    favorites: useFavoritesDataSource(() => enabled('favorites')),
     channels: useChannelsDataSource('channels', () => enabled('channels')),
     direct_messages: useChannelsDataSource('direct_messages', () =>
       enabled('direct_messages')

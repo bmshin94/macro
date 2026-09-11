@@ -10,7 +10,6 @@ import {
   withSplitPanelOwner,
 } from '@components/app/split-layout/layoutUtils';
 import { createHotkeyGroup, registerHotkey } from '@core/hotkey/hotkeys';
-import type { ChannelEntity } from '@entity';
 import { debounce } from '@solid-primitives/scheduled';
 import {
   createEffect,
@@ -22,10 +21,16 @@ import {
 } from 'solid-js';
 import type { VirtualizerHandle } from 'virtua/solid';
 import { useChannelsView } from '../../channels-view-context';
-import { type ChannelsSources, deduplicateChannels } from '../../queries';
+import {
+  type ChannelSourceItem,
+  type ChannelsSources,
+  deduplicateChannelItems,
+  type FavoriteSourceItem,
+} from '../../queries';
 import type {
   ChannelsGroup,
   ChannelsQueryScope,
+  ChannelsRailScope,
   ChannelsTab,
 } from '../../types';
 import {
@@ -41,7 +46,15 @@ import { useChannelCalls } from './hooks/useChannelCalls';
 import { useChannelRailActivity } from './hooks/useChannelRailActivity';
 import { SlimChannelsRail } from './SlimChannelsRail';
 
-const CHANNEL_GROUPS: ChannelsGroup[] = ['channels', 'direct_messages'];
+const CHANNEL_GROUPS: ChannelsGroup[] = [
+  'favorites',
+  'channels',
+  'direct_messages',
+];
+const CHANNEL_QUERY_GROUPS: Exclude<ChannelsGroup, 'favorites'>[] = [
+  'channels',
+  'direct_messages',
+];
 const CHANNEL_TAB_IDS: ChannelsTab[] = ['browse', 'recents'];
 const DM_LOADING_PREVIEW_OFFSET = 80;
 
@@ -53,8 +66,10 @@ export type ChannelsRailProps = {
 
 type ChannelRailItemsByScope = Record<
   ChannelsQueryScope,
-  readonly ChannelEntity[]
->;
+  readonly ChannelSourceItem[]
+> & {
+  favorites: readonly FavoriteSourceItem[];
+};
 
 export function buildChannelRailRows(
   tab: ChannelsTab,
@@ -62,52 +77,54 @@ export function buildChannelRailRows(
   items: ChannelRailItemsByScope
 ): ChannelRailRow[] {
   if (tab === 'recents') {
-    return items.recents.map((channel, localIndex) => ({
+    return items.recents.map((sourceItem, localIndex) => ({
       kind: 'conversation',
-      id: `channel:${channel.id}`,
+      id: rowKeyForChannel(sourceItem.channelId),
       scope: 'recents',
       localIndex,
-      channel,
+      sourceItem,
     }));
   }
 
   const rows: ChannelRailRow[] = [
     {
       kind: 'section',
-      id: 'section:channels',
-      group: 'channels',
+      id: rowKeyForSection('favorites'),
+      group: 'favorites',
     },
   ];
-  if (expandedGroups.channels) {
+  if (expandedGroups.favorites) {
     rows.push(
-      ...items.channels.map(
-        (channel, localIndex): ChannelRailRow => ({
+      ...items.favorites.map(
+        (sourceItem, localIndex): ChannelRailRow => ({
           kind: 'conversation',
-          id: `channel:${channel.id}`,
-          group: 'channels',
-          scope: 'channels',
+          id: rowKeyForChannel(sourceItem.channelId, 'favorites'),
+          group: 'favorites',
+          scope: 'favorites',
           localIndex,
-          channel,
+          sourceItem,
         })
       )
     );
   }
 
-  rows.push({
-    kind: 'section',
-    id: 'section:direct_messages',
-    group: 'direct_messages',
-  });
-  if (expandedGroups.direct_messages) {
+  for (const group of CHANNEL_QUERY_GROUPS) {
+    rows.push({
+      kind: 'section',
+      id: rowKeyForSection(group),
+      group,
+    });
+
+    if (!expandedGroups[group]) continue;
     rows.push(
-      ...items.direct_messages.map(
-        (channel, localIndex): ChannelRailRow => ({
+      ...items[group].map(
+        (sourceItem, localIndex): ChannelRailRow => ({
           kind: 'conversation',
-          id: `channel:${channel.id}`,
-          group: 'direct_messages',
-          scope: 'direct_messages',
+          id: rowKeyForChannel(sourceItem.channelId, group),
+          group,
+          scope: group,
           localIndex,
-          channel,
+          sourceItem,
         })
       )
     );
@@ -126,7 +143,7 @@ export function ChannelsRail(props: ChannelsRailProps) {
   >({});
   const [listRoot, setListRoot] = createSignal<HTMLDivElement>();
   const [virtualizers, setVirtualizers] = createSignal<
-    Partial<Record<ChannelsQueryScope, VirtualizerHandle>>
+    Partial<Record<ChannelsRailScope, VirtualizerHandle>>
   >({});
   const previewAfterNavigation = debounce(setSelectedChannelId, 150);
   onCleanup(() => previewAfterNavigation.clear());
@@ -137,17 +154,18 @@ export function ChannelsRail(props: ChannelsRailProps) {
   };
 
   const channelCalls = useChannelCalls();
-  const channels = createMemo(() =>
-    deduplicateChannels([
+  const channelItems = createMemo(() =>
+    deduplicateChannelItems([
       props.sources.channels.items(),
       props.sources.direct_messages.items(),
       props.sources.recents.items(),
     ])
   );
-  const channelActivity = useChannelRailActivity(channels, channelCalls);
+  const channelActivity = useChannelRailActivity(channelItems, channelCalls);
 
   const visibleRows = createMemo(() =>
     buildChannelRailRows(state.tab, state.expandedGroups, {
+      favorites: props.sources.favorites.items(),
       channels: props.sources.channels.items(),
       direct_messages: props.sources.direct_messages.items(),
       recents: props.sources.recents.items(),
@@ -171,7 +189,7 @@ export function ChannelsRail(props: ChannelsRailProps) {
           return;
         }
 
-        setSelectedChannelId(item.channel.id);
+        setSelectedChannelId(item.sourceItem.channelId);
       },
     })
   );
@@ -267,7 +285,7 @@ export function ChannelsRail(props: ChannelsRailProps) {
 
           const row = event.result?.item;
           if (row?.kind === 'conversation') {
-            previewAfterNavigation(row.channel.id);
+            previewAfterNavigation(row.sourceItem.channelId);
           }
         },
       },
@@ -343,7 +361,7 @@ export function ChannelsRail(props: ChannelsRailProps) {
   };
 
   const registerVirtualizer = (
-    scope: ChannelsQueryScope,
+    scope: ChannelsRailScope,
     handle: VirtualizerHandle
   ) => {
     setVirtualizers((current) => ({ ...current, [scope]: handle }));

@@ -8,6 +8,7 @@ import { storageServiceClient } from '@service-storage/client';
 import type { AddFavoriteRequest } from '@service-storage/generated/schemas/addFavoriteRequest';
 import type { Favorite } from '@service-storage/generated/schemas/favorite';
 import type { FavoritesList } from '@service-storage/generated/schemas/favoritesList';
+import type { ListFavoritesParams } from '@service-storage/generated/schemas/listFavoritesParams';
 import type { ReorderFavoritesResult } from '@service-storage/graphql-favorites';
 import { useMutation, useQuery } from '@tanstack/solid-query';
 import type { Accessor } from 'solid-js';
@@ -70,20 +71,43 @@ export function favoriteEntityKey(
   return `${entityType}:${entityId}`;
 }
 
-/** The user's favorites from the transport selected at hook creation. */
-export function useFavoritesQuery() {
-  if (isFeatureEnabled(enableGraphqlSoup)) {
+type FavoritesQueryOptions = {
+  enabled?: Accessor<boolean>;
+};
+
+export function useFavoritesQuery(
+  params: ListFavoritesParams,
+  options?: FavoritesQueryOptions
+): ReturnType<typeof createRestFavoritesQuery>;
+export function useFavoritesQuery():
+  | ReturnType<typeof createGraphqlFavoritesQuery>
+  | ReturnType<typeof createRestFavoritesQuery>;
+/** The user's favorites, optionally filtered by the REST API. */
+export function useFavoritesQuery(
+  params?: ListFavoritesParams,
+  options?: FavoritesQueryOptions
+) {
+  if (params === undefined && isFeatureEnabled(enableGraphqlSoup)) {
     return createGraphqlFavoritesQuery();
   }
 
-  return createRestFavoritesQuery();
+  return createRestFavoritesQuery(params, options);
 }
 
-function createRestFavoritesQuery() {
+function createRestFavoritesQuery(
+  params?: ListFavoritesParams,
+  options?: FavoritesQueryOptions
+) {
   return useQuery(() => ({
-    queryKey: favoriteKeys.list.queryKey,
+    queryKey:
+      params === undefined
+        ? favoriteKeys.list.queryKey
+        : favoriteKeys.filtered(params).queryKey,
     queryFn: async () =>
-      await throwOnErr(() => storageServiceClient.favorites.getFavorites()),
+      await throwOnErr(() =>
+        storageServiceClient.favorites.getFavorites(params)
+      ),
+    enabled: options?.enabled?.() ?? true,
     staleTime: 60_000,
   }));
 }
@@ -117,13 +141,17 @@ function writeList(update: (prev: FavoritesList) => FavoritesList) {
   );
 }
 
-export function invalidateFavorites() {
+export async function invalidateFavorites() {
   if (isFeatureEnabled(enableGraphqlSoup)) {
-    return refreshActiveGraphqlFavoritesQueries();
+    await refreshActiveGraphqlFavoritesQueries();
+  } else {
+    await queryClient.invalidateQueries({
+      queryKey: favoriteKeys.list.queryKey,
+    });
   }
 
-  return queryClient.invalidateQueries({
-    queryKey: favoriteKeys.list.queryKey,
+  await queryClient.invalidateQueries({
+    queryKey: favoriteKeys.filtered._def,
   });
 }
 

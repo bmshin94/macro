@@ -1,13 +1,12 @@
 import type { ListController } from '@app/components/list';
 import { createAssertedContextProvider } from '@core/context/createContext';
-import type { ChannelEntity } from '@entity';
 import type { ContextProviderProps } from '@solid-primitives/context';
 import type { Accessor } from 'solid-js';
 import type { VirtualizerHandle } from 'virtua/solid';
-import type { ChannelsSources } from '../../queries';
+import type { ChannelsSourceItem, ChannelsSources } from '../../queries';
 import type {
   ChannelsGroup,
-  ChannelsQueryScope,
+  ChannelsRailScope,
   ChannelsTab,
 } from '../../types';
 import type { useChannelRailActivity } from './hooks/useChannelRailActivity';
@@ -22,15 +21,20 @@ export type ChannelRailRow =
     }
   | {
       kind: 'conversation';
-      id: `channel:${string}`;
+      id: `channel:${string}` | `channel:favorites:${string}`;
       group?: ChannelsGroup;
-      scope: ChannelsQueryScope;
+      scope: ChannelsRailScope;
       localIndex: number;
-      channel: ChannelEntity;
+      sourceItem: ChannelsSourceItem;
     };
 
-export const rowKeyForChannel = (channelId: string) =>
-  `channel:${channelId}` as const;
+export const rowKeyForChannel = (
+  channelId: string,
+  group?: ChannelsGroup
+): `channel:${string}` | `channel:favorites:${string}` =>
+  group === 'favorites'
+    ? (`channel:favorites:${channelId}` as const)
+    : (`channel:${channelId}` as const);
 
 export const rowKeyForSection = (group: ChannelsGroup) =>
   `section:${group}` as const;
@@ -51,7 +55,7 @@ export type ChannelsRailContext = {
   activateRow: (rowId: ChannelRailRow['id']) => void;
   registerScrollRef: (group: ChannelsGroup, element: HTMLDivElement) => void;
   registerVirtualizer: (
-    scope: ChannelsQueryScope,
+    scope: ChannelsRailScope,
     handle: VirtualizerHandle
   ) => () => void;
   channelActivity: ChannelRailActivity;

@@ -63,7 +63,10 @@ export function ChannelRailItemContextMenu(
   const rail = useChannelsRail();
   const actionList = toEntityActionListState({
     controller: rail.list,
-    getEntity: (row) => (row.kind === 'conversation' ? row.channel : undefined),
+    getEntity: (row) =>
+      row.kind === 'conversation' && row.sourceItem.kind === 'channel'
+        ? row.sourceItem.channel
+        : undefined,
   });
 
   return (

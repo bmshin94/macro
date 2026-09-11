@@ -20,7 +20,7 @@ import {
   CHANNELS_NARROW_RAIL_WIDTH,
 } from './constants';
 import {
-  deduplicateChannels,
+  deduplicateChannelItems,
   resolveSelectedChannel,
   useChannelByIdQuery,
   useChannelsSources,
@@ -69,15 +69,15 @@ function ChannelsViewRoot() {
         ? state.tab === 'recents'
         : state.tab === 'browse'
   );
-  const loadedChannels = createMemo(() =>
-    deduplicateChannels([
+  const loadedChannelItems = createMemo(() =>
+    deduplicateChannelItems([
       sources.channels.items(),
       sources.direct_messages.items(),
       sources.recents.items(),
     ])
   );
   const loadedSelectedChannel = createMemo(() =>
-    resolveSelectedChannel(state.selectedChannelId, loadedChannels())
+    resolveSelectedChannel(state.selectedChannelId, loadedChannelItems())
   );
   const selectedChannelQuery = useChannelByIdQuery(
     () => state.selectedChannelId,
@@ -95,7 +95,7 @@ function ChannelsViewRoot() {
 
     return resolveSelectedChannel(
       state.selectedChannelId,
-      loadedChannels(),
+      loadedChannelItems(),
       selectedChannelQuery.data?.entities
     );
   });

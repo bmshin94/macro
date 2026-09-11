@@ -62,6 +62,7 @@ import {
   favoriteEntityType,
   useAddFavoriteMutation,
   useFavoritesData,
+  useFavoritesQuery,
   useRemoveFavoriteMutation,
   useReorderFavoritesMutation,
 } from './favorites';
@@ -165,6 +166,29 @@ describe('favorites transport', () => {
     });
     const favoritesData = renderHook(() => useFavoritesData());
     expect(favoritesData()?.favorites).toHaveLength(1);
+  });
+
+  it('requests only channel favorites for the channels rail', async () => {
+    mocks.getFavoritesRest.mockResolvedValue(
+      ok({
+        favorites: [
+          {
+            ...favorite('channel-1', 0),
+            entityType: 'channel',
+          },
+        ],
+      })
+    );
+    const query = renderHook(() =>
+      useFavoritesQuery({ entityType: ['channel'] })
+    );
+
+    await vi.waitFor(() => expect(query.isSuccess).toBe(true));
+
+    expect(mocks.getFavoritesRest).toHaveBeenCalledWith({
+      entityType: ['channel'],
+    });
+    expect(mocks.createGraphqlFavoritesQuery).not.toHaveBeenCalled();
   });
 
   it('does not suspend while REST favorites are pending', () => {

@@ -4,11 +4,16 @@ import type { ChannelEntity } from '@entity';
 import { notificationIsRead } from '@entity/utils/notification';
 import { type Accessor, createEffect, createMemo, onCleanup } from 'solid-js';
 import { createStore } from 'solid-js/store';
+import type { ChannelSourceItem } from '../../../queries';
 import type { ChannelsGroup } from '../../../types';
 import { channelGroup } from '../../../utils';
 import type { useChannelCalls } from './useChannelCalls';
 
-const CHANNEL_GROUPS: ChannelsGroup[] = ['channels', 'direct_messages'];
+const CHANNEL_GROUPS: ChannelsGroup[] = [
+  'favorites',
+  'channels',
+  'direct_messages',
+];
 
 type ChannelActivityTarget = {
   channelId: string;
@@ -22,7 +27,7 @@ type ChannelActivityTarget = {
 };
 
 export function useChannelRailActivity(
-  channels: Accessor<readonly ChannelEntity[]>,
+  items: Accessor<readonly ChannelSourceItem[]>,
   calls: ReturnType<typeof useChannelCalls>
 ) {
   const notificationSource = useGlobalNotificationSource();
@@ -33,7 +38,7 @@ export function useChannelRailActivity(
     createStore<Record<string, boolean>>({});
 
   const channelsById = createMemo(
-    () => new Map(channels().map((channel) => [channel.id, channel]))
+    () => new Map(items().map((item) => [item.channelId, item.channel]))
   );
 
   const callStatusesByCallId = createMemo(
@@ -44,6 +49,7 @@ export function useChannelRailActivity(
   const notificationActivity = createMemo(() => {
     const unreadChannelIds = new Set<string>();
     const unreadCounts: Record<ChannelsGroup, number> = {
+      favorites: 0,
       channels: 0,
       direct_messages: 0,
     };
@@ -128,7 +134,8 @@ export function useChannelRailActivity(
   createEffect(() => {
     const nextMessageTimes = new Map<string, DateValue | undefined>();
 
-    for (const channel of channels()) {
+    for (const item of items()) {
+      const { channel } = item;
       const nextMessageTime = channel.latestRootMessage?.createdAt;
       nextMessageTimes.set(channel.id, nextMessageTime);
 

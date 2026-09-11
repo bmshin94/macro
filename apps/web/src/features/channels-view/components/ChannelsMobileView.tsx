@@ -24,8 +24,8 @@ import {
 } from 'solid-js';
 import { Virtualizer, type VirtualizerHandle } from 'virtua/solid';
 import { useChannelsView } from '../channels-view-context';
-import type { ChannelsDataSource } from '../queries';
-import type { ChannelsQueryScope } from '../types';
+import type { ChannelSourceItem, ChannelsDataSource } from '../queries';
+import type { ChannelsMobileTab } from '../types';
 import { channelMentionsUser } from '../utils';
 import { ChannelsEmptyState } from './ChannelsEmptyState';
 import {
@@ -35,7 +35,7 @@ import {
 import { useChannelCalls } from './rail/hooks/useChannelCalls';
 import { useChannelRailActivity } from './rail/hooks/useChannelRailActivity';
 
-const MOBILE_CHANNEL_TABS: PillTabItem<ChannelsQueryScope>[] = [
+const MOBILE_CHANNEL_TABS: PillTabItem<ChannelsMobileTab>[] = [
   { value: 'recents', label: 'Recents' },
   { value: 'channels', label: 'Channels' },
   { value: 'direct_messages', label: 'DMs' },
@@ -48,9 +48,9 @@ const MOBILE_CHANNEL_BUFFER_SIZE = MOBILE_CHANNEL_ITEM_SIZE * 6;
 const LOAD_MORE_THRESHOLD = 300;
 
 export function ChannelsMobileView(props: {
-  source: ChannelsDataSource;
-  tab: ChannelsQueryScope;
-  onTabChange: (tab: ChannelsQueryScope) => void;
+  source: ChannelsDataSource<ChannelSourceItem>;
+  tab: ChannelsMobileTab;
+  onTabChange: (tab: ChannelsMobileTab) => void;
 }) {
   const panel = useSplitPanelOrThrow();
   const notificationSource = useGlobalNotificationSource();
@@ -65,19 +65,19 @@ export function ChannelsMobileView(props: {
   );
   const listId = createUniqueId();
   const channelCalls = useChannelCalls();
-  const visibleChannels = createMemo(() => props.source.items());
-  const channelActivity = useChannelRailActivity(visibleChannels, channelCalls);
+  const visibleItems = createMemo(() => props.source.items());
+  const channelActivity = useChannelRailActivity(visibleItems, channelCalls);
   const actionController = createListController({
-    items: visibleChannels,
-    getKey: (channel) => channel.id,
+    items: visibleItems,
+    getKey: (item) => item.channelId,
     isSelectable: () => false,
   });
   const actionList = toEntityActionListState({
     controller: actionController,
-    getEntity: (channel) => channel,
+    getEntity: (item) => item.channel,
   });
 
-  const selectTab = (tab: ChannelsQueryScope) => {
+  const selectTab = (tab: ChannelsMobileTab) => {
     props.onTabChange(tab);
     viewport()?.scrollTo({ top: 0 });
   };
@@ -163,7 +163,7 @@ export function ChannelsMobileView(props: {
               when={
                 !forceEmptyState() &&
                 props.source.error() &&
-                visibleChannels().length === 0
+                visibleItems().length === 0
               }
             >
               <div class="flex min-h-32 flex-col items-center justify-center gap-3 px-(--mobile-chrome-gutter) text-sm text-ink-muted">
@@ -177,63 +177,66 @@ export function ChannelsMobileView(props: {
                 </Button>
               </div>
             </Match>
-            <Match when={forceEmptyState() || visibleChannels().length === 0}>
+            <Match when={forceEmptyState() || visibleItems().length === 0}>
               <ChannelsEmptyState scope={props.tab} />
             </Match>
             <Match when={true}>
               <Virtualizer
                 ref={(handle) => setVirtualizer(handle)}
-                data={visibleChannels()}
+                data={visibleItems()}
                 scrollRef={viewport()}
                 startMargin={topInset()}
                 itemSize={MOBILE_CHANNEL_ITEM_SIZE}
                 bufferSize={MOBILE_CHANNEL_BUFFER_SIZE}
                 onScroll={checkNearEnd}
               >
-                {(channel) => (
-                  <SoupEntityContextMenu
-                    entity={channel}
-                    list={actionList}
-                    selectedEntities={() => []}
-                    viewContext={CHANNEL_ACTION_VIEW_CONTEXT}
-                    class="block w-full"
-                    onOpenChange={(open) => {
-                      if (!open) return;
-                      actionController.focus.set(channel.id, {
-                        reason: 'pointer',
-                        force: true,
-                      });
-                    }}
-                  >
-                    <ConversationCard
-                      id={`${listId}-channel:${channel.id}`}
-                      class="border-b border-edge-muted/50 px-(--mobile-chrome-gutter) touch:pl-6"
-                      channel={channel}
-                      showLatestMessage={props.tab === 'recents'}
-                      senderId={channel.latestRootMessage?.senderId}
-                      mentionedCurrentUser={channelMentionsUser(
-                        channel,
-                        currentUserId()
-                      )}
-                      unread={channelActivity
-                        .unreadChannelIds()
-                        .has(channel.id)}
-                      muted={isMutedItem(notificationSource.mutedEntities(), {
-                        item_id: channel.id,
-                        item_type: 'channel',
-                      })}
-                      callStatus={channelActivity
-                        .callStatuses()
-                        .get(channel.id)}
-                      incomingCallId={channelActivity
-                        .incomingCallIds()
-                        .get(channel.id)}
-                      selected={state.selectedChannelId === channel.id}
-                      focused={false}
-                      onActivate={() => openChannel(channel)}
-                    />
-                  </SoupEntityContextMenu>
-                )}
+                {(item) => {
+                  const channel = item.channel;
+                  return (
+                    <SoupEntityContextMenu
+                      entity={channel}
+                      list={actionList}
+                      selectedEntities={() => []}
+                      viewContext={CHANNEL_ACTION_VIEW_CONTEXT}
+                      class="block w-full"
+                      onOpenChange={(open) => {
+                        if (!open) return;
+                        actionController.focus.set(item.channelId, {
+                          reason: 'pointer',
+                          force: true,
+                        });
+                      }}
+                    >
+                      <ConversationCard
+                        id={`${listId}-channel:${item.channelId}`}
+                        class="border-b border-edge-muted/50 px-(--mobile-chrome-gutter) touch:pl-6"
+                        channel={channel}
+                        showLatestMessage={props.tab === 'recents'}
+                        senderId={channel.latestRootMessage?.senderId}
+                        mentionedCurrentUser={channelMentionsUser(
+                          channel,
+                          currentUserId()
+                        )}
+                        unread={channelActivity
+                          .unreadChannelIds()
+                          .has(item.channelId)}
+                        muted={isMutedItem(notificationSource.mutedEntities(), {
+                          item_id: item.channelId,
+                          item_type: 'channel',
+                        })}
+                        callStatus={channelActivity
+                          .callStatuses()
+                          .get(item.channelId)}
+                        incomingCallId={channelActivity
+                          .incomingCallIds()
+                          .get(item.channelId)}
+                        selected={state.selectedChannelId === item.channelId}
+                        focused={false}
+                        onActivate={() => openChannel(channel)}
+                      />
+                    </SoupEntityContextMenu>
+                  );
+                }}
               </Virtualizer>
               <Show when={props.source.isLoadingMore()}>
                 <div class="flex h-12 items-center justify-center text-ink-muted">
@@ -247,7 +250,7 @@ export function ChannelsMobileView(props: {
                 when={
                   props.source.error() &&
                   !props.source.isLoadingMore() &&
-                  visibleChannels().length > 0
+                  visibleItems().length > 0
                 }
               >
                 <div class="flex items-center justify-center gap-2 py-3 text-xs text-ink-muted">

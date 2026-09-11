@@ -1,15 +1,19 @@
 import { ViewSidebar } from '@app/components/view-shell';
 import { runCreateAction } from '@app/features/command/Launcher';
+import { FavoriteIcon } from '@app/features/favorites/FavoriteIcon';
 import { DEBUG_SETTING_KEYS, useDebugSetting } from '@app/lib/debugSettings';
+import { useFavoriteDisplayName } from '@app/util/favorites';
 import { openNewChannelModal } from '@channel/CreateChannelModal';
 import { SplitPanel } from '@components/app/split-panel';
 import { useUserId } from '@core/context/user';
 import { isTouchDevice } from '@core/mobile/isTouchDevice';
 import type { ChannelEntity } from '@entity';
 import CaretDownIcon from '@phosphor/caret-down.svg';
+import type { Favorite } from '@service-storage/generated/schemas/favorite';
 import { cn, Hotkey, Tabs } from '@ui';
 import { createSignal, For, Match, Show, Switch } from 'solid-js';
 import { Virtualizer } from 'virtua/solid';
+import type { ChannelsSourceItem } from '../../queries';
 import type { ChannelsGroup } from '../../types';
 import { channelMentionsUser, isDirectMessage } from '../../utils';
 import { ChannelsEmptyState } from '../ChannelsEmptyState';
@@ -52,11 +56,16 @@ type GroupConfig = {
   group: ChannelsGroup;
   label: string;
   emptyLabel: string;
-  createLabel: string;
-  onCreate: () => void;
+  createLabel?: string;
+  onCreate?: () => void;
 };
 
 const GROUPS: GroupConfig[] = [
+  {
+    group: 'favorites',
+    label: 'Favorites',
+    emptyLabel: 'No favorite channels',
+  },
   {
     group: 'channels',
     label: 'Channels',
@@ -73,9 +82,15 @@ const GROUPS: GroupConfig[] = [
   },
 ];
 
-function ChannelOption(props: { channel: ChannelEntity }) {
+function ChannelOption(props: {
+  channel: ChannelEntity;
+  group: ChannelsGroup;
+}) {
   const rail = useChannelsRail();
-  const item = useChannelRailItemState(() => props.channel.id);
+  const item = useChannelRailItemState(
+    () => props.channel.id,
+    () => props.group
+  );
 
   return (
     <ChannelRailItemContextMenu channel={props.channel} class="block w-full">
@@ -100,7 +115,7 @@ function ChannelOption(props: { channel: ChannelEntity }) {
         aria-current={item().selected ? 'page' : undefined}
         onMouseDown={(event) => {
           if (!isPrimaryMouseDown(event)) return;
-          rail.activateRow(rowKeyForChannel(props.channel.id));
+          rail.activateRow(rowKeyForChannel(props.channel.id, props.group));
         }}
       >
         <ChannelAvatar channel={props.channel} />
@@ -123,6 +138,64 @@ function ChannelOption(props: { channel: ChannelEntity }) {
         </Show>
       </div>
     </ChannelRailItemContextMenu>
+  );
+}
+
+function FavoriteChannelOption(props: { favorite: Favorite }) {
+  const rail = useChannelsRail();
+  const displayName = useFavoriteDisplayName(props.favorite);
+  const item = useChannelRailItemState(
+    () => props.favorite.entityId,
+    () => 'favorites'
+  );
+
+  return (
+    <div
+      id={item().domId}
+      role="treeitem"
+      tabIndex={-1}
+      class={cn(
+        'relative flex h-8 w-full min-w-0 items-center gap-2 rounded-xl px-2 text-left outline-none',
+        item().selected && !isTouchDevice() && 'bg-active text-ink',
+        (!item().selected || isTouchDevice()) && 'text-ink-muted',
+        !item().selected &&
+          !isTouchDevice() &&
+          item().focused &&
+          'bg-hover text-ink',
+        !item().selected &&
+          !isTouchDevice() &&
+          !item().focused &&
+          'hover:bg-hover hover:text-ink'
+      )}
+      aria-current={item().selected ? 'page' : undefined}
+      onMouseDown={(event) => {
+        if (!isPrimaryMouseDown(event)) return;
+        rail.activateRow(
+          rowKeyForChannel(props.favorite.entityId, 'favorites')
+        );
+      }}
+    >
+      <span class="grid size-6 shrink-0 place-items-center">
+        <FavoriteIcon favorite={props.favorite} />
+      </span>
+      <span class="min-w-0 flex-1 truncate text-sm font-medium">
+        {displayName()}
+      </span>
+      <ChannelMutedIndicator muted={item().muted} />
+      <ChannelCallIndicator
+        status={item().incomingCallId ? undefined : item().callStatus}
+      />
+      <IncomingCallActions
+        callId={item().incomingCallId}
+        channelId={props.favorite.entityId}
+      />
+      <Show when={item().unread}>
+        <span
+          aria-label="Unread"
+          class="size-2 shrink-0 rounded-full bg-accent"
+        />
+      </Show>
+    </div>
   );
 }
 
@@ -166,6 +239,7 @@ function ExpandedGroupSection(props: { config: GroupConfig }) {
   const { state: section, clearVisibleActivity } = useChannelRailSectionState(
     () => props.config.group
   );
+  const items = (): readonly ChannelsSourceItem[] => section().items;
   const pagination = useChannelRailVirtualizer(() => props.config.group);
   const registerScrollRef = (element: HTMLDivElement) => {
     setScrollRoot(element);
@@ -207,12 +281,14 @@ function ExpandedGroupSection(props: { config: GroupConfig }) {
             </span>
           </Show>
         </button>
-        <div data-section-action="" class="pr-1">
-          <CreateRailAction
-            label={props.config.createLabel}
-            onClick={props.config.onCreate}
-          />
-        </div>
+        <Show when={props.config.onCreate && props.config.createLabel}>
+          <div data-section-action="" class="pr-1">
+            <CreateRailAction
+              label={props.config.createLabel ?? ''}
+              onClick={props.config.onCreate!}
+            />
+          </div>
+        </Show>
       </CollapsibleSection.Header>
       <CollapsibleSection.Content
         open={section().open}
@@ -223,32 +299,48 @@ function ExpandedGroupSection(props: { config: GroupConfig }) {
         onActivityVisible={clearVisibleActivity}
       >
         <Switch>
-          <Match
-            when={section().source.isLoading() && section().items.length === 0}
-          >
+          <Match when={section().source.isLoading() && items().length === 0}>
             <RailListLoading />
           </Match>
-          <Match
-            when={section().source.error() && section().items.length === 0}
-          >
+          <Match when={section().source.error() && items().length === 0}>
             <RailListError retry={section().source.refresh} />
           </Match>
-          <Match when={section().items.length > 0}>
-            <Virtualizer
-              ref={pagination.registerVirtualizer}
-              data={section().items}
-              scrollRef={scrollRoot()}
-              itemSize={props.config.group === 'channels' ? 34 : 42}
-              bufferSize={240}
-              keepMounted={section().keepMounted}
-              onScroll={pagination.loadMoreNearEnd}
+          <Match when={items().length > 0}>
+            <Show
+              when={props.config.group === 'favorites'}
+              fallback={
+                <Virtualizer
+                  ref={pagination.registerVirtualizer}
+                  data={items()}
+                  scrollRef={scrollRoot()}
+                  itemSize={props.config.group === 'channels' ? 34 : 42}
+                  bufferSize={240}
+                  keepMounted={section().keepMounted}
+                  onScroll={pagination.loadMoreNearEnd}
+                >
+                  {(item) =>
+                    item.kind === 'channel' ? (
+                      <div class="pb-0.5">
+                        <ChannelOption
+                          channel={item.channel}
+                          group={props.config.group}
+                        />
+                      </div>
+                    ) : null
+                  }
+                </Virtualizer>
+              }
             >
-              {(channel) => (
-                <div class="pb-0.5">
-                  <ChannelOption channel={channel} />
-                </div>
-              )}
-            </Virtualizer>
+              <For each={items()}>
+                {(item) =>
+                  item.kind === 'favorite' ? (
+                    <div class="pb-0.5">
+                      <FavoriteChannelOption favorite={item.favorite} />
+                    </div>
+                  ) : null
+                }
+              </For>
+            </Show>
             <Show when={section().source.isLoadingMore()}>
               <RailListLoadingMore variant="channel" />
             </Show>
@@ -277,11 +369,14 @@ function ExpandedBrowse() {
     DEBUG_SETTING_KEYS.FORCE_EMPTY_STATES
   );
   const hasItems = () =>
+    rail.sources.favorites.items().length > 0 ||
     rail.sources.channels.items().length > 0 ||
     rail.sources.direct_messages.items().length > 0;
   const sourcesSettled = () =>
+    !rail.sources.favorites.isLoading() &&
     !rail.sources.channels.isLoading() &&
     !rail.sources.direct_messages.isLoading() &&
+    !rail.sources.favorites.error() &&
     !rail.sources.channels.error() &&
     !rail.sources.direct_messages.error();
 
@@ -375,7 +470,7 @@ function ExpandedRecents() {
             keepMounted={scope().keepMounted}
             onScroll={pagination.loadMoreNearEnd}
           >
-            {(channel) => <RecentConversationCard channel={channel} />}
+            {(item) => <RecentConversationCard channel={item.channel} />}
           </Virtualizer>
           <Show when={scope().source.isLoadingMore()}>
             <RailListLoadingMore variant="recent" />

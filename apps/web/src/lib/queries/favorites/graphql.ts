@@ -26,6 +26,8 @@ import {
 import { getGraphqlSoupClient } from '@service-storage/graphql-soup';
 import type { AnyVariables, Client, OperationResult } from '@urql/core';
 import { onCleanup } from 'solid-js';
+import { queryClient } from '../client';
+import { favoriteKeys } from './keys';
 import type { FavoriteMutationCallbacks } from './mutation';
 
 type GraphqlReorderFavoritesArgs = { favorites: SetFavoriteArgs[] };
@@ -127,7 +129,12 @@ function createFavoriteMutation<
     onMutate: callbacks.onMutate,
     onSuccess: async (_data, input, context, result) => {
       if (optimisticMutationDispositionOf(result)?.kind !== 'queued') {
-        await refreshActiveGraphqlFavoritesQueries();
+        await Promise.all([
+          refreshActiveGraphqlFavoritesQueries(),
+          queryClient.invalidateQueries({
+            queryKey: favoriteKeys.filtered._def,
+          }),
+        ]);
       }
       await callbacks.onSuccess?.(select(result), input, context);
     },

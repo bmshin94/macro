@@ -76,7 +76,7 @@ const SLIM_CHANNEL_TABS = [
 ];
 
 type GroupConfig = {
-  group: ChannelsGroup;
+  group: Exclude<ChannelsGroup, 'favorites'>;
   label: string;
   icon: Component;
 };
@@ -270,6 +270,7 @@ function SlimGroupSection(props: { config: GroupConfig }) {
   const { state: section, clearVisibleActivity } = useChannelRailSectionState(
     () => props.config.group
   );
+  const items = () => rail.sources[props.config.group].items();
   const pagination = useChannelRailVirtualizer(() => props.config.group);
   const registerScrollRef = (element: HTMLDivElement) => {
     setScrollRoot(element);
@@ -321,29 +322,25 @@ function SlimGroupSection(props: { config: GroupConfig }) {
       >
         <Switch>
           <Match when={forceEmptyState()}>{null}</Match>
-          <Match
-            when={section().source.isLoading() && section().items.length === 0}
-          >
+          <Match when={section().source.isLoading() && items().length === 0}>
             <RailListLoading />
           </Match>
-          <Match
-            when={section().source.error() && section().items.length === 0}
-          >
+          <Match when={section().source.error() && items().length === 0}>
             <SlimListError retry={section().source.refresh} />
           </Match>
-          <Match when={section().items.length > 0}>
+          <Match when={items().length > 0}>
             <Virtualizer
               ref={pagination.registerVirtualizer}
-              data={section().items}
+              data={items()}
               scrollRef={scrollRoot()}
               itemSize={42}
               bufferSize={240}
               keepMounted={section().keepMounted}
               onScroll={pagination.loadMoreNearEnd}
             >
-              {(channel) => (
+              {(item) => (
                 <div class="flex justify-center pb-0.5">
-                  <SlimChannelItem channel={channel} />
+                  <SlimChannelItem channel={item.channel} />
                 </div>
               )}
             </Virtualizer>
@@ -406,9 +403,9 @@ function SlimRecents() {
             keepMounted={scope().keepMounted}
             onScroll={pagination.loadMoreNearEnd}
           >
-            {(channel) => (
+            {(item) => (
               <div class="flex justify-center pb-0.5">
-                <SlimChannelItem channel={channel} />
+                <SlimChannelItem channel={item.channel} />
               </div>
             )}
           </Virtualizer>
