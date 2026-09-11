@@ -253,6 +253,7 @@ dependencies = [
  "cursor_cloud_agents",
  "dashmap",
  "entity_access",
+ "entity_access_db_utils",
  "futures",
  "harness_id",
  "kafka_util",
@@ -264,7 +265,10 @@ dependencies = [
  "macro_user_id",
  "macro_uuid",
  "mockall",
+ "model-entity",
+ "model_notifications",
  "model_user",
+ "notification",
  "opentelemetry",
  "pipedream_mcp",
  "redis",
@@ -10709,6 +10713,20 @@ dependencies = [
  "strum 0.27.2",
  "tracing",
  "utoipa",
+ "uuid",
+ "workspace-hack",
+]
+
+[[package]]
+name = "model_owner"
+version = "0.1.0"
+dependencies = [
+ "bot_id",
+ "macro_user_id",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.18",
  "uuid",
  "workspace-hack",
 ]

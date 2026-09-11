@@ -115,7 +115,11 @@ plus `Submit` / `Decline` / `Cancel`; a link request shows the target host and U
 `Open` button that only opens a new tab after you click it. Once answered the card collapses
 to `Question · <text>` with `Answered` / `Declined` / `Cancelled` on the right and the agent
 continues. Messages typed while a question is open queue behind it; the composer's `Stop`
-square cancels the question and the turn.
+square cancels the question and the turn. Anyone with edit access to the session may
+answer; viewers see the form locked with `Waiting for an editor`. The owner and everyone
+who has prompted or answered the session also receive an `agent_session_waiting_for_input`
+notification (inbox, browser, and iOS push) when the question is asked; it stays until
+marked done.
 
 ## In channels
 
@@ -132,6 +136,9 @@ Create-menu `triggerFocusInput` as chat, so the keyboard opens. Type `@` to inse
 used in chat and channels; they serialize as `<m-document-mention>` tags in the prompt
 the agent sees. Agent replies that emit those tags render as clickable chips in the
 transcript (and in the originating channel thread).
+`@mention` a person in a prompt and, if you can edit the session, they are granted edit
+access and get an `agent_session_mentioned` notification that opens the session; a viewer's
+mention only notifies people who could already open it.
 
 On mobile the composer (and any queued prompts above it) floats in the bottom
 accessory region above the dock — same placement as channel and AI chat — so it
@@ -159,6 +166,18 @@ level selector. Cancel closes the composer without sending.
 Other participants can copy a link for people who already have access, but
 cannot grant access. Copying a link alone never changes permissions. New,
 unsaved session drafts do not offer sharing.
+
+Agent sessions in the `@` menu use the shared Quick Access feed, loaded when the app opens. Search matches session titles and persona names. The initial feed covers the 500 most recently updated accessible sessions; it does not load transcripts.
+
+### Expanded session mentions
+
+Hover an accessible inline `@` session mention in an editable document or
+composer and choose **Convert to Card View**. The card is the same Magic Chip used
+for agent responses and follows the session's latest turn as it streams. Use
+**Collapse to mention** in its header to restore the compact underlined title.
+The display choice survives reload and copying; expansion still references the
+same session and does not invoke a bot. Compact mentions do not load transcripts.
+Existing announcement chips remain locked to the turn they announced.
 
 ### Transcript navigation
 
