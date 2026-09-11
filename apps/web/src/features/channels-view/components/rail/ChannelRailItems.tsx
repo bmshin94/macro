@@ -11,10 +11,12 @@ import { useUserId } from '@core/context/user';
 import { isTouchDevice } from '@core/mobile/isTouchDevice';
 import { getDisplayName, tryMacroId } from '@core/user';
 import type { MacroId } from '@core/user/macroId';
+import { sentAttachmentSummary } from '@core/util/string';
 import { type ChannelEntity, Entity } from '@entity';
 import ReplyIcon from '@phosphor/arrow-bend-up-left.svg';
 import AtIcon from '@phosphor/at.svg';
 import BellSlashIcon from '@phosphor/bell-slash.svg';
+import PaperclipIcon from '@phosphor/paperclip.svg';
 import XIcon from '@phosphor/x.svg';
 import PhoneCallIcon from '@phosphor-fill/phone-call-fill.svg';
 import PhoneIncomingIcon from '@phosphor-fill/phone-incoming-fill.svg';
@@ -357,7 +359,17 @@ export function ConversationCard(props: ConversationCardProps) {
                       <span class="shrink-0 font-medium text-ink-muted">
                         <MessageSenderName id={props.senderId} />:
                       </span>
-                      <Show when={message().content.trim()}>
+                      <Show
+                        when={message().content.trim()}
+                        fallback={
+                          <span class="flex min-w-0 flex-1 items-center gap-1 text-ink-muted">
+                            <PaperclipIcon class="size-3 shrink-0" />
+                            <span class="truncate">
+                              {sentAttachmentSummary(1)}
+                            </span>
+                          </span>
+                        }
+                      >
                         {(content) => (
                           <div class="min-w-0 flex-1 truncate text-ink-muted [&_*]:my-0 [&_*]:truncate">
                             <StaticMarkdown markdown={content()} singleLine />

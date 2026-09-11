@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { formatOrdinal, isEmojiOnly } from './string';
+import { formatOrdinal, isEmojiOnly, sentAttachmentSummary } from './string';
+
+describe('sentAttachmentSummary', () => {
+  it.each([
+    [0, undefined],
+    [1, 'sent an attachment'],
+    [2, 'sent 2 attachments'],
+  ])('formats an attachment count of %d', (count, expected) => {
+    expect(sentAttachmentSummary(count)).toBe(expected);
+  });
+});
 
 describe('formatOrdinal', () => {
   it.each([

@@ -1,6 +1,7 @@
 import {
   SearchBar,
   useViewControlHotkeys,
+  useViewShell,
   ViewShell,
 } from '@app/components/view-shell';
 import { useSplitLayout } from '@components/app/split-layout/layout';
@@ -23,11 +24,34 @@ export type TasksHeaderProps = {
 };
 
 export function TasksTopBar() {
+  const shell = useViewShell();
   const { state } = useTasksView();
   const title = () =>
     TASK_TABS.find((tab) => tab.id === state.tab)?.label ?? 'Tasks';
 
-  return <ViewShell.TopBar>{title()}</ViewShell.TopBar>;
+  return (
+    <ViewShell.TopBar class="gap-3">
+      <Show
+        when={shell.aside.isCollapsed()}
+        fallback={
+          <h1 class="min-w-0 truncate text-sm font-semibold tracking-[-0.03em] text-ink">
+            {title()}
+          </h1>
+        }
+      >
+        <div class="flex min-w-0 flex-1 items-center gap-1">
+          <SplitPanel.CloseButton />
+          <h1 class="min-w-0 truncate text-sm font-semibold tracking-[-0.03em] text-ink">
+            Tasks
+          </h1>
+        </div>
+        <SplitPanel.ControlGroup>
+          <SplitPanel.BackButton />
+          <SplitPanel.ForwardButton />
+        </SplitPanel.ControlGroup>
+      </Show>
+    </ViewShell.TopBar>
+  );
 }
 
 export function TasksHeader(props: TasksHeaderProps) {
@@ -63,14 +87,6 @@ export function TasksHeader(props: TasksHeaderProps) {
         when={isTouchDevice()}
         fallback={
           <>
-            <div class="hidden items-center @max-[720px]/view-shell:flex">
-              <SplitPanel.ControlGroup>
-                <SplitPanel.CloseButton />
-                <SplitPanel.BackButton />
-                <SplitPanel.ForwardButton />
-              </SplitPanel.ControlGroup>
-            </div>
-
             <div class="hidden h-8 min-w-0 items-center gap-2 @max-[720px]/view-shell:flex">
               <Dropdown
                 open={navigationOpen()}

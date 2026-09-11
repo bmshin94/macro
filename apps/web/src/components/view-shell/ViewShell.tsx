@@ -353,9 +353,7 @@ function TopBar(props: JSX.HTMLAttributes<HTMLDivElement>) {
       )}
       data-view-shell-top-bar=""
     >
-      <h1 class="min-w-0 truncate text-sm font-semibold tracking-[-0.03em] text-ink">
-        {local.children}
-      </h1>
+      {local.children}
     </div>
   );
 }

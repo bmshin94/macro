@@ -16,7 +16,7 @@ import { isMacroAgentId } from '@core/constant/macroAgent';
 import { useUserId } from '@core/context/user';
 import { getDisplayName, tryMacroId } from '@core/user';
 import { formatRelativeDay } from '@core/util/dateParser';
-import { plural } from '@core/util/string';
+import { sentAttachmentSummary } from '@core/util/string';
 import {
   DraftBadge,
   type EntityData,
@@ -623,12 +623,6 @@ function CardClampedMarkdown(props: {
   );
 }
 
-/** Fallback shown in place of message text when a message is just attachments. */
-const attachmentSummary = (count: number): string | undefined =>
-  count <= 0
-    ? undefined
-    : `sent ${count === 1 ? 'an' : count} ${plural('attachment', count)}`;
-
 export function ChannelCardLayout(props: InboxCardLayoutProps) {
   const entity = createMemo(() => props.item.entity);
 
@@ -698,7 +692,7 @@ export function ChannelCardLayout(props: InboxCardLayoutProps) {
         action,
         location,
       }),
-      content: contentIsAttachmentSummary ? attachmentSummary(1) : content,
+      content: contentIsAttachmentSummary ? sentAttachmentSummary(1) : content,
       contentIsAttachmentSummary,
     };
   });
@@ -847,19 +841,19 @@ export function ChannelThreadCardLayout(props: InboxCardLayoutProps) {
         );
         // Empty channel messages must contain at least one attachment. The
         // preview gives us the exact count when that reply is included.
-        content = attachmentSummary(reply?.attachments.length || 1);
+        content = sentAttachmentSummary(reply?.attachments.length || 1);
         contentIsAttachmentSummary = true;
       }
       const original = props.item.entity.content.trim();
       context = original.length
         ? original
-        : attachmentSummary(rootAttachments.length);
+        : sentAttachmentSummary(rootAttachments.length);
       contextIsAttachmentSummary = !original.length && !!context;
     } else {
       // Root message: fall back to an attachment summary when it has no text.
       content = itemContent(props.item.entity, props.item.notification);
       if (!content?.trim()) {
-        const summary = attachmentSummary(rootAttachments.length);
+        const summary = sentAttachmentSummary(rootAttachments.length);
         content = summary ?? content;
         contentIsAttachmentSummary = !!summary;
       }

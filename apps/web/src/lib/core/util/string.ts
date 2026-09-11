@@ -54,6 +54,12 @@ export function plural(singular: string, length: number, suffix = 's') {
   return `${singular}${suffix}`;
 }
 
+/** Describes a message whose only content is one or more attachments. */
+export function sentAttachmentSummary(count: number): string | undefined {
+  if (count <= 0) return;
+  return `sent ${count === 1 ? 'an' : count} ${plural('attachment', count)}`;
+}
+
 /** Formats an integer as an English ordinal, such as `1st` or `23rd`. */
 export function formatOrdinal(value: number) {
   const integer = Math.trunc(value);

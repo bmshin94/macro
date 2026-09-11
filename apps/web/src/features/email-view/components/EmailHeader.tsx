@@ -1,6 +1,7 @@
 import {
   SearchBar,
   useViewControlHotkeys,
+  useViewShell,
   ViewShell,
 } from '@app/components/view-shell';
 import { useSplitPanelOrThrow } from '@components/app/split-layout/layoutUtils';
@@ -8,7 +9,7 @@ import { SplitPanel } from '@components/app/split-panel';
 import MenuIcon from '@phosphor/list.svg';
 import PlusIcon from '@phosphor/plus.svg';
 import { Button, Dropdown, pressHandlers } from '@ui';
-import { createSignal } from 'solid-js';
+import { createSignal, Show } from 'solid-js';
 import { composeEmail } from '../compose-email';
 import { EMAIL_TABS } from '../constants';
 import { useEmailView } from '../email-view-context';
@@ -22,11 +23,34 @@ export type EmailHeaderProps = {
 };
 
 export function EmailTopBar() {
+  const shell = useViewShell();
   const { state } = useEmailView();
   const title = () =>
     EMAIL_TABS.find((tab) => tab.id === state.tab)?.label ?? 'Email';
 
-  return <ViewShell.TopBar>{title()}</ViewShell.TopBar>;
+  return (
+    <ViewShell.TopBar class="gap-3">
+      <Show
+        when={shell.aside.isCollapsed()}
+        fallback={
+          <h1 class="min-w-0 truncate text-sm font-semibold tracking-[-0.03em] text-ink">
+            {title()}
+          </h1>
+        }
+      >
+        <div class="flex min-w-0 flex-1 items-center gap-1">
+          <SplitPanel.CloseButton />
+          <h1 class="min-w-0 truncate text-sm font-semibold tracking-[-0.03em] text-ink">
+            Email
+          </h1>
+        </div>
+        <SplitPanel.ControlGroup>
+          <SplitPanel.BackButton />
+          <SplitPanel.ForwardButton />
+        </SplitPanel.ControlGroup>
+      </Show>
+    </ViewShell.TopBar>
+  );
 }
 
 export function EmailHeader(props: EmailHeaderProps) {
@@ -35,6 +59,8 @@ export function EmailHeader(props: EmailHeaderProps) {
   const [navigationOpen, setNavigationOpen] = createSignal(false);
   const [filterOpen, setFilterOpen] = createSignal(false);
   let searchInput: HTMLInputElement | undefined;
+  const selectedTabLabel = () =>
+    EMAIL_TABS.find((tab) => tab.id === state.tab)?.label ?? 'Email';
 
   // The view's control hotkeys are registered once, here, for the split scope.
   useViewControlHotkeys({
@@ -59,14 +85,6 @@ export function EmailHeader(props: EmailHeaderProps) {
 
   return (
     <div class="flex min-w-0 flex-col">
-      <SplitPanel.ControlGroup class="hidden px-2 pb-2 @max-[720px]/view-shell:flex">
-        <SplitPanel.CloseButton />
-        <SplitPanel.BackButton />
-        <SplitPanel.ForwardButton />
-      </SplitPanel.ControlGroup>
-
-      {/* Sidebar stand-in while the aside is collapsed: the tab menu, the
-          inbox selector, and compose. */}
       <div class="mb-4 hidden min-w-0 items-center gap-2 @max-[720px]/view-shell:flex">
         <Dropdown
           open={navigationOpen()}
@@ -89,7 +107,7 @@ export function EmailHeader(props: EmailHeaderProps) {
           </Dropdown.Content>
         </Dropdown>
         <h1 class="min-w-0 truncate text-xl font-semibold tracking-[-0.03em] text-ink">
-          Email
+          {selectedTabLabel()}
         </h1>
         <div class="ml-auto flex shrink-0 items-center gap-2">
           <EmailInboxMenu />
