@@ -64,7 +64,7 @@ use agent_inmem::outbound::manager::InMemAgentManager;
 use agent_inmem::rig_engine::RigTurnEngine;
 use agent_runtime_directory::PgAgentRuntimeDirectory;
 use agent_session::domain::model::{AgentMcpServers, ReplicaId};
-use agent_session::domain::ports::{NoOpRealtime, SessionOwnership as _};
+use agent_session::domain::ports::{NoOpRealtime, SessionLocks as _};
 use agent_session::domain::service::AgentSessionServiceImpl;
 use agent_session::inbound::axum_router::{
     AgentSessionControlState, AgentSessionRouterState, CreateSessionState,
@@ -420,7 +420,6 @@ async fn run() -> anyhow::Result<()> {
             .context("CURSOR_REPO_URL is not a valid repository url")?,
         session_repo.clone(),
         pool.clone(),
-        replica,
         pending_commands.clone(),
     );
     // Fixed system agents retain their deployment defaults. User/team agents
