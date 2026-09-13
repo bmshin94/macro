@@ -85,17 +85,26 @@ function SectionScrollArea(props: {
 function CollapsibleSectionRoot(props: {
   open: boolean;
   fillAvailable?: boolean;
+  preventShrink?: boolean;
+  maxHeight?: string;
   class?: string;
   children: JSX.Element;
 }) {
   return (
     <section
+      style={{
+        'max-height':
+          props.open && !props.fillAvailable
+            ? (props.maxHeight ?? 'calc(50% - 0.375rem)')
+            : undefined,
+      }}
       class={cn(
         'flex min-h-0 flex-col gap-1',
         props.open && props.fillAvailable && 'flex-1',
-        props.open && !props.fillAvailable && 'shrink',
+        props.open && !props.fillAvailable && !props.preventShrink && 'shrink',
+        props.open && !props.fillAvailable && props.preventShrink && 'shrink-0',
         !props.open && 'shrink-0',
-        props.open && !props.fillAvailable && 'max-h-[calc(50%_-_0.375rem)]',
+        props.open && !props.fillAvailable && 'overflow-hidden',
         props.class
       )}
     >

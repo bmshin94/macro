@@ -56,6 +56,7 @@ type GroupConfig = {
   group: ChannelsGroup;
   label: string;
   emptyLabel: string;
+  maxHeight?: string;
   createLabel?: string;
   onCreate?: () => void;
 };
@@ -65,6 +66,7 @@ const GROUPS: GroupConfig[] = [
     group: 'favorites',
     label: 'Favorites',
     emptyLabel: 'No favorite channels',
+    maxHeight: 'calc(33.333% - 0.375rem)',
   },
   {
     group: 'channels',
@@ -250,6 +252,8 @@ function ExpandedGroupSection(props: { config: GroupConfig }) {
     <CollapsibleSection.Root
       open={section().open}
       fillAvailable={section().fillAvailable}
+      preventShrink={props.config.group === 'favorites'}
+      maxHeight={props.config.maxHeight}
     >
       <CollapsibleSection.Header
         focused={section().focused}
