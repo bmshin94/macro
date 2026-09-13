@@ -68,7 +68,6 @@ import type { Span } from '@macro-inc/observability';
 import BellSimpleIcon from '@phosphor/bell-simple.svg';
 import MagnifyingGlassIcon from '@phosphor/magnifying-glass.svg';
 import PlusIcon from '@phosphor/plus.svg';
-import Robot from '@phosphor/robot.svg';
 import { createProject } from '@queries/storage/projects';
 import { makePersisted } from '@solid-primitives/storage';
 import {
@@ -467,6 +466,7 @@ export const CREATABLE_BLOCKS: CreatableBlock[] = [
     icon: WideEmail,
     animatedIcon: AnimatedEmailIcon,
     description: 'Create email',
+    launcherHint: 'Write and send a new email',
     keywords: ['new', 'make', 'add', 'compose'],
     blockName: 'email',
     hotkeyToken: TOKENS.create.email,
@@ -517,7 +517,8 @@ export const CREATABLE_BLOCKS: CreatableBlock[] = [
   },
   {
     label: 'Agent',
-    icon: Robot,
+    icon: WideStar,
+    animatedIcon: AnimatedStarIcon,
     description: 'Create agent session',
     launcherHint: 'Dedicated Agent Session',
     keywords: ['new', 'make', 'add', 'agent', 'code', 'coder', 'session'],
@@ -551,6 +552,7 @@ export const CREATABLE_BLOCKS: CreatableBlock[] = [
     icon: WideFileMd,
     animatedIcon: AnimatedFileMdIcon,
     description: 'Create doc',
+    launcherHint: 'A page for notes and writing',
     keywords: ['new', 'make', 'add', 'document', 'note'],
     blockName: 'md',
     hotkeyToken: TOKENS.create.note,
@@ -566,6 +568,7 @@ export const CREATABLE_BLOCKS: CreatableBlock[] = [
     icon: WideTask,
     animatedIcon: AnimatedTaskIcon,
     description: 'Create task',
+    launcherHint: 'A to-do you can assign and track',
     keywords: ['new', 'make', 'add', 'todo'],
     blockName: 'task',
     hotkeyToken: TOKENS.create.task,
