@@ -249,6 +249,7 @@ Have an idea, want to contribute, or want to work on Macro?
 
 - Feature requests: [contact@macro.com](mailto:contact@macro.com)
 - Contributions: see our [contribution guidelines](CONTRIBUTING.md)
+- Docs: [docs.macro.com](https://docs.macro.com)
 - Hiring: [teo@macro.com](mailto:teo@macro.com)
 
 <br />
