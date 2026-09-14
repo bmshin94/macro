@@ -1,8 +1,62 @@
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::{Arc, Mutex},
+};
+
 use chrono::{DateTime, Utc};
+use model_entity::Entity;
 use models_opensearch::SearchEntityType;
 use opensearch_client::search::model::Highlight;
 
 use super::*;
+
+struct TestFavoritesReader {
+    requested: Arc<Mutex<Vec<Entity<'static>>>>,
+    favorited: HashSet<Entity<'static>>,
+}
+
+impl SearchFavoritesReader for TestFavoritesReader {
+    fn favorited_entities<'a>(
+        &'a self,
+        _user_id: &'a str,
+        entities: Vec<Entity<'static>>,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<HashSet<Entity<'static>>>> + Send + 'a>> {
+        self.requested.lock().unwrap().extend(entities);
+        Box::pin(async move { Ok(self.favorited.clone()) })
+    }
+}
+
+#[tokio::test]
+async fn resolves_favorited_channel_ids() {
+    let favorited_id = Uuid::new_v4();
+    let other_id = Uuid::new_v4();
+    let requested = Arc::new(Mutex::new(Vec::new()));
+    let reader = TestFavoritesReader {
+        requested: requested.clone(),
+        favorited: HashSet::from([
+            EntityType::Channel.with_entity_string(favorited_id.to_string()),
+            EntityType::Document.with_entity_string(Uuid::new_v4().to_string()),
+        ]),
+    };
+
+    let favorited =
+        favorited_channel_ids(&reader, "user-id", [favorited_id, other_id, favorited_id]).await;
+
+    assert_eq!(favorited, HashSet::from([favorited_id]));
+    assert_eq!(
+        requested
+            .lock()
+            .unwrap()
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>(),
+        HashSet::from([
+            EntityType::Channel.with_entity_string(favorited_id.to_string()),
+            EntityType::Channel.with_entity_string(other_id.to_string()),
+        ])
+    );
+}
 
 /// Build a message_states map that marks every content-match hit's
 /// channel_message_id as existing-and-active. Tests that want to exercise
