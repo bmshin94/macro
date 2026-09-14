@@ -1,10 +1,10 @@
-//! Model discovery over the existing Redis runtime bus.
+//! Capability discovery over the existing Redis runtime bus.
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use agent_harness::domain::capability_discovery::{
-    CapabilityProbeError, MacrodCapabilityProbe, RawCapabilityProbe,
+    CapabilityProbe, CapabilityProbeError, RawCapabilityProbe,
 };
 use agent_harness::inbound::runtime_gateway::GatewaySender;
 use agent_harness::outbound::forward::COMMAND_CHANNEL;
@@ -100,8 +100,11 @@ impl MacrodModels {
     }
 }
 
-impl MacrodCapabilityProbe for MacrodModels {
-    async fn probe(&self, harness: HarnessId) -> Result<RawCapabilityProbe, CapabilityProbeError> {
+impl CapabilityProbe for MacrodModels {
+    type Target = HarnessId;
+
+    async fn probe(&self, harness: &HarnessId) -> Result<RawCapabilityProbe, CapabilityProbeError> {
+        let harness = *harness;
         // Observe first, so even an immediate answer cannot be missed.
         // Concurrent callers for this harness may use the same fresh observation.
         let mut observations = self.observations.subscribe();

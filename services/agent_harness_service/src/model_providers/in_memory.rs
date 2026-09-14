@@ -1,9 +1,9 @@
-//! In-memory model discovery adapter.
+//! In-memory capability discovery adapter.
 
 use std::sync::Arc;
 
 use agent_harness::domain::capability_discovery::{
-    CapabilityProbeError, InMemoryCapabilityProbe, RawCapabilityProbe,
+    CapabilityProbe, CapabilityProbeError, RawCapabilityProbe,
 };
 use agent_inmem::domain::engine::TurnEngine;
 
@@ -20,8 +20,10 @@ impl InMemoryModels {
     }
 }
 
-impl InMemoryCapabilityProbe for InMemoryModels {
-    async fn probe(&self) -> Result<RawCapabilityProbe, CapabilityProbeError> {
+impl CapabilityProbe for InMemoryModels {
+    type Target = ();
+
+    async fn probe(&self, _target: &()) -> Result<RawCapabilityProbe, CapabilityProbeError> {
         let Some(engine) = &self.engine else {
             return Ok(RawCapabilityProbe::Unsupported);
         };

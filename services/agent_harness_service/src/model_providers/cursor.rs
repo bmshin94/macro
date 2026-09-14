@@ -1,7 +1,7 @@
-//! Cursor model discovery adapter.
+//! Cursor capability discovery adapter.
 
 use agent_harness::domain::capability_discovery::{
-    CapabilityProbeError, CursorCapabilityProbe, RawCapabilityProbe,
+    CapabilityProbe, CapabilityProbeError, RawCapabilityProbe,
 };
 use agent_harness::outbound::cursor::CursorApiKeys;
 use cursor_cloud_agents::api::{ApiKey, CursorClient, CursorConfig};
@@ -25,10 +25,12 @@ impl<Keys> CursorModels<Keys> {
     }
 }
 
-impl<Keys> CursorCapabilityProbe for CursorModels<Keys>
+impl<Keys> CapabilityProbe for CursorModels<Keys>
 where
     Keys: CursorApiKeys,
 {
+    type Target = MacroUserIdStr<'static>;
+
     async fn probe(
         &self,
         caller: &MacroUserIdStr<'static>,

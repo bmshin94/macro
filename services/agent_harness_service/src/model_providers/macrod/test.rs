@@ -84,7 +84,7 @@ async fn probe_through_bus(remote: bool) {
     owner.registry.attach(harness, carrier);
 
     let (result, ()) = tokio::time::timeout(Duration::from_secs(3), async {
-        tokio::join!(origin.models.probe(harness), async {
+        tokio::join!(origin.models.probe(&harness), async {
             assert!(matches!(
                 runtime.rx.recv().await.unwrap(),
                 ToRuntimeMessage::ModelProbeRequest
@@ -127,7 +127,7 @@ async fn remote_probe_errors_reach_the_waiting_replica() {
     let (carrier, mut runtime) = Channel::duplex();
     owner.registry.attach(harness, carrier);
     let (result, ()) = tokio::time::timeout(Duration::from_secs(3), async {
-        tokio::join!(origin.models.probe(harness), async {
+        tokio::join!(origin.models.probe(&harness), async {
             runtime.rx.recv().await.unwrap();
             runtime
                 .tx
@@ -149,7 +149,7 @@ async fn absent_owner_waits_for_caller_timeout_and_ignores_other_harness_results
     let origin = peer().await;
     let harness = harness_id();
     let result = tokio::time::timeout(Duration::from_millis(100), async {
-        tokio::join!(origin.models.probe(harness), async {
+        tokio::join!(origin.models.probe(&harness), async {
             origin
                 .models
                 .publish(ModelProbeEvent::ModelsProbed {
@@ -182,8 +182,8 @@ async fn concurrent_callers_can_observe_the_same_fresh_harness_result() {
     let harness = harness_id();
     // Use a controlled observation to exercise fanout independently of the
     // runtime's probe serialization.
-    let one = first.models.probe(harness);
-    let two = second.models.probe(harness);
+    let one = first.models.probe(&harness);
+    let two = second.models.probe(&harness);
     let (one, two, ()) = tokio::time::timeout(Duration::from_secs(3), async {
         tokio::join!(one, two, async {
             while first.models.observations.receiver_count() == 0

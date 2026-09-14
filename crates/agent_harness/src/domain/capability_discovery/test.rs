@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
 
 use agent_client_protocol::schema::v1::{
@@ -32,44 +32,29 @@ impl HarnessCapabilityAccess for Access {
     }
 }
 
-struct Probe {
-    calls: AtomicUsize,
+struct Probe<Target> {
+    targets: Mutex<Vec<Target>>,
     result: fn() -> Result<RawCapabilityProbe, CapabilityProbeError>,
 }
 
-impl Probe {
+impl<Target> Probe<Target> {
     fn new(result: fn() -> Result<RawCapabilityProbe, CapabilityProbeError>) -> Self {
         Self {
-            calls: AtomicUsize::new(0),
+            targets: Mutex::new(Vec::new()),
             result,
         }
     }
 
     fn calls(&self) -> usize {
-        self.calls.load(Ordering::Relaxed)
+        self.targets.lock().unwrap().len()
     }
 }
 
-impl InMemoryCapabilityProbe for Probe {
-    async fn probe(&self) -> Result<RawCapabilityProbe, CapabilityProbeError> {
-        self.calls.fetch_add(1, Ordering::Relaxed);
-        (self.result)()
-    }
-}
+impl<Target: Clone + Send + Sync + 'static> CapabilityProbe for Probe<Target> {
+    type Target = Target;
 
-impl CursorCapabilityProbe for Probe {
-    async fn probe(
-        &self,
-        _caller: &MacroUserIdStr<'static>,
-    ) -> Result<RawCapabilityProbe, CapabilityProbeError> {
-        self.calls.fetch_add(1, Ordering::Relaxed);
-        (self.result)()
-    }
-}
-
-impl MacrodCapabilityProbe for Probe {
-    async fn probe(&self, _harness: HarnessId) -> Result<RawCapabilityProbe, CapabilityProbeError> {
-        self.calls.fetch_add(1, Ordering::Relaxed);
+    async fn probe(&self, target: &Target) -> Result<RawCapabilityProbe, CapabilityProbeError> {
+        self.targets.lock().unwrap().push(target.clone());
         (self.result)()
     }
 }
@@ -84,7 +69,9 @@ fn unsupported() -> Result<RawCapabilityProbe, CapabilityProbeError> {
 
 struct HangingCursor;
 
-impl CursorCapabilityProbe for HangingCursor {
+impl CapabilityProbe for HangingCursor {
+    type Target = MacroUserIdStr<'static>;
+
     async fn probe(
         &self,
         _caller: &MacroUserIdStr<'static>,
@@ -121,6 +108,10 @@ async fn macrod_authorizes_before_dispatch_and_projects_the_catalog() {
     assert_eq!(service.in_memory.calls(), 0);
     assert_eq!(service.cursor.calls(), 0);
     assert_eq!(service.macrod.calls(), 1);
+    assert_eq!(
+        *service.macrod.targets.lock().unwrap(),
+        vec![HarnessId::TEST_A]
+    );
 }
 
 #[tokio::test]
@@ -174,6 +165,68 @@ async fn unsupported_provider_returns_the_supported_response_shape() {
     assert_eq!(result, AgentCapabilities::unsupported());
     assert_eq!(service.in_memory.calls(), 1);
     assert_eq!(service.cursor.calls(), 0);
+}
+
+#[tokio::test]
+async fn cursor_receives_the_authenticated_caller() {
+    let service = AgentCapabilitiesServiceImpl::new(
+        Access(false),
+        Probe::new(unsupported),
+        Probe::new(available),
+        Probe::new(unsupported),
+        Duration::from_secs(1),
+    );
+
+    let result = service
+        .load(
+            caller(),
+            DiscoverAgentCapabilities {
+                harness: CapabilityHarness::Cursor,
+                harness_id: None,
+            },
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(result.config_options[0].id, "model");
+    assert_eq!(*service.cursor.targets.lock().unwrap(), vec![caller()]);
+    assert_eq!(service.in_memory.calls(), 0);
+    assert_eq!(service.macrod.calls(), 0);
+}
+
+#[tokio::test]
+async fn invalid_targets_are_rejected_without_probing() {
+    let service = AgentCapabilitiesServiceImpl::new(
+        Access(true),
+        Probe::new(available),
+        Probe::new(available),
+        Probe::new(available),
+        Duration::from_secs(1),
+    );
+
+    for (harness, harness_id) in [
+        (CapabilityHarness::Macrod, None),
+        (CapabilityHarness::InMemory, Some(HarnessId::TEST_A)),
+        (CapabilityHarness::Cursor, Some(HarnessId::TEST_A)),
+    ] {
+        let result = service
+            .load(
+                caller(),
+                DiscoverAgentCapabilities {
+                    harness,
+                    harness_id,
+                },
+            )
+            .await;
+        assert!(matches!(
+            result,
+            Err(DiscoverAgentCapabilitiesError::BadRequest(_))
+        ));
+    }
+
+    assert_eq!(service.in_memory.calls(), 0);
+    assert_eq!(service.cursor.calls(), 0);
+    assert_eq!(service.macrod.calls(), 0);
 }
 
 #[tokio::test]

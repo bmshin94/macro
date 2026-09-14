@@ -105,29 +105,15 @@ pub trait HarnessCapabilityAccess: Send + Sync + 'static {
     ) -> impl Future<Output = Result<bool, String>> + Send;
 }
 
-/// Fresh in-memory capability probe.
-pub trait InMemoryCapabilityProbe: Send + Sync + 'static {
-    /// Probe the running in-memory implementation.
-    fn probe(
-        &self,
-    ) -> impl Future<Output = Result<RawCapabilityProbe, CapabilityProbeError>> + Send;
-}
+/// Discovers a harness's advertised configuration without persisting a session.
+pub trait CapabilityProbe: Send + Sync + 'static {
+    /// Identity needed by the adapter: a caller, a paired harness, or `()`.
+    type Target: Sync;
 
-/// Fresh Cursor capability probe.
-pub trait CursorCapabilityProbe: Send + Sync + 'static {
-    /// Probe using only the caller's own Cursor credential.
+    /// Probe fresh capabilities for a target authorized by the domain service.
     fn probe(
         &self,
-        caller: &MacroUserIdStr<'static>,
-    ) -> impl Future<Output = Result<RawCapabilityProbe, CapabilityProbeError>> + Send;
-}
-
-/// Fresh paired-macrod capability probe.
-pub trait MacrodCapabilityProbe: Send + Sync + 'static {
-    /// Probe the live runtime connection for `harness`.
-    fn probe(
-        &self,
-        harness: HarnessId,
+        target: &Self::Target,
     ) -> impl Future<Output = Result<RawCapabilityProbe, CapabilityProbeError>> + Send;
 }
 
@@ -175,26 +161,18 @@ impl<Access, InMemory, Cursor, Macrod> AgentCapabilitiesService
     for AgentCapabilitiesServiceImpl<Access, InMemory, Cursor, Macrod>
 where
     Access: HarnessCapabilityAccess,
-    InMemory: InMemoryCapabilityProbe,
-    Cursor: CursorCapabilityProbe,
-    Macrod: MacrodCapabilityProbe,
+    InMemory: CapabilityProbe<Target = ()>,
+    Cursor: CapabilityProbe<Target = MacroUserIdStr<'static>>,
+    Macrod: CapabilityProbe<Target = HarnessId>,
 {
     async fn load(
         &self,
         caller: MacroUserIdStr<'static>,
         request: DiscoverAgentCapabilities,
     ) -> Result<AgentCapabilities, DiscoverAgentCapabilitiesError> {
-        let probe = match (request.harness, request.harness_id) {
-            (CapabilityHarness::InMemory, None) => {
-                tokio::time::timeout(self.timeout, self.in_memory.probe())
-                    .await
-                    .map_err(|_| DiscoverAgentCapabilitiesError::Timeout)?
-            }
-            (CapabilityHarness::Cursor, None) => {
-                tokio::time::timeout(self.timeout, self.cursor.probe(&caller))
-                    .await
-                    .map_err(|_| DiscoverAgentCapabilitiesError::Timeout)?
-            }
+        match (request.harness, request.harness_id) {
+            (CapabilityHarness::InMemory, None) => self.discover(&self.in_memory, &()).await,
+            (CapabilityHarness::Cursor, None) => self.discover(&self.cursor, &caller).await,
             (CapabilityHarness::Macrod, Some(harness)) => {
                 let allowed = self
                     .access
@@ -204,22 +182,29 @@ where
                 if !allowed {
                     return Err(DiscoverAgentCapabilitiesError::Forbidden);
                 }
-                tokio::time::timeout(self.timeout, self.macrod.probe(harness))
-                    .await
-                    .map_err(|_| DiscoverAgentCapabilitiesError::Timeout)?
+                self.discover(&self.macrod, &harness).await
             }
-            (CapabilityHarness::Macrod, None) => {
-                return Err(DiscoverAgentCapabilitiesError::BadRequest(
-                    "harnessId is required for macrod".to_owned(),
-                ));
-            }
-            (_, Some(_)) => {
-                return Err(DiscoverAgentCapabilitiesError::BadRequest(
-                    "harnessId is only valid for macrod".to_owned(),
-                ));
-            }
-        };
+            (CapabilityHarness::Macrod, None) => Err(DiscoverAgentCapabilitiesError::BadRequest(
+                "harnessId is required for macrod".to_owned(),
+            )),
+            (_, Some(_)) => Err(DiscoverAgentCapabilitiesError::BadRequest(
+                "harnessId is only valid for macrod".to_owned(),
+            )),
+        }
+    }
+}
 
+impl<Access, InMemory, Cursor, Macrod>
+    AgentCapabilitiesServiceImpl<Access, InMemory, Cursor, Macrod>
+{
+    async fn discover<Probe: CapabilityProbe>(
+        &self,
+        adapter: &Probe,
+        target: &Probe::Target,
+    ) -> Result<AgentCapabilities, DiscoverAgentCapabilitiesError> {
+        let probe = tokio::time::timeout(self.timeout, adapter.probe(target))
+            .await
+            .map_err(|_| DiscoverAgentCapabilitiesError::Timeout)?;
         match probe {
             Ok(RawCapabilityProbe::Options(options)) => {
                 Ok(AgentCapabilities::from_options(&options))

@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use agent_harness::domain::capability_discovery::{CursorCapabilityProbe as _, RawCapabilityProbe};
+use agent_harness::domain::capability_discovery::{CapabilityProbe as _, RawCapabilityProbe};
 use agent_harness::outbound::cursor::keys::ResolvedCursorConfig;
 use axum::extract::{Request, State};
 use axum::routing::any;
