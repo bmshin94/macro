@@ -207,6 +207,7 @@
         "description": "One accessible agent session, grouped with its matching folded messages.",
         "required": [
           "id",
+          "is_favorited",
           "name",
           "owner_id",
           "bot_id",
@@ -236,6 +237,10 @@
             "type": "string",
             "format": "uuid",
             "description": "Session ID."
+          },
+          "is_favorited": {
+            "type": "boolean",
+            "description": "Whether the requesting user has favorited the agent session."
           },
           "name": {
             "type": "string",
@@ -466,7 +471,12 @@
           },
           {
             "type": "object",
+            "required": ["is_favorited"],
             "properties": {
+              "is_favorited": {
+                "type": "boolean",
+                "description": "Whether the requesting user has favorited the calendar event."
+              },
               "metadata": {
                 "oneOf": [
                   {
@@ -689,7 +699,12 @@
           },
           {
             "type": "object",
+            "required": ["is_favorited"],
             "properties": {
+              "is_favorited": {
+                "type": "boolean",
+                "description": "Whether the requesting user has favorited the call."
+              },
               "metadata": {
                 "oneOf": [
                   {
@@ -1386,7 +1401,12 @@
           },
           {
             "type": "object",
+            "required": ["is_favorited"],
             "properties": {
+              "is_favorited": {
+                "type": "boolean",
+                "description": "Whether the requesting user has favorited the chat."
+              },
               "metadata": {
                 "oneOf": [
                   {
@@ -1458,6 +1478,7 @@
         "description": "A CRM company match in unified search results. Carries the display\nmetadata resolved from the primary domain plus the highlighted name.",
         "required": [
           "id",
+          "is_favorited",
           "teamId",
           "hidden",
           "createdAt",
@@ -1489,6 +1510,10 @@
             "type": "string",
             "format": "uuid",
             "description": "The id of the company."
+          },
+          "is_favorited": {
+            "type": "boolean",
+            "description": "Whether the requesting user has favorited the company."
           },
           "name": {
             "type": ["string", "null"],
@@ -1729,7 +1754,12 @@
           },
           {
             "type": "object",
+            "required": ["is_favorited"],
             "properties": {
+              "is_favorited": {
+                "type": "boolean",
+                "description": "Whether the requesting user has favorited the document."
+              },
               "metadata": {
                 "oneOf": [
                   {
@@ -2025,6 +2055,7 @@
             "required": [
               "created_at",
               "updated_at",
+              "is_favorited",
               "is_read",
               "inbox_visible",
               "is_draft",
@@ -2040,6 +2071,10 @@
               },
               "is_draft": {
                 "type": "boolean"
+              },
+              "is_favorited": {
+                "type": "boolean",
+                "description": "Whether the requesting user has favorited the email thread."
               },
               "is_important": {
                 "type": "boolean"
@@ -2943,7 +2978,12 @@
           },
           {
             "type": "object",
+            "required": ["is_favorited"],
             "properties": {
+              "is_favorited": {
+                "type": "boolean",
+                "description": "Whether the requesting user has favorited the project."
+              },
               "metadata": {
                 "oneOf": [
                   {

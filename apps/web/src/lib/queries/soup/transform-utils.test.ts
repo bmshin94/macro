@@ -3,13 +3,16 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   mapApiSoupItemToEntity,
   mapChannelSearchResultItem,
+  useSearchResponseItemMapper,
 } from './transform-utils';
 
 vi.mock('@core/constant/allBlocks', () => ({
   blockNameToDefaultFile: {},
   itemToSafeName: vi.fn(),
 }));
-vi.mock('@core/context/channels', () => ({ useChannelsContext: vi.fn() }));
+vi.mock('@core/context/channels', () => ({
+  useChannelsContext: () => ({ channels: () => [] }),
+}));
 vi.mock('@core/user', () => ({ emailToId: vi.fn() }));
 
 describe('chat soup entities', () => {
@@ -68,6 +71,33 @@ describe('channel search entities', () => {
     expect(entity).toMatchObject({
       type: 'channel_message',
       channelId: 'channel-id',
+      isFavorited: true,
+    });
+  });
+});
+
+describe('unified search entities', () => {
+  it('preserves favorite state on non-channel results', () => {
+    const [entity] = useSearchResponseItemMapper()(
+      {
+        type: 'company',
+        id: 'company-id',
+        is_favorited: true,
+        teamId: 'team-id',
+        name: 'Acme',
+        nameHighlighted: null,
+        description: null,
+        hidden: false,
+        createdAt: '2026-09-14T00:00:00Z',
+        updatedAt: '2026-09-14T00:00:00Z',
+        domains: [],
+      },
+      ''
+    );
+
+    expect(entity).toMatchObject({
+      type: 'crm_company',
+      id: 'company-id',
       isFavorited: true,
     });
   });

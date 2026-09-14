@@ -616,14 +616,10 @@ fn test_construct_channel_message_items_one_item_per_hit_in_hit_order() {
     }
 
     let states = active_states_for(&search_results);
-    let favorited = HashSet::from([channel_a]);
-    let items =
-        construct_channel_message_items(search_results, channel_histories, states, favorited);
+    let items = construct_channel_message_items(search_results, channel_histories, states);
 
     assert_eq!(items.len(), 3);
-    assert!(items[0].is_favorited);
-    assert!(!items[1].is_favorited);
-    assert!(items[2].is_favorited);
+    assert!(items.iter().all(|item| !item.is_favorited));
     assert_eq!(
         items
             .iter()
@@ -672,8 +668,7 @@ fn test_construct_channel_message_items_drops_missing_history() {
     );
 
     let states = active_states_for(&search_results);
-    let items =
-        construct_channel_message_items(search_results, channel_histories, states, HashSet::new());
+    let items = construct_channel_message_items(search_results, channel_histories, states);
 
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].channel_id, known_channel);
@@ -719,8 +714,7 @@ fn test_construct_channel_message_items_filters_orphans_and_propagates_deleted_a
     states.insert(deleted_message_id, Some(deleted_at));
     // orphan_message_id intentionally omitted to simulate a hard-deleted row.
 
-    let items =
-        construct_channel_message_items(search_results, channel_histories, states, HashSet::new());
+    let items = construct_channel_message_items(search_results, channel_histories, states);
 
     assert_eq!(items.len(), 2, "orphan hit should be filtered out");
     assert_eq!(items[0].message_id, active_message_id);

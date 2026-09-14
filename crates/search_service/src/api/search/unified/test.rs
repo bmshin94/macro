@@ -45,6 +45,7 @@ fn test_sort_unified_search_results() {
         // Document with updated_at = 1000 (oldest)
         UnifiedSearchResponseItem::Document(DocumentSearchResponseItemWithMetadata {
             properties: None,
+            is_favorited: false,
             metadata: Some(DocumentMetadata {
                 created_at: DateTime::from_timestamp(900, 0).unwrap(),
                 updated_at: DateTime::from_timestamp(1000, 0).unwrap(),
@@ -66,6 +67,7 @@ fn test_sort_unified_search_results() {
         // Chat with updated_at = 3000 (newest)
         UnifiedSearchResponseItem::Chat(ChatSearchResponseItemWithMetadata {
             properties: None,
+            is_favorited: false,
             metadata: Some(ChatMetadata {
                 created_at: DateTime::from_timestamp(2900, 0).unwrap(),
                 updated_at: DateTime::from_timestamp(3000, 0).unwrap(),
@@ -87,6 +89,7 @@ fn test_sort_unified_search_results() {
             created_at: DateTime::from_timestamp(1400, 0).unwrap(),
             updated_at: DateTime::from_timestamp(1500, 0).unwrap(),
             viewed_at: None,
+            is_favorited: false,
             snippet: None,
             is_read: false,
             inbox_visible: true,
@@ -108,6 +111,7 @@ fn test_sort_unified_search_results() {
         // Project with updated_at = 2000 (second newest)
         UnifiedSearchResponseItem::Project(ProjectSearchResponseItemWithMetadata {
             properties: None,
+            is_favorited: false,
             metadata: Some(ProjectMetadata {
                 created_at: DateTime::from_timestamp(1900, 0).unwrap(),
                 updated_at: DateTime::from_timestamp(2000, 0).unwrap(),
@@ -127,6 +131,7 @@ fn test_sort_unified_search_results() {
         // Another Document with updated_at = 2500 (second)
         UnifiedSearchResponseItem::Document(DocumentSearchResponseItemWithMetadata {
             properties: None,
+            is_favorited: false,
             metadata: Some(DocumentMetadata {
                 created_at: DateTime::from_timestamp(2400, 0).unwrap(),
                 updated_at: DateTime::from_timestamp(2500, 0).unwrap(),
@@ -189,6 +194,7 @@ fn test_channel_messages_interleave_by_own_recency() {
         // Document with updated_at = 2000, between the two messages
         UnifiedSearchResponseItem::Document(DocumentSearchResponseItemWithMetadata {
             properties: None,
+            is_favorited: false,
             metadata: Some(DocumentMetadata {
                 created_at: DateTime::from_timestamp(1900, 0).unwrap(),
                 updated_at: DateTime::from_timestamp(2000, 0).unwrap(),

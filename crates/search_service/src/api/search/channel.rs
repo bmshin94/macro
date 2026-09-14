@@ -158,13 +158,10 @@ pub(in crate::api::search) async fn enrich_channel_messages(
 
     let (channel_histories, message_states) =
         fetch_channel_enrichment(ctx, user_id, &results).await?;
-    let favorited =
-        favorited_channel_ids(&*ctx.favorites, user_id, channel_histories.keys().copied()).await;
     Ok(construct_channel_message_items(
         results,
         channel_histories,
         message_states,
-        favorited,
     ))
 }
 
@@ -226,7 +223,6 @@ pub fn construct_channel_message_items(
     search_results: Vec<opensearch_client::search::model::SearchHit>,
     channel_histories: HashMap<Uuid, ChannelHistoryInfo>,
     message_states: HashMap<Uuid, Option<DateTime<Utc>>>,
-    favorited_channel_ids: HashSet<Uuid>,
 ) -> Vec<ChannelMessageSearchResponseItem> {
     search_results
         .into_iter()
@@ -241,7 +237,7 @@ pub fn construct_channel_message_items(
                 owner_id: Some(info.user_id.clone()),
                 channel_type: info.channel_type.clone(),
                 channel_id: hit.entity_id,
-                is_favorited: favorited_channel_ids.contains(&hit.entity_id),
+                is_favorited: false,
                 message_id: goto.channel_message_id,
                 thread_id: goto.thread_id,
                 sender_id: goto.sender_id,

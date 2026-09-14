@@ -301,6 +301,7 @@ export const SearchToolResponse = z.object({
                     z.null(),
                   ])
                   .optional(),
+                is_favorited: z.boolean(),
                 id: z.string().uuid(),
                 name: z.string(),
                 owner_id: z.string(),
@@ -378,6 +379,7 @@ export const SearchToolResponse = z.object({
                     z.null(),
                   ])
                   .optional(),
+                is_favorited: z.boolean(),
                 id: z.string().uuid(),
                 name: z.string(),
                 owner_id: z.string(),
@@ -411,6 +413,7 @@ export const SearchToolResponse = z.object({
                 viewed_at: z
                   .union([z.string().datetime({ offset: true }), z.null()])
                   .optional(),
+                is_favorited: z.boolean(),
                 snippet: z.union([z.string(), z.null()]).optional(),
                 is_read: z.boolean(),
                 inbox_visible: z.boolean(),
@@ -553,6 +556,7 @@ export const SearchToolResponse = z.object({
                     z.null(),
                   ])
                   .optional(),
+                is_favorited: z.boolean(),
                 id: z.string().uuid(),
                 name: z.string(),
                 owner_id: z.string(),
@@ -614,6 +618,7 @@ export const SearchToolResponse = z.object({
                     z.null(),
                   ])
                   .optional(),
+                is_favorited: z.boolean(),
                 id: z.string().uuid(),
                 name: z.union([z.string(), z.null()]).optional(),
                 owner_id: z.string(),
@@ -653,6 +658,7 @@ export const SearchToolResponse = z.object({
             z.intersection(
               z.object({
                 id: z.string().uuid(),
+                is_favorited: z.boolean(),
                 teamId: z.string().uuid(),
                 name: z.union([z.string(), z.null()]).optional(),
                 nameHighlighted: z.union([z.string(), z.null()]).optional(),
@@ -773,6 +779,7 @@ export const SearchToolResponse = z.object({
                     z.null(),
                   ])
                   .optional(),
+                is_favorited: z.boolean(),
                 id: z.string().uuid(),
                 name: z.string(),
                 owner_id: z.string(),
@@ -798,6 +805,7 @@ export const SearchToolResponse = z.object({
             z.intersection(
               z.object({
                 id: z.string().uuid(),
+                is_favorited: z.boolean(),
                 name: z.string(),
                 owner_id: z.string(),
                 bot_id: z.string().uuid(),
