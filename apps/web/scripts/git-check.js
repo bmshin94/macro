@@ -3,7 +3,7 @@ import { $ } from 'bun';
 const MIN_GIT_VERSION = '2.40.0';
 const MIN_GIT_LFS_VERSION = '3.5.0';
 
-function parseVersion(output: string, regex: RegExp): string {
+function parseVersion(output, regex) {
   const match = output.match(regex);
   if (!match) {
     throw new Error(`Unable to parse version from: ${output}`);
@@ -11,7 +11,7 @@ function parseVersion(output: string, regex: RegExp): string {
   return match[1];
 }
 
-function compareVersions(v1: string, v2: string): number {
+function compareVersions(v1, v2) {
   const parts1 = v1.split('.').map(Number);
   const parts2 = v2.split('.').map(Number);
 
@@ -24,7 +24,7 @@ function compareVersions(v1: string, v2: string): number {
   return 0;
 }
 
-async function checkGitVersion(): Promise<number> {
+async function checkGitVersion() {
   try {
     const gitOutput = await $`git --version`.text();
     const gitVersion = parseVersion(gitOutput, /(\d+\.\d+(\.\d+)?)/);
@@ -50,7 +50,7 @@ async function checkGitVersion(): Promise<number> {
   }
 }
 
-async function checkGitLFSVersion(): Promise<number> {
+async function checkGitLFSVersion() {
   try {
     const lfsOutput = await $`git lfs version`.text();
     const lfsVersion = parseVersion(lfsOutput, /git-lfs\/(\d+\.\d+\.\d+)/);

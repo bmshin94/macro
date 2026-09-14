@@ -8,11 +8,7 @@
  *
  * `vite serve` already has DEV=true, so this only applies to `build`.
  */
-export function keepImportMetaDev(opts: {
-  command: string;
-  mode: string;
-  localBackendOrigin: string | undefined;
-}): boolean {
+export function keepImportMetaDev(opts) {
   const hasOrigin = Boolean(opts.localBackendOrigin);
   if (hasOrigin && opts.mode !== 'development') {
     throw new Error(

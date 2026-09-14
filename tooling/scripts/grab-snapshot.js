@@ -5,7 +5,7 @@ const useDev = argv.includes('--dev');
 const [token, srcDocId, targetDocId, targetUrlArg] = argv.filter((a) => !a.startsWith('--'));
 if (!token || !srcDocId || !targetDocId) {
   console.error(
-    'usage: bun run tooling/scripts/grab-snapshot.ts [--dev] <token> <source-document-id> <target-dev-document-id> [target-url]'
+    'usage: bun run tooling/scripts/grab-snapshot.js [--dev] <token> <source-document-id> <target-dev-document-id> [target-url]'
   );
   process.exit(1);
 }
@@ -27,12 +27,12 @@ if (!grab.ok) {
 }
 const snapshot = new Uint8Array(await grab.arrayBuffer());
 
-let peers: Array<{ peer_id: string; user_id: string }> = [];
+let peers = [];
 const meta = await fetch(`${SOURCE_URL}/document/${srcDocId}/metadata`, {
   headers: { Authorization: `Bearer ${token}` },
 });
 if (meta.ok) {
-  peers = ((await meta.json()) as { peers?: typeof peers }).peers ?? [];
+  peers = (await meta.json()).peers ?? [];
 } else {
   console.warn(`metadata fetch failed (${meta.status}); continuing without peer map`);
 }
