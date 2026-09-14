@@ -336,7 +336,7 @@ test('shadow isolation, link safety, literal plaintext and quote expansion use p
   expect(result.remaining).toBe(0);
 });
 
-test('resizes wide content, removes stale scaling, hides collapsed images', async ({
+test('scrolls wide content at native size and hides collapsed images', async ({
   page,
 }) => {
   await page.evaluate(() => {
@@ -355,12 +355,11 @@ test('resizes wide content, removes stale scaling, hides collapsed images', asyn
     host.addEventListener('collapse', () => renderer.setExpanded(false));
   });
   const content = page.locator('#resize-host > div');
-  await expect(content).toHaveCSS('zoom', '0.7');
+  await expect(content).toHaveCSS('zoom', '1');
   await expect(content).toHaveCSS('overflow-x', 'auto');
   await page.locator('#resize-host').evaluate((host) => {
     (host as HTMLElement).style.width = '1200px';
   });
-  await expect(content).toHaveCSS('zoom', '1');
   await expect(content).toHaveCSS('overflow-x', 'visible');
   await page.locator('#resize-host').dispatchEvent('collapse');
   await expect(content).toHaveCSS('overflow-x', 'hidden');
