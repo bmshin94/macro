@@ -1,9 +1,8 @@
 use crate::api::search::simple::{SearchError, simple_channel};
 use crate::api::search::terms::split_search_terms;
-use crate::domain::favorites::SearchFavoritesReader;
 use chrono::{DateTime, Utc};
 use indexmap::IndexMap;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::api::context::{SearchAuthorizationService, SearchHandlerState};
 use crate::api::search::SearchPaginationParams;
@@ -16,7 +15,6 @@ use axum::{
 use channels::domain::models::ChannelHistoryInfo;
 use macro_authorization::{InternalOnly, MacroAuthorizationExtractor, UserOrInternal};
 use macro_user_id::user_id::MacroUserId;
-use model_entity::EntityType;
 use models_search::MatchType;
 use models_search::channel::{
     ChannelMessageSearchResponseItem, ChannelNameSearchRequest, ChannelNameSearchResponse,
@@ -28,35 +26,6 @@ use models_search_cursor::{SearchCursorOption, SearchMethodCursor};
 use opensearch_client::search::channels::{ChannelSearchArgs, ChannelSortMode};
 use opensearch_client::search::model::SearchGotoContent;
 use sqlx::types::Uuid;
-
-async fn favorited_channel_ids(
-    favorites: &dyn SearchFavoritesReader,
-    user_id: &str,
-    channel_ids: impl IntoIterator<Item = Uuid>,
-) -> HashSet<Uuid> {
-    let channel_ids: HashSet<Uuid> = channel_ids.into_iter().collect();
-    if channel_ids.is_empty() {
-        return HashSet::new();
-    }
-
-    let entities = channel_ids
-        .into_iter()
-        .map(|id| EntityType::Channel.with_entity_string(id.to_string()))
-        .collect();
-    let favorited = match favorites.favorited_entities(user_id, entities).await {
-        Ok(favorited) => favorited,
-        Err(error) => {
-            tracing::error!(error=?error, "failed to resolve favorited channel search results");
-            return HashSet::new();
-        }
-    };
-
-    favorited
-        .into_iter()
-        .filter(|entity| entity.entity_type == EntityType::Channel)
-        .filter_map(|entity| entity.entity_id.parse().ok())
-        .collect()
-}
 
 /// Fetches the per-user channel history info and message deletion states
 /// backing channel search enrichment. Channels without history info are the
@@ -123,18 +92,11 @@ pub(in crate::api::search) async fn enrich_channels(
 
     let (channel_histories, message_states) =
         fetch_channel_enrichment(ctx, user_id, &results).await?;
-    let favorited =
-        favorited_channel_ids(&*ctx.favorites, user_id, channel_histories.keys().copied()).await;
 
     // Construct enriched results
-    let enriched_results = construct_search_result(
-        results,
-        channel_histories,
-        message_states,
-        favorited,
-        sort_timestamp,
-    )
-    .map_err(SearchError::InternalError)?;
+    let enriched_results =
+        construct_search_result(results, channel_histories, message_states, sort_timestamp)
+            .map_err(SearchError::InternalError)?;
 
     Ok(enriched_results)
 }
@@ -177,19 +139,12 @@ pub(in crate::api::search) async fn enrich_channel_names(
     }
 
     let (channel_histories, _) = fetch_channel_enrichment(ctx, user_id, &results).await?;
-    let favorited =
-        favorited_channel_ids(&*ctx.favorites, user_id, channel_histories.keys().copied()).await;
-    Ok(construct_channel_name_items(
-        results,
-        channel_histories,
-        favorited,
-    ))
+    Ok(construct_channel_name_items(results, channel_histories))
 }
 
 fn construct_channel_name_items(
     search_results: Vec<opensearch_client::search::model::SearchHit>,
     channel_histories: HashMap<Uuid, ChannelHistoryInfo>,
-    favorited_channel_ids: HashSet<Uuid>,
 ) -> Vec<ChannelNameSearchResponseItem> {
     search_results
         .into_iter()
@@ -206,7 +161,7 @@ fn construct_channel_name_items(
                 owner_id: Some(info.user_id.clone()),
                 channel_type: info.channel_type.clone(),
                 channel_id: hit.entity_id,
-                is_favorited: favorited_channel_ids.contains(&hit.entity_id),
+                is_favorited: false,
                 highlight: hit.highlight.into(),
                 score: hit.score,
             })
@@ -255,7 +210,6 @@ pub fn construct_search_result(
     search_results: Vec<opensearch_client::search::model::SearchHit>,
     channel_histories: HashMap<Uuid, ChannelHistoryInfo>,
     message_states: HashMap<Uuid, Option<DateTime<Utc>>>,
-    favorited_channel_ids: HashSet<Uuid>,
     sort_timestamp: ChannelSortTimestamp,
 ) -> anyhow::Result<Vec<ChannelSearchResponseItemWithMetadata>> {
     // construct entity hit map of id -> vec<hits> using IndexMap to preserve insertion order
@@ -327,7 +281,7 @@ pub fn construct_search_result(
                         channel_id: entity_id,
                         owner_id: Some(info.user_id),
                         channel_type: info.channel_type,
-                        is_favorited: favorited_channel_ids.contains(&entity_id),
+                        is_favorited: false,
                         channel_message_search_results: hits,
                     },
                 })

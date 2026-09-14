@@ -4,38 +4,6 @@ use opensearch_client::search::model::Highlight;
 
 use super::*;
 
-struct TestFavoritesReader(HashSet<model_entity::Entity<'static>>);
-
-impl SearchFavoritesReader for TestFavoritesReader {
-    fn favorited_entities<'a>(
-        &'a self,
-        _user_id: &'a str,
-        _entities: Vec<model_entity::Entity<'static>>,
-    ) -> std::pin::Pin<
-        Box<
-            dyn std::future::Future<Output = anyhow::Result<HashSet<model_entity::Entity<'static>>>>
-                + Send
-                + 'a,
-        >,
-    > {
-        Box::pin(async { Ok(self.0.clone()) })
-    }
-}
-
-#[tokio::test]
-async fn resolves_favorited_channel_ids() {
-    let favorited_id = Uuid::new_v4();
-    let other_id = Uuid::new_v4();
-    let reader = TestFavoritesReader(HashSet::from([
-        EntityType::Channel.with_entity_string(favorited_id.to_string()),
-        EntityType::Document.with_entity_string(Uuid::new_v4().to_string()),
-    ]));
-
-    let favorited = favorited_channel_ids(&reader, "user-id", [favorited_id, other_id]).await;
-
-    assert_eq!(favorited, HashSet::from([favorited_id]));
-}
-
 /// Build a message_states map that marks every content-match hit's
 /// channel_message_id as existing-and-active. Tests that want to exercise
 /// orphan filtering or soft-delete state should construct the map manually.
@@ -58,7 +26,6 @@ fn test_construct_search_result_empty_input() {
         vec![],
         HashMap::new(),
         HashMap::new(),
-        HashSet::new(),
         ChannelSortTimestamp::Message,
     );
     assert!(result.is_ok());
@@ -80,12 +47,11 @@ fn channel_name_hit_has_top_level_highlight() {
         updated_at: Some(Utc::now()),
     };
     let histories = HashMap::from([(channel_id, create_channel_history(&channel_id.to_string()))]);
-    let favorited = HashSet::from([channel_id]);
 
-    let items = construct_channel_name_items(vec![hit], histories, favorited);
+    let items = construct_channel_name_items(vec![hit], histories);
 
     assert_eq!(items.len(), 1);
-    assert!(items[0].is_favorited);
+    assert!(!items[0].is_favorited);
     assert_eq!(
         items[0].highlight.name.as_deref(),
         Some("<macro_em>acme-h</macro_em>q")
@@ -132,7 +98,6 @@ fn test_construct_search_result_single_channel() {
         search_results,
         channel_histories,
         states,
-        HashSet::from([channel_uuid]),
         ChannelSortTimestamp::Message,
     )
     .unwrap();
@@ -140,7 +105,7 @@ fn test_construct_search_result_single_channel() {
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].extra.channel_id, channel_uuid);
     assert_eq!(result[0].extra.id, channel_uuid);
-    assert!(result[0].extra.is_favorited);
+    assert!(!result[0].extra.is_favorited);
     assert_eq!(
         result[0].extra.channel_message_search_results[0]
             .message_id
@@ -223,7 +188,6 @@ fn test_construct_search_result_multiple_messages_same_channel() {
         search_results,
         channel_histories,
         states,
-        HashSet::new(),
         ChannelSortTimestamp::Message,
     )
     .unwrap();
@@ -313,7 +277,6 @@ fn test_construct_search_result_filters_messages_without_content() {
         search_results,
         channel_histories,
         states,
-        HashSet::new(),
         ChannelSortTimestamp::Message,
     )
     .unwrap();
@@ -375,7 +338,6 @@ fn test_construct_search_result_filters_orphans_and_propagates_deleted_at() {
         search_results,
         channel_histories,
         states,
-        HashSet::new(),
         ChannelSortTimestamp::Message,
     )
     .unwrap();
@@ -469,7 +431,6 @@ fn test_channel_history_timestamps() {
         input,
         channel_histories,
         states,
-        HashSet::new(),
         ChannelSortTimestamp::Message,
     )
     .unwrap();
@@ -518,7 +479,6 @@ fn test_channel_history_missing_entry() {
         input,
         channel_histories,
         states,
-        HashSet::new(),
         ChannelSortTimestamp::Message,
     )
     .unwrap();
@@ -560,7 +520,6 @@ fn test_channel_history_null_viewed_at() {
         input,
         channel_histories,
         states,
-        HashSet::new(),
         ChannelSortTimestamp::Message,
     )
     .unwrap();
@@ -862,7 +821,6 @@ fn test_sort_stability() {
         input.clone(),
         channel_histories.clone(),
         states.clone(),
-        HashSet::new(),
         ChannelSortTimestamp::Message,
     )
     .unwrap();
@@ -870,7 +828,6 @@ fn test_sort_stability() {
         input.clone(),
         channel_histories.clone(),
         states.clone(),
-        HashSet::new(),
         ChannelSortTimestamp::Message,
     )
     .unwrap();
@@ -878,7 +835,6 @@ fn test_sort_stability() {
         input.clone(),
         channel_histories.clone(),
         states,
-        HashSet::new(),
         ChannelSortTimestamp::Message,
     )
     .unwrap();
@@ -953,7 +909,6 @@ fn test_construct_search_result_breaks_created_at_ties_by_message_id() {
         search_results,
         channel_histories,
         states,
-        HashSet::new(),
         ChannelSortTimestamp::Message,
     )
     .unwrap();
