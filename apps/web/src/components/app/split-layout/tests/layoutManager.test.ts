@@ -5,9 +5,10 @@ import {
   withListNavigationSource,
 } from '@app/features/soup/collection/list-navigation-source';
 import type { ResizeZoneCtx } from '@core/component/Resize/types';
+import { resolveBlockAlias } from '@core/constant/allBlocks';
 import type { BlockOrchestrator } from '@core/orchestrator';
 import { createRoot } from 'solid-js';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   createSplitLayout,
   type SplitContent,
@@ -28,6 +29,10 @@ vi.mock('@core/constant/allBlocks', () => ({
   isBlockAlias: vi.fn(() => false),
   resolveBlockAlias: vi.fn((type: string) => type),
 }));
+
+afterEach(() => {
+  vi.mocked(resolveBlockAlias).mockImplementation((type: string) => type);
+});
 
 beforeAll(() => {
   // Mock window.matchMedia for tests
@@ -188,6 +193,34 @@ describe('layoutManager', () => {
     });
   });
 
+  describe('block alias identity', () => {
+    it('treats a task alias as the same open split as its md document', () => {
+      vi.mocked(resolveBlockAlias).mockImplementation((type: string) =>
+        type === 'task' ? 'md' : type
+      );
+
+      createRoot((dispose) => {
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          { type: 'md', id: 'shared-id' },
+        ]);
+        const existing = manager.getSplitByContent('task', 'shared-id');
+        expect(existing?.content()).toMatchObject({
+          type: 'md',
+          id: 'shared-id',
+        });
+
+        const created = manager.createNewSplit({
+          content: { type: 'task', id: 'shared-id' },
+          referredFrom: null,
+        });
+        expect(created.id).toBe(existing?.id);
+        expect(manager.splits()).toHaveLength(1);
+
+        dispose();
+      });
+    });
+  });
+
   describe('entry state', () => {
     it('captures registered entry state and merges with existing state', () => {
       createRoot((dispose) => {
@@ -335,6 +368,123 @@ describe('layoutManager', () => {
           id: 'ch-1',
         });
         expect(docSplit.content()).toMatchObject({ type: 'md', id: 'doc-1' });
+
+        dispose();
+      });
+    });
+
+    it('opens a mentioned task in the same split and Back returns to the document', () => {
+      createRoot((dispose) => {
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          { type: 'md', id: 'doc-1' },
+        ]);
+        const split = manager.getSplit(manager.splits()[0].id)!;
+
+        manager.openWithSplit(
+          { type: 'task', id: 'task-1' },
+          { handle: split, preferNewSplit: false, mergeHistory: false }
+        );
+
+        expect(split.content()).toMatchObject({ type: 'task', id: 'task-1' });
+        expect(split.canGoBack()).toBe(true);
+
+        split.goBack();
+        expect(split.content()).toMatchObject({ type: 'md', id: 'doc-1' });
+
+        dispose();
+      });
+    });
+
+    it('still goes back when an entry-state captor returns a frozen object', () => {
+      createRoot((dispose) => {
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          { type: 'md', id: 'doc-1' },
+        ]);
+        const split = manager.getSplit(manager.splits()[0].id)!;
+
+        split.registerEntryStateCaptor('soup.filters', () =>
+          Object.freeze({ foo: 1 })
+        );
+        split.registerEntryStateCaptor('soup.nested', () => ({
+          inner: Object.freeze({ bar: 2 }),
+        }));
+
+        manager.openWithSplit(
+          { type: 'task', id: 'task-1' },
+          { handle: split, preferNewSplit: false, mergeHistory: false }
+        );
+
+        expect(split.content()).toMatchObject({ type: 'task', id: 'task-1' });
+        expect(split.canGoBack()).toBe(true);
+
+        split.goBack();
+        expect(split.content()).toMatchObject({ type: 'md', id: 'doc-1' });
+        expect(split.currentEntryState()).toMatchObject({
+          'soup.filters': { foo: 1 },
+          'soup.nested': { inner: { bar: 2 } },
+        });
+
+        dispose();
+      });
+    });
+
+    it('keeps the source document on the back stack when a new split cannot fit', () => {
+      createRoot((dispose) => {
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          { type: 'md', id: 'doc-1' },
+        ]);
+        const split = manager.getSplit(manager.splits()[0].id)!;
+        manager.setResizeContext({
+          canFit: () => false,
+        } as unknown as ResizeZoneCtx);
+
+        // Mention clicks prefer a new split and may even pass mergeHistory
+        // from a Preview Pair rewrite. A full layout must still push.
+        manager.openWithSplit(
+          { type: 'task', id: 'task-1' },
+          {
+            handle: split,
+            preferNewSplit: true,
+            mergeHistory: true,
+          }
+        );
+
+        expect(manager.splits()).toHaveLength(1);
+        expect(split.content()).toMatchObject({ type: 'task', id: 'task-1' });
+        expect(split.canGoBack()).toBe(true);
+
+        split.goBack();
+        expect(split.content()).toMatchObject({ type: 'md', id: 'doc-1' });
+
+        dispose();
+      });
+    });
+
+    it('skips a one-step back target another split already displays', () => {
+      createRoot((dispose) => {
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          { type: 'component', id: 'inbox' },
+          { type: 'md', id: 'doc-1' },
+        ]);
+        const [listSplitState, docSplitState] = manager.splits();
+        const listSplit = manager.getSplit(listSplitState.id)!;
+
+        listSplit.replace({ next: { type: 'md', id: 'doc-1' } });
+        listSplit.replace({ next: { type: 'task', id: 'task-1' } });
+
+        expect(listSplit.canGoBack()).toBe(true);
+        listSplit.goBack();
+
+        // doc-1 is already in the other pane, so Back skips it and returns
+        // to inbox instead of appearing to do nothing.
+        expect(listSplit.content()).toMatchObject({
+          type: 'component',
+          id: 'inbox',
+        });
+        expect(manager.getSplit(docSplitState.id)!.content()).toMatchObject({
+          type: 'md',
+          id: 'doc-1',
+        });
 
         dispose();
       });

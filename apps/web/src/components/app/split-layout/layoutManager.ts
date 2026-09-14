@@ -22,7 +22,13 @@ import {
   createSignal,
   type JSXElement,
 } from 'solid-js';
-import { createStore, produce, reconcile, type Store } from 'solid-js/store';
+import {
+  createStore,
+  produce,
+  reconcile,
+  type Store,
+  unwrap,
+} from 'solid-js/store';
 import { match } from 'ts-pattern';
 import {
   type ComponentMeta,
@@ -645,6 +651,32 @@ function isDuplicateSplit(
     .some((split) => sameNonComponentIdentity(split.content, content));
 }
 
+/**
+ * History and the splits store must receive plain, extensible objects.
+ * Captors often return Solid store proxies or frozen snapshots; writing those
+ * through `setState` throws `Cannot define property Symbol(solid-proxy)`.
+ */
+function clonePlainValue(value: unknown): unknown {
+  const raw = unwrap(value);
+  if (raw === null || typeof raw !== 'object') return raw;
+  try {
+    return structuredClone(raw);
+  } catch {
+    try {
+      return JSON.parse(JSON.stringify(raw));
+    } catch {
+      if (Array.isArray(raw)) return raw.map(clonePlainValue);
+      const copy: Record<string, unknown> = {};
+      for (const [key, nested] of Object.entries(
+        raw as Record<string, unknown>
+      )) {
+        copy[key] = clonePlainValue(nested);
+      }
+      return copy;
+    }
+  }
+}
+
 export function createSplitLayout(
   orchestrator: BlockOrchestrator,
   initial: SplitContent[],
@@ -712,32 +744,41 @@ export function createSplitLayout(
   const entryStateCaptors = new Map<SplitId, Map<string, () => unknown>>();
 
   function captureCurrentEntryState(split: SplitState): void {
-    const captors = entryStateCaptors.get(split.id);
-    if (!captors || captors.size === 0) return;
-    const items = split.history.items;
-    const idx = split.history.index;
-    if (idx < 0 || idx >= items.length) return;
-    const currentItem = items[idx];
+    try {
+      const captors = entryStateCaptors.get(split.id);
+      if (!captors || captors.size === 0) return;
+      const items = split.history.items;
+      const idx = split.history.index;
+      if (idx < 0 || idx >= items.length) return;
+      const currentItem = clonePlainValue(items[idx]) as SplitContent;
 
-    const state: EntryState = { ...(currentItem.state ?? {}) };
-    for (const [key, getter] of captors) {
-      try {
-        state[key] = getter();
-      } catch (err) {
-        console.error(
-          `Entry state captor for split ${split.id} key "${key}" threw`,
-          err
-        );
+      const state: EntryState = {
+        ...((currentItem.state as EntryState | undefined) ?? {}),
+      };
+      for (const [key, getter] of captors) {
+        try {
+          state[key] = clonePlainValue(getter());
+        } catch (err) {
+          console.error(
+            `Entry state captor for split ${split.id} key "${key}" threw`,
+            err
+          );
+        }
       }
+      const next = { ...currentItem, state } as SplitContent;
+      split.history.replaceCurrent(next);
+      // Mirror onto SplitState.content so live reads see the captured state.
+      setState('splits', (s) => {
+        const i = s.findIndex((x) => x.id === split.id);
+        if (i < 0) return s;
+        return s.with(i, { ...s[i], content: next });
+      });
+    } catch (err) {
+      console.error(
+        `Entry state capture for split ${split.id} failed; navigation continues`,
+        err
+      );
     }
-    const next = { ...currentItem, state } as SplitContent;
-    split.history.replaceCurrent(next);
-    // Mirror onto SplitState.content so live reads see the captured state.
-    setState('splits', (s) => {
-      const i = s.findIndex((x) => x.id === split.id);
-      if (i < 0) return s;
-      return s.with(i, { ...s[i], content: next });
-    });
   }
 
   const DEFAULT_SPLIT_CONTENT = defaultSplitContent ?? {
@@ -901,10 +942,19 @@ export function createSplitLayout(
     const split = state.splits[i];
     if (!split.history.canGoBack()) return;
 
+    const otherSplits = state.splits.filter((s) => s.id !== split.id);
+
     batch(() => {
       captureCurrentEntryState(split);
 
-      const prev = split.history.back();
+      // `reattach` refuses content another split already displays. Stepping
+      // one entry at a time would move the index onto that entry and then
+      // leave the pane put — Back looks enabled but does nothing. Skip those
+      // entries the same way `goBackTo` does so the index and the mounted
+      // content stay in step.
+      const prev = split.history.backTo(
+        (content) => !isDuplicateSplit(otherSplits, content)
+      );
       if (!prev) return;
 
       reattach(split, prev, undefined, 'history-back');
@@ -1176,8 +1226,16 @@ export function createSplitLayout(
       // `currentSplit`. reconcileSplits can replace the SplitState (fresh
       // history, same id) while this handle instance persists, so the captured
       // reference goes stale and the button would report the old history.
-      canGoBack: () =>
-        (findSplitById(currentSplit.id) ?? currentSplit).history.canGoBack(),
+      canGoBack: () => {
+        const live = findSplitById(currentSplit.id) ?? currentSplit;
+        if (!live.history.canGoBack()) return false;
+        const otherSplits = state.splits.filter((s) => s.id !== live.id);
+        const list = live.history.items;
+        for (let i = live.history.index - 1; i >= 0; i--) {
+          if (!isDuplicateSplit(otherSplits, list[i])) return true;
+        }
+        return false;
+      },
       canGoForward: () =>
         (findSplitById(currentSplit.id) ?? currentSplit).history.canGoForward(),
       goBack: () => back(currentSplit.id),
@@ -1326,11 +1384,12 @@ export function createSplitLayout(
     ) {
       const existingSplit = state.splits.find(
         (s) =>
-          s.content.type === initialContent.type &&
-          s.content.id === initialContent.id
+          !isExcluded(s) && sameNonComponentIdentity(s.content, initialContent)
       );
 
-      return getSplit(existingSplit!.id)!;
+      if (existingSplit) {
+        return getSplit(existingSplit.id)!;
+      }
     }
 
     const split = buildSplit({
@@ -1751,9 +1810,14 @@ export function createSplitLayout(
     type: SplitContentType,
     id: string
   ): SplitHandle | undefined {
-    const match = state.splits.find(
-      (s) => s.content.type === type && s.content.id === id && !isExcluded(s)
-    );
+    const wanted = attachAliasContext({ type, id } as SplitContent);
+    const match = state.splits.find((s) => {
+      if (isExcluded(s)) return false;
+      if (type === 'component' || s.content.type === 'component') {
+        return s.content.type === type && s.content.id === id;
+      }
+      return sameNonComponentIdentity(s.content, wanted);
+    });
     if (!match) return;
     return getSplit(match.id);
   }
@@ -2128,10 +2192,19 @@ export function createSplitLayout(
     const shouldReplace = !options.preferNewSplit || shouldReplaceWhenFull;
 
     if (splitHandle && shouldReplace) {
+      // Preferring a new split but landing in this one because the layout
+      // is full must still stack history. Merging would replace the source
+      // — e.g. a document that @-mentioned this task — so Back cannot
+      // return to it.
+      const mergeHistory =
+        options.preferNewSplit && shouldReplaceWhenFull
+          ? false
+          : options.mergeHistory;
+
       splitHandle.replace({
         next: content,
         referredFrom: options.referredFrom ?? null,
-        mergeHistory: options.mergeHistory,
+        mergeHistory,
       });
 
       if (options.activate !== false) {

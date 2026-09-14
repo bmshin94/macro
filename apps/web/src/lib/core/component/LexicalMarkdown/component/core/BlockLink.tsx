@@ -62,6 +62,10 @@ export function openDocument(
     { type: targetBlock, id, params },
     {
       preferNewSplit: inNewSplit,
+      // Same-split mention / reference opens must stay on the back stack.
+      // Without this, a full layout (or an explicit same-split click) can
+      // replace the source document and leave Back with nowhere to go.
+      mergeHistory: false,
       reopen: targetBlock === 'channel' && !hasParams ? 'latest' : undefined,
     }
   );

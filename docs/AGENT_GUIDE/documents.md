@@ -50,6 +50,11 @@ transcript to AI context, or grant access. Private/deleted sessions show an
 unavailable label. Mounted references refresh every 30 seconds while the tab is
 active to update titles and check access.
 
+Click a document, task, or other reference chip (or select it and press Enter)
+to open it. A new split is used when the layout has room; otherwise the current
+split is replaced and **Go Back** returns to the source document. Shift-click
+stays in the current split the same way.
+
 Hover a document reference chip to open its preview without navigating. With
 `ENABLE_GRAPHQL_SOUP` enabled, the popup reuses the reference's live `ItemPreviews`
 batch, including task properties and viewer permission, without another fetch.
