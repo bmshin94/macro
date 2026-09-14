@@ -132,6 +132,14 @@ impl EmailRepo for EmailPgRepo {
         link::link_by_macro_id(&self.pool, macro_id).await
     }
 
+    async fn owned_link_for_message(
+        &self,
+        message_id: Uuid,
+        macro_id: MacroUserIdStr<'_>,
+    ) -> Result<Option<Link>, Self::Err> {
+        link::owned_link_for_message(&self.pool, macro_id, message_id).await
+    }
+
     async fn owned_link_for_thread(
         &self,
         thread_id: Uuid,

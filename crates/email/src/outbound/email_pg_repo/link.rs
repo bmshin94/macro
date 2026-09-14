@@ -109,6 +109,40 @@ pub(super) async fn owned_link_for_thread(
 }
 
 #[tracing::instrument(err, skip(pool))]
+pub(super) async fn owned_link_for_message(
+    pool: &PgPool,
+    macro_id: MacroUserIdStr<'_>,
+    message_id: Uuid,
+) -> Result<Option<Link>, sqlx::Error> {
+    let db_link: Option<DbLink> = sqlx::query_as!(
+        DbLink,
+        r#"
+        SELECT l.id, l.macro_id, l.fusionauth_user_id, l.email_address, l.provider as "provider: _",
+               l.is_sync_active, l.is_primary, l.created_at, l.updated_at
+        FROM email_messages m
+        JOIN email_links l ON l.id = m.link_id
+        WHERE m.id = $1
+          AND (
+              l.macro_id = $2
+              OR EXISTS (
+                  SELECT 1 FROM macro_user_links mul
+                  WHERE mul.link_id = l.id AND mul.primary_macro_id = $2
+              )
+          )
+        "#,
+        message_id,
+        macro_id.as_ref()
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    db_link
+        .map(|v| v.try_into_model())
+        .transpose()
+        .map_err(|e| sqlx::Error::Decode(Box::new(e)))
+}
+
+#[tracing::instrument(err, skip(pool))]
 pub(super) async fn link_by_macro_id(
     pool: &PgPool,
     macro_id: MacroUserIdStr<'_>,

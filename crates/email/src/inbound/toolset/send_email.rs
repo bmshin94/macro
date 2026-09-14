@@ -69,6 +69,13 @@ pub struct SendEmail {
     /// excludes the signature for this one email.
     #[serde(default)]
     pub include_signature: Option<bool>,
+    /// The ID of the inbox (email link) to send from. When replying to a
+    /// message, the backend automatically selects the inbox that received the
+    /// original email. For new messages or to override the default, the user
+    /// can specify this field. If omitted, the most recently connected inbox
+    /// is used.
+    #[serde(default)]
+    pub from_link_id: Option<Uuid>,
 }
 
 /// Response from the SendEmail tool.
@@ -80,6 +87,8 @@ pub enum SendEmailResponse {
         message_id: Uuid,
         /// The thread ID the message belongs to.
         thread_id: Uuid,
+        /// The ID of the inbox (email link) the message was sent from.
+        link_id: Uuid,
     },
     ConvertedToDraft {
         draft_id: Uuid,
@@ -114,7 +123,70 @@ where
         println!("CALL SEND EMAIL {:?}", request_context);
 
         let acting_user = MacroUserIdStr((*request_context.user_id).clone());
-        let link = service_context.resolve_link(acting_user.clone()).await?;
+
+        // Fetch all accessible inboxes for this user
+        let accessible_inboxes = service_context
+            .service
+            .get_inboxes_for_macro_id(acting_user.clone())
+            .await
+            .map_err(|e| ToolCallError {
+                description: format!("Failed to fetch accessible inboxes: {e}"),
+                internal_error: e.into(),
+            })?;
+
+        if accessible_inboxes.is_empty() {
+            return Err(ToolCallError {
+                description: "No email account linked for this user.".to_string(),
+                internal_error: anyhow::anyhow!("No email link found for user"),
+            });
+        }
+
+        // Smart inbox selection logic:
+        // 1. If from_link_id is explicitly provided, use that inbox
+        // 2. If replying to a message and from_link_id is not set, use the inbox that received the original message
+        // 3. Otherwise, use the first (most recently connected) inbox
+        let link = if let Some(from_link_id) = self.from_link_id {
+            // Explicitly specified inbox
+            accessible_inboxes
+                .iter()
+                .find(|l| l.id == from_link_id)
+                .ok_or_else(|| ToolCallError {
+                    description: format!(
+                        "The specified inbox (link_id: {}) is not accessible to this user.",
+                        from_link_id
+                    ),
+                    internal_error: anyhow::anyhow!("Invalid from_link_id"),
+                })?
+                .clone()
+        } else if let Some(replying_to_id) = self.replying_to_id {
+            // When replying, determine the inbox that received the original message
+            match service_context
+                .service
+                .get_owned_link_for_message(acting_user.clone(), replying_to_id)
+                .await
+            {
+                Ok(Some(reply_link)) => reply_link,
+                Ok(None) => {
+                    // If we can't find the message, fall back to the default inbox
+                    tracing::warn!(
+                        replying_to_id = %replying_to_id,
+                        "Could not find inbox for reply target; using default inbox"
+                    );
+                    accessible_inboxes[0].clone()
+                }
+                Err(e) => {
+                    tracing::error!(
+                        error = ?e,
+                        replying_to_id = %replying_to_id,
+                        "Failed to fetch inbox for reply target; using default inbox"
+                    );
+                    accessible_inboxes[0].clone()
+                }
+            }
+        } else {
+            // Default: use the first (most recently connected) inbox
+            accessible_inboxes[0].clone()
+        };
 
         let body = service_context.render_body(&self.body).await?;
 
@@ -141,7 +213,7 @@ where
 
         let sent = service_context
             .service
-            .send_message(&link, std::slice::from_ref(&link), input)
+            .send_message(&link, &accessible_inboxes, input)
             .await
             .map_err(|e| ToolCallError {
                 description: format!("Failed to send email: {e}"),
@@ -151,6 +223,7 @@ where
         Ok(SendEmailResponse::Sent {
             message_id: sent.db_id,
             thread_id: sent.thread_db_id,
+            link_id: link.id,
         })
     }
 }

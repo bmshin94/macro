@@ -75,12 +75,29 @@ function fromEmailRecipients(
 export function EmailDraftComposer(props: EmailDraftComposerProps) {
   const uiDisabled = () => !props.sink.canAct() || props.readOnly === true;
   const emailLinksQuery = useEmailLinksQuery();
-  // The inbox this card sends from — always the first linked inbox (shown as
-  // "from"); the backend resolves the same default at send time.
+
+  // The selected inbox ID for sending. When replying, prefer the inbox from initialData.
+  // Otherwise, use the first (most recent) inbox.
+  const [selectedLinkId, setSelectedLinkId] = createSignal<string | undefined>(
+    props.initialData.fromLinkId ?? undefined
+  );
+
+  // The inbox this card sends from. Defaults to the first linked inbox, but can be changed by the user.
   const sendingLink = createMemo(() => {
     if (!emailLinksQuery.isSuccess && !emailLinksQuery.isError) return;
-    return emailLinksQuery.data?.links?.[0];
+    const links = emailLinksQuery.data?.links;
+    if (!links || links.length === 0) return;
+
+    const selected = selectedLinkId();
+    if (selected) {
+      const link = links.find((l) => l.id === selected);
+      if (link) return link;
+    }
+
+    // Default to the first inbox
+    return links[0];
   });
+
   const fromAddress = () => sendingLink()?.email_address;
   const signature = useEmailSignature(() => sendingLink()?.id);
   const emailSignaturesFlag = useFeatureFlag(enableEmailSignatures);
@@ -142,6 +159,8 @@ export function EmailDraftComposer(props: EmailDraftComposerProps) {
       replyingToId: props.initialData.replyingToId,
       // Omit to use the backend default policy; false only when dismissed.
       includeSignature: includeSignature() ? undefined : false,
+      // Include the selected inbox ID
+      fromLinkId: selectedLinkId() ?? undefined,
     };
   }
 
@@ -244,6 +263,13 @@ export function EmailDraftComposer(props: EmailDraftComposerProps) {
     ],
     validationError: (type) => validationErrors().find((e) => e.type === type),
     fromAddress,
+    // Multi-inbox support: provide list of inboxes, selected inbox, and setter
+    fromInboxes: () => emailLinksQuery.data?.links ?? [],
+    selectedInboxId: () => selectedLinkId(),
+    onSelectInbox: (inboxId: string) => {
+      setSelectedLinkId(inboxId);
+      scheduleUpdate();
+    },
     recipients,
     // Read-only preview of the signature the backend appends on send, with a ✕
     // to drop it for this one email (persisted through the sink's edit).

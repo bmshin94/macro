@@ -131,6 +131,14 @@ pub trait EmailRepo: Send + Sync + 'static {
         macro_id: MacroUserIdStr<'_>,
     ) -> impl Future<Output = Result<Option<Link>, Self::Err>> + Send;
 
+    /// Resolve the inbox owning a message, scoped to the caller's own and
+    /// delegated inboxes.
+    fn owned_link_for_message(
+        &self,
+        message_id: Uuid,
+        macro_id: MacroUserIdStr<'_>,
+    ) -> impl Future<Output = Result<Option<Link>, Self::Err>> + Send;
+
     /// Returns every inbox accessible to `macro_id`: their own email_links plus
     /// any reachable via a `macro_user_links` edge (narrow-graph multi-inbox).
     fn inboxes_for_macro_id(
@@ -532,6 +540,15 @@ pub trait EmailService: Send + Sync + 'static {
         thread_id: Uuid,
     ) -> impl Future<Output = Result<Option<Link>, EmailErr>> + Send;
 
+    /// Resolve the inbox owning a message, scoped to the caller's own and
+    /// delegated inboxes. Used to determine the correct sending inbox when
+    /// replying to a message.
+    fn get_owned_link_for_message(
+        &self,
+        macro_id: MacroUserIdStr<'_>,
+        message_id: Uuid,
+    ) -> impl Future<Output = Result<Option<Link>, EmailErr>> + Send;
+
     /// Fetch a thread with paginated messages, verifying access via the provided receipt.
     fn get_thread_with_messages(
         &self,
@@ -788,6 +805,14 @@ impl EmailService for NoOpEmailService {
         &self,
         _macro_id: MacroUserIdStr<'_>,
         _thread_id: Uuid,
+    ) -> Result<Option<Link>, EmailErr> {
+        Err(no_op_email_err())
+    }
+
+    async fn get_owned_link_for_message(
+        &self,
+        _macro_id: MacroUserIdStr<'_>,
+        _message_id: Uuid,
     ) -> Result<Option<Link>, EmailErr> {
         Err(no_op_email_err())
     }

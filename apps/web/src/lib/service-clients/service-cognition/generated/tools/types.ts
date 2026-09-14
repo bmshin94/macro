@@ -761,6 +761,10 @@ export type SendEmailResponse =
          * The thread ID the message belongs to.
          */
         thread_id: string;
+        /**
+         * The ID of the inbox (email link) the message was sent from.
+         */
+        link_id: string;
       };
     }
   | {
@@ -5078,6 +5082,14 @@ export interface SendEmail {
    * excludes the signature for this one email.
    */
   includeSignature?: boolean | null;
+  /**
+   * The ID of the inbox (email link) to send from. When replying to a
+   * message, the backend automatically selects the inbox that received the
+   * original email. For new messages or to override the default, the user
+   * can specify this field. If omitted, the most recently connected inbox
+   * is used.
+   */
+  fromLinkId?: string | null;
 }
 /**
  * A recipient for an email.

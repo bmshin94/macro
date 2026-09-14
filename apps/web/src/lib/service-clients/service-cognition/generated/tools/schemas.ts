@@ -4240,6 +4240,7 @@ export const SendEmail = z.object({
     .optional(),
   replyingToId: z.union([z.string().uuid(), z.null()]).optional(),
   includeSignature: z.union([z.boolean(), z.null()]).optional(),
+  fromLinkId: z.union([z.string().uuid(), z.null()]).optional(),
 });
 
 export const UserToolResponseForSendEmailResponse = z
@@ -4258,6 +4259,7 @@ export const UserToolResponseForSendEmailResponse = z
                   sent: z.object({
                     message_id: z.string().uuid(),
                     thread_id: z.string().uuid(),
+                    link_id: z.string().uuid(),
                   }),
                 })
                 .strict(),
