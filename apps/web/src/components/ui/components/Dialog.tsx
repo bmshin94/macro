@@ -104,9 +104,9 @@ export function Dialog(props: DialogProps) {
               // chrome (e.g. cmd+k's toolbar/footer) reads as the same pane.
               props.fullscreen
                 ? 'size-full'
-                : 'w-200 max-w-[calc(100vw-16px)] glass bg-menu-glass [--color-dialog:var(--color-menu-glass)] [&>[data-surface]]:border-0!',
+                : 'w-200 max-w-[calc(100vw-16px)] glass bg-menu-glass [--color-dialog:var(--color-menu-glass)] [&>[data-layer]>[data-surface]]:border-0!',
               useSheet() &&
-                'touch:mobile-sheet max-h-[calc(100dvh-var(--safe-top,0px)-var(--virtual-keyboard-height,0px)-16px)] overflow-y-auto pb-[max(16px,var(--mobile-sheet-safe-padding))] [&>[data-surface]]:rounded-none [&>[data-surface]]:bg-transparent',
+                'touch:mobile-sheet max-h-[calc(100dvh-var(--safe-top,0px)-var(--virtual-keyboard-height,0px)-16px)] overflow-y-auto pb-[max(16px,var(--mobile-sheet-safe-padding))] [&>[data-layer]>[data-surface]]:rounded-none [&>[data-layer]>[data-surface]]:bg-transparent',
               animateOnOpen() &&
                 (useSheet()
                   ? 'mobile-sheet-open-animation'

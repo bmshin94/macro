@@ -94,6 +94,7 @@ import {
 } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { Dynamic } from 'solid-js/web';
+import { MobileCreateSheet } from './mobile/MobileCreateSheet';
 import type { CreatableBlock, CreatableName } from './types';
 
 const LAUNCHER_FRECENCY_STORE = 'launcher-frecency-v1';
@@ -130,6 +131,18 @@ function launcherFrecencyScore(item: CreatableBlock, now = Date.now()) {
   const recency = Math.pow(0.5, ageMs / halfLifeMs);
 
   return entry.count * FRECENCY_COUNT_WEIGHT + recency;
+}
+
+function sortLauncherBlocks(items: CreatableBlock[]) {
+  const now = Date.now();
+  return items
+    .map((item, index) => ({
+      item,
+      index,
+      score: launcherFrecencyScore(item, now),
+    }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map(({ item }) => item);
 }
 
 function trackLauncherItemUsage(item: CreatableBlock) {
@@ -804,18 +817,7 @@ export const LauncherInner = (props: LauncherInnerProps) => {
   const availableBlocks = useCreateMenuBlocks(
     () => props.blocks ?? CREATABLE_BLOCKS
   );
-  const sortedBlocks = createMemo(() => {
-    const now = Date.now();
-
-    return availableBlocks()
-      .map((item, index) => ({
-        item,
-        index,
-        score: launcherFrecencyScore(item, now),
-      }))
-      .sort((a, b) => b.score - a.score || a.index - b.index)
-      .map(({ item }) => item);
-  });
+  const sortedBlocks = createMemo(() => sortLauncherBlocks(availableBlocks()));
   const [searchQuery, setSearchQuery] = createSignal('');
   const searchMode = launcherSearchMode;
   const blocks = createMemo(() => {
@@ -1137,7 +1139,30 @@ type LauncherProps = {
   onOpenChange: (open: boolean, shouldReturnFocus?: boolean) => void;
 };
 
-export const Launcher = (props: LauncherProps) => {
+function MobileLauncher(props: LauncherProps) {
+  const availableBlocks = useCreateMenuBlocks();
+  const items = createMemo(() => sortLauncherBlocks(availableBlocks()));
+  return (
+    <MobileCreateSheet
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      items={items()}
+      onSelect={(item) => {
+        trackLauncherItemUsage(item);
+        item.keyDownHandler();
+        props.onOpenChange(false);
+      }}
+    />
+  );
+}
+
+export const Launcher = (props: LauncherProps) => (
+  <Show when={isMobile()} fallback={<DesktopLauncher {...props} />}>
+    <MobileLauncher {...props} />
+  </Show>
+);
+
+const DesktopLauncher = (props: LauncherProps) => {
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange} modal={true}>
       <Dialog.Portal>

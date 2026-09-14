@@ -1,12 +1,6 @@
-import { Button, type ConfirmDialogProps } from '@ui';
-import { createSignal, Show } from 'solid-js';
-import { MobileDrawer } from './MobileDrawer';
-
-const TONE_VARIANT = {
-  default: 'accent',
-  danger: 'danger',
-  success: 'success',
-} as const;
+import type { ConfirmDialogProps } from '@ui/components/ConfirmDialog';
+import { createSignal } from 'solid-js';
+import { MobileConfirmationSheet } from './MobileConfirmationSheet';
 
 /** Slide-out length; keep ≥ MobileDrawer's `duration-200` transition. */
 const CLOSE_MS = 250;
@@ -33,46 +27,11 @@ export function ConfirmDrawer(props: ConfirmDialogProps) {
   };
 
   return (
-    <MobileDrawer
-      side="bottom"
+    <MobileConfirmationSheet
+      {...props}
       open={props.open && internalOpen()}
-      onOpenChange={(open) => {
-        if (!open) requestClose();
-      }}
-      closeOnOutsidePointerStrategy="pointerdown"
-    >
-      <MobileDrawer.Portal>
-        <MobileDrawer.Overlay />
-        <MobileDrawer.Content aria-label="Confirmation">
-          <MobileDrawer.Handle />
-          <div class="flex flex-col gap-1 px-4 pb-4 pt-1">
-            <div class="text-base font-semibold text-ink">{props.title}</div>
-            <Show when={props.body ?? props.children}>
-              {(body) => <div class="text-sm text-ink-muted">{body()}</div>}
-            </Show>
-          </div>
-          <div class="flex flex-col gap-2 px-4 pb-4">
-            <Button
-              type="button"
-              variant={TONE_VARIANT[props.tone ?? 'default']}
-              size="lg"
-              class="w-full rounded-lg"
-              onClick={confirm}
-            >
-              {props.confirmLabel ?? 'Confirm'}
-            </Button>
-            <MobileDrawer.Close
-              as={Button}
-              type="button"
-              variant="ghost"
-              size="lg"
-              class="w-full rounded-lg"
-            >
-              {props.cancelLabel ?? 'Cancel'}
-            </MobileDrawer.Close>
-          </div>
-        </MobileDrawer.Content>
-      </MobileDrawer.Portal>
-    </MobileDrawer>
+      onOpenChange={(open) => !open && requestClose()}
+      onConfirm={confirm}
+    />
   );
 }

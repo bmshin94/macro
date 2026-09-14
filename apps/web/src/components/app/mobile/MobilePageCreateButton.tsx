@@ -5,6 +5,7 @@ import {
 import { openCreateCompanyModal } from '@app/features/companies/CreateCompanyModal';
 import { useOpenEventComposer } from '@block-calendar/components/use-open-event-composer';
 import { hapticImpact } from '@core/mobile/haptics';
+import { virtualKeyboardVisible } from '@core/mobile/virtualKeyboard';
 import CalendarIcon from '@phosphor/calendar-blank.svg';
 import MessageIcon from '@phosphor/chat-circle.svg';
 import MoreIcon from '@phosphor/dots-three.svg';
@@ -68,7 +69,7 @@ export function MobilePageCreateButton() {
   };
 
   return (
-    <Show when={foregroundView() !== 'agents'}>
+    <Show when={foregroundView() !== 'agents' && !virtualKeyboardVisible()}>
       <Show
         when={foregroundView() === 'inbox'}
         fallback={

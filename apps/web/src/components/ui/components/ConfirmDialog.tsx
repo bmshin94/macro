@@ -1,6 +1,8 @@
 import { ConfirmDrawer } from '@components/app/mobile/ConfirmDrawer';
+import { MobileConfirmationSheet } from '@components/app/mobile/MobileConfirmationSheet';
 import { isMobile } from '@core/mobile/isMobile';
 import type { JSX } from 'solid-js';
+import { Show } from 'solid-js';
 import { cn } from '../utils/classname';
 import { Button } from './Button';
 import { Dialog, type DialogProps } from './Dialog';
@@ -37,49 +39,62 @@ const TONE_VARIANT = {
 export type ConfirmDialogProps = ManagedDialogProps &
   ConfirmDialogDisplayProps & {
     onConfirm: () => void;
+    pending?: boolean;
   };
 
 /** Complete dialog used by `confirmDialog`. */
 export function ConfirmDialog(props: ConfirmDialogProps) {
   return (
-    <Dialog
-      open={props.open}
-      onOpenChange={props.onOpenChange}
-      position={props.position}
-      class={cn('w-[90%] max-w-120', props.class)}
-      visibleScrim
+    <Show
+      when={isMobile()}
+      fallback={
+        <Dialog
+          open={props.open}
+          onOpenChange={(open) => !props.pending && props.onOpenChange(open)}
+          position={props.position}
+          class={cn('w-[90%] max-w-120', props.class)}
+          visibleScrim
+        >
+          <Surface depth={2} class="rounded-xl text-ink">
+            <div class="flex flex-col gap-1 px-5 py-4">
+              <Dialog.Title class="text-base font-semibold">
+                {props.title}
+              </Dialog.Title>
+              <Dialog.Description
+                as="div"
+                class="text-sm leading-5 text-ink-muted"
+              >
+                {props.body ?? props.children}
+              </Dialog.Description>
+            </div>
+            <div class="flex items-center justify-end gap-2 px-5 py-3">
+              <Button
+                type="button"
+                variant="ghost"
+                depth={2}
+                class="rounded-lg"
+                disabled={props.pending}
+                onClick={() => props.onOpenChange(false)}
+              >
+                {props.cancelLabel ?? 'Cancel'}
+              </Button>
+              <Button
+                type="button"
+                variant={TONE_VARIANT[props.tone ?? 'default']}
+                depth={2}
+                class="rounded-lg"
+                disabled={props.pending}
+                onClick={props.onConfirm}
+              >
+                {props.confirmLabel ?? 'Confirm'}
+              </Button>
+            </div>
+          </Surface>
+        </Dialog>
+      }
     >
-      <Surface depth={2} class="rounded-xl text-ink">
-        <div class="flex flex-col gap-1 px-5 py-4">
-          <Dialog.Title class="text-base font-semibold">
-            {props.title}
-          </Dialog.Title>
-          <Dialog.Description as="div" class="text-sm leading-5 text-ink-muted">
-            {props.body ?? props.children}
-          </Dialog.Description>
-        </div>
-        <div class="flex items-center justify-end gap-2 px-5 py-3">
-          <Button
-            type="button"
-            variant="ghost"
-            depth={2}
-            class="rounded-lg"
-            onClick={() => props.onOpenChange(false)}
-          >
-            {props.cancelLabel ?? 'Cancel'}
-          </Button>
-          <Button
-            type="button"
-            variant={TONE_VARIANT[props.tone ?? 'default']}
-            depth={2}
-            class="rounded-lg"
-            onClick={props.onConfirm}
-          >
-            {props.confirmLabel ?? 'Confirm'}
-          </Button>
-        </div>
-      </Surface>
-    </Dialog>
+      <MobileConfirmationSheet {...props} />
+    </Show>
   );
 }
 

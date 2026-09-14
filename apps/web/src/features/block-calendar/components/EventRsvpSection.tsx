@@ -93,14 +93,10 @@ export function EventRsvpSection(props: {
           <For each={RSVP_OPTIONS}>
             {(option) => (
               <Button
-                variant={
-                  selfAttendee()?.responseStatus === option.response
-                    ? 'accent'
-                    : 'outline'
-                }
+                variant="ghost"
                 size={props.buttonSize ?? 'sm'}
                 depth={3}
-                class="rounded-lg px-3 mobile:min-h-11 mobile:rounded-full"
+                class="rounded-lg bg-ink/5 px-3 aria-pressed:bg-accent-bg aria-pressed:text-accent mobile:min-h-11 mobile:rounded-full"
                 aria-pressed={
                   selfAttendee()?.responseStatus === option.response
                 }
