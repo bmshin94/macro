@@ -818,6 +818,7 @@
           "id",
           "channel_type",
           "channel_id",
+          "is_favorited",
           "message_id",
           "sender_id",
           "created_at",
@@ -852,6 +853,10 @@
             "type": "string",
             "format": "uuid",
             "description": "Standardized id field shared by all item types; the channel id."
+          },
+          "is_favorited": {
+            "type": "boolean",
+            "description": "Whether the requesting user has favorited the parent channel."
           },
           "message_id": {
             "type": "string",
@@ -909,7 +914,13 @@
       "ChannelNameSearchResponseItem": {
         "type": "object",
         "description": "A channel-name search hit.",
-        "required": ["id", "channel_type", "channel_id", "highlight"],
+        "required": [
+          "id",
+          "channel_type",
+          "channel_id",
+          "is_favorited",
+          "highlight"
+        ],
         "properties": {
           "channel_id": {
             "type": "string",
@@ -928,6 +939,10 @@
             "type": "string",
             "format": "uuid",
             "description": "Standardized id field shared by all item types; the channel id."
+          },
+          "is_favorited": {
+            "type": "boolean",
+            "description": "Whether the requesting user has favorited the channel."
           },
           "metadata": {
             "oneOf": [
@@ -1029,6 +1044,7 @@
           "id",
           "channel_type",
           "channel_id",
+          "is_favorited",
           "channel_message_search_results"
         ],
         "properties": {
@@ -1052,6 +1068,10 @@
             "type": "string",
             "format": "uuid",
             "description": "Standardized fields that all item types will share.\nThese field names are being aligned across all item types\nfor consistency in our data model."
+          },
+          "is_favorited": {
+            "type": "boolean",
+            "description": "Whether the requesting user has favorited the channel."
           },
           "owner_id": {
             "type": ["string", "null"],

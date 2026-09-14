@@ -1,6 +1,9 @@
 import type { SoupApiItem } from '@service-storage/generated/schemas';
 import { describe, expect, it, vi } from 'vitest';
-import { mapApiSoupItemToEntity } from './transform-utils';
+import {
+  mapApiSoupItemToEntity,
+  mapChannelSearchResultItem,
+} from './transform-utils';
 
 vi.mock('@core/constant/allBlocks', () => ({
   blockNameToDefaultFile: {},
@@ -36,4 +39,36 @@ describe('chat soup entities', () => {
       });
     }
   );
+});
+
+describe('channel search entities', () => {
+  it('preserves the parent channel favorite state on message hits', () => {
+    const [entity] = mapChannelSearchResultItem(
+      {
+        channel_id: 'channel-id',
+        channel_type: 'public',
+        owner_id: 'macro|owner@example.com',
+        is_favorited: true,
+        channel_message_search_results: [
+          {
+            message_id: 'message-id',
+            thread_id: null,
+            sender_id: 'macro|sender@example.com',
+            created_at: '2026-09-14T00:00:00Z',
+            updated_at: '2026-09-14T00:00:00Z',
+            deleted_at: null,
+            highlight: { content: ['A matching message'] },
+            score: null,
+          },
+        ],
+      },
+      [{ id: 'channel-id', name: 'Channel' }]
+    );
+
+    expect(entity).toMatchObject({
+      type: 'channel_message',
+      channelId: 'channel-id',
+      isFavorited: true,
+    });
+  });
 });

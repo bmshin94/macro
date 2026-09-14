@@ -1417,6 +1417,10 @@ export interface ChannelMessageSearchResponseItem {
    */
   channel_id: string;
   /**
+   * Whether the requesting user has favorited the parent channel.
+   */
+  is_favorited: boolean;
+  /**
    * The channel message id
    */
   message_id: string;
@@ -1470,6 +1474,10 @@ export interface ChannelNameSearchResponseItem {
    * The channel id.
    */
   channel_id: string;
+  /**
+   * Whether the requesting user has favorited the channel.
+   */
+  is_favorited: boolean;
   highlight: SearchHighlight;
   /**
    * The score of the result.

@@ -18,6 +18,7 @@ fn channel_message_item(channel_id: Uuid, message_id: Uuid, ts: i64) -> UnifiedS
         owner_id: Some("owner1".to_string()),
         channel_type: "public".to_string(),
         channel_id,
+        is_favorited: false,
         message_id,
         thread_id: None,
         sender_id: "sender1".to_string(),

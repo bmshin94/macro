@@ -464,6 +464,7 @@ export const SearchToolResponse = z.object({
                 owner_id: z.union([z.string(), z.null()]).optional(),
                 channel_type: z.string(),
                 channel_id: z.string().uuid(),
+                is_favorited: z.boolean(),
                 message_id: z.string().uuid(),
                 thread_id: z.union([z.string().uuid(), z.null()]).optional(),
                 sender_id: z.string(),
@@ -512,6 +513,7 @@ export const SearchToolResponse = z.object({
                 owner_id: z.union([z.string(), z.null()]).optional(),
                 channel_type: z.string(),
                 channel_id: z.string().uuid(),
+                is_favorited: z.boolean(),
                 highlight: z.object({
                   name: z.union([z.string(), z.null()]).optional(),
                   content: z.array(z.string()).optional(),
