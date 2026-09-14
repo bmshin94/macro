@@ -1692,7 +1692,7 @@ async fn a_prompt_turn_is_traced_as_an_agent_span_under_its_command() {
     let active = Arc::new(ActiveSessions::new());
     let cancellation = CancellationToken::new();
     let (stopped_tx, _) = watch::channel(false);
-    let claim = claim_for_test(&repo, session).await;
+    let lock = lock_for_test(&repo, session).await;
     let task = tokio::spawn(
         run_session(
             actor,
@@ -1701,7 +1701,7 @@ async fn a_prompt_turn_is_traced_as_an_agent_span_under_its_command() {
             stopped_tx,
             cancellation.clone(),
             repo.clone(),
-            claim,
+            lock,
             Arc::new(crate::domain::ports::NoOpTurnObserver),
         )
         .with_current_subscriber(),
