@@ -227,6 +227,12 @@ export type AgentSessionResponse = {
      */
     botId: string;
     /**
+     * Whether the caller may drive the session - prompt it, answer its
+     * questions, stop it - rather than only watch. Edit access; the
+     * creator owns the session, so a create response always says so.
+     */
+    canEdit: boolean;
+    /**
      * When the session was created.
      */
     createdAt: string;
@@ -264,6 +270,10 @@ export type AgentSessionResponse = {
      * The user who created and owns the session.
      */
     ownerId: string;
+    /**
+     * The session's linked pull request.
+     */
+    pullRequestUrl?: string | null;
     /**
      * The repository the session works with, when one was stated.
      */
@@ -347,10 +357,11 @@ export type ControlStatusDto = 'sent' | 'queued';
 export type CreateAgentSessionRequest = {
     /**
      * Bot the session runs for. On a managed request this optionally selects
-     * a persisted persona the user owns or may use through team membership;
-     * omitting it uses the deployment's default coding persona. On an
-     * external request, bot callers may omit it (their own identity is used)
-     * and must not name another bot; user callers must supply a bot they own.
+     * a persisted persona the user owns, may use through team membership, or
+     * can `@` mention in a shared channel; omitting it uses the deployment's
+     * default coding persona. On an external request, bot callers may omit it
+     * (their own identity is used) and must not name another bot; user callers
+     * must supply a bot they own.
      */
     botId?: string | null;
     /**
@@ -657,6 +668,10 @@ export type SessionBot = {
      * Avatar, when it has one.
      */
     avatarUrl?: string | null;
+    /**
+     * Stable `@` handle, without a leading `@`.
+     */
+    handle: string;
     /**
      * The bot's id. A message it sent has `"bot|{id}"` as its sender.
      */

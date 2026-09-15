@@ -27,6 +27,7 @@ local_auth = ["macro_authorization/local_auth"]
 location_check = []
 
 [dependencies]
+agent_session = { path = "../../crates/agent_session", features = ["outbound"] }
 activity = { path = "../../crates/activity" }
 agent_session = { path = "../../crates/agent_session", default-features = false }
 ai_tools = { path = "../../crates/ai_tools" }
