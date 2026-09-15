@@ -12,7 +12,6 @@ import { CREATE_DRAFT_COMMENT_COMMAND } from '@core/component/LexicalMarkdown/pl
 import { editorFocusSignal } from '@core/component/LexicalMarkdown/utils';
 import { toast } from '@core/component/Toast/Toast';
 import { ENABLE_MARKDOWN_COMMENTS } from '@core/constant/featureFlags';
-import type { ValidHotkey } from '@core/hotkey/types';
 import { useCanComment, useCanEdit } from '@core/signal/permissions';
 import DotsThreeLarge from '@icon/dots-three-large.svg';
 import {
@@ -25,9 +24,6 @@ import type { ElementName } from '@macro-inc/lexical-core';
 import CaretDown from '@phosphor/caret-down.svg';
 import CaretRight from '@phosphor/caret-right.svg';
 import ChatTeardrop from '@phosphor/chat-teardrop.svg';
-import Check from '@phosphor/check-square.svg';
-import TextCode from '@phosphor/code.svg';
-import CodeBlock from '@phosphor/code-block.svg';
 import CornersIn from '@phosphor/corners-in.svg';
 import CornersOut from '@phosphor/corners-out.svg';
 import ThreeDots from '@phosphor/dots-three.svg';
@@ -36,25 +32,11 @@ import Grid from '@phosphor/grid-four.svg';
 import BrokenLinkIcon from '@phosphor/link-break.svg';
 import LinkIcon from '@phosphor/link-simple.svg';
 import ListBullets from '@phosphor/list-bullets.svg';
-import ListChecks from '@phosphor/list-checks.svg';
-import ListNumbers from '@phosphor/list-numbers.svg';
 import Minus from '@phosphor/minus.svg';
-import One from '@phosphor/number-one.svg';
-import TextHighlight from '@phosphor/paint-roller.svg';
 import PlusSquare from '@phosphor/plus-square.svg';
 import Quote from '@phosphor/quotes.svg';
 import TextAA from '@phosphor/text-aa.svg';
-import TextBold from '@phosphor/text-b.svg';
 import TextH from '@phosphor/text-h.svg';
-import TextH1 from '@phosphor/text-h-one.svg';
-import TextH3 from '@phosphor/text-h-three.svg';
-import TextH2 from '@phosphor/text-h-two.svg';
-import TextItalic from '@phosphor/text-italic.svg';
-import TextStriketrough from '@phosphor/text-strikethrough.svg';
-import TextSub from '@phosphor/text-subscript.svg';
-import TextSuper from '@phosphor/text-superscript.svg';
-import TextT from '@phosphor/text-t.svg';
-import TextUnderline from '@phosphor/text-underline.svg';
 import {
   Button,
   type ButtonSize,
@@ -89,118 +71,19 @@ import {
   isGeneratingSignal,
 } from '../signal/generateSignal';
 import { mdStore } from '../signal/markdownBlockData';
+import {
+  type InlineFormat,
+  InlineIcons,
+  InlineLabels,
+  InlineShortcuts,
+  NodeMenuOptions,
+} from './formatMetadata';
 import { MediaSelector } from './MediaSelector';
 import { TableInsert } from './TableInsert';
 
 function VerticalBar() {
   return <div class="w-px mx-1 h-full bg-edge"></div>;
 }
-
-type DropdownItemProps = {
-  label: string;
-  icon: Component;
-  show: boolean;
-  themeClass?: string;
-  before?: JSX.Element;
-};
-
-export const NodeMenuOptions: Record<ElementName, DropdownItemProps> = {
-  paragraph: {
-    label: 'Body',
-    icon: TextT,
-    show: false,
-    themeClass: '',
-  },
-  heading1: {
-    label: 'Heading 1',
-    icon: TextH1,
-    show: true,
-    themeClass: 'text-[1.15em] font-bold',
-  },
-  heading2: {
-    label: 'Heading 2',
-    icon: TextH2,
-    show: true,
-    themeClass: 'text-[1.07em] font-bold',
-  },
-  heading3: {
-    label: 'Heading 3',
-    icon: TextH3,
-    show: true,
-    themeClass: 'text-[1.03em] font-bold',
-  },
-  quote: { label: 'Quote', icon: Quote, show: true, themeClass: 'italic' },
-  code: { label: 'Code', icon: CodeBlock, show: true, themeClass: 'font-mono' },
-  'custom-code': {
-    label: 'Code',
-    icon: CodeBlock,
-    show: false,
-    themeClass: 'font-mono',
-  },
-  'list-bullet': {
-    label: 'Bullet List',
-    icon: ListBullets,
-    show: true,
-    before: <div class="bg-ink size-1.5 rounded-full ml-1.5 mr-3" />,
-  },
-  'list-number': {
-    label: 'Numbered List',
-    icon: ListNumbers,
-    show: true,
-    before: <One class="size-4 mr-2" />,
-  },
-  'list-check': {
-    label: 'Checklist',
-    icon: ListChecks,
-    show: true,
-    before: <Check class="size-4 mr-2" />,
-  },
-  link: { label: 'Link', icon: LinkIcon, show: false, themeClass: '' },
-} as const;
-
-export type InlineFormat =
-  | 'bold'
-  | 'italic'
-  | 'underline'
-  | 'strikethrough'
-  | 'highlight'
-  | 'code'
-  | 'superscript'
-  | 'subscript';
-
-export const InlineIcons: Record<
-  InlineFormat,
-  Component<JSX.SvgSVGAttributes<SVGSVGElement>>
-> = {
-  bold: TextBold,
-  italic: TextItalic,
-  underline: TextUnderline,
-  strikethrough: TextStriketrough,
-  highlight: TextHighlight,
-  code: TextCode,
-  superscript: TextSuper,
-  subscript: TextSub,
-} as const;
-
-const InlineShortcuts: Partial<Record<InlineFormat, ValidHotkey>> = {
-  bold: 'cmd+b',
-  italic: 'cmd+i',
-  underline: 'cmd+u',
-  strikethrough: 'shift+cmd+x',
-  highlight: 'shift+cmd+h',
-  code: 'cmd+e',
-} as const;
-
-export const InlineLabels: Record<InlineFormat, string> = {
-  bold: 'Bold',
-  italic: 'Italic',
-  underline: 'Underline',
-  strikethrough: 'Strikethrough',
-  highlight: 'Highlight',
-  code: 'Inline code',
-  superscript: 'Superscript',
-  subscript: 'Subscript',
-} as const;
 
 const isInlineFormatActive = (
   selection: SelectionData | undefined,

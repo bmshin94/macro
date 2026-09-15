@@ -18,7 +18,6 @@ import LinkIcon from '@phosphor-icons/core/regular/link.svg?component-solid';
 import { Button } from '@ui';
 import { cn } from '@ui/utils/classname';
 import {
-  type Component,
   createEffect,
   createMemo,
   createSignal,
@@ -32,7 +31,7 @@ import {
   InlineIcons,
   InlineLabels,
   NodeMenuOptions,
-} from './FormatTools';
+} from './formatMetadata';
 
 type TouchOption = {
   key: string;
@@ -146,11 +145,7 @@ export function TouchSelectionToolbar(props: {
       onSelect: () => props.onToggleLink(),
     });
     for (const format of TOUCH_BLOCK_FORMATS) {
-      const { label } = NodeMenuOptions[format];
-      // NodeMenuOptions types its icons as bare Components; they are all SVGs.
-      const icon = NodeMenuOptions[format].icon as Component<
-        JSX.SvgSVGAttributes<SVGSVGElement>
-      >;
+      const { icon, label } = NodeMenuOptions[format];
       list.push({
         key: format,
         label,

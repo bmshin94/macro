@@ -102,7 +102,8 @@ import {
   generatedAndWaitingSignal,
   isGeneratingSignal,
 } from '../signal/generateSignal';
-import { FormatTools, type InlineFormat } from './FormatTools';
+import { FormatTools } from './FormatTools';
+import type { InlineFormat } from './formatMetadata';
 import { TouchSelectionToolbar } from './TouchSelectionToolbar';
 
 const MENU_ID = 'markdown-popup';
