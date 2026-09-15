@@ -1,3 +1,10 @@
+import {
+  AgentChangesProvider,
+  AgentChangesSplit,
+  ChangesHandoff,
+  ChangesToggle,
+  ReviewNotesDock,
+} from '@app/features/agent-changes/agent-changes';
 import { AgentComposer } from '@app/features/block-agent/component/AgentComposer';
 import { Transcript } from '@app/features/block-agent/component/Transcript';
 import {
@@ -17,10 +24,11 @@ function AgentSessionContent() {
 
   return (
     <>
-      <header class="flex h-12 shrink-0 items-center border-b border-edge px-4">
-        <h2 class="truncate text-sm font-semibold text-ink">
+      <header class="flex h-12 shrink-0 items-center gap-2 border-b border-edge px-4">
+        <h2 class="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
           {metadata()?.title ?? session()?.name ?? 'New Chat'}
         </h2>
+        <ChangesToggle />
       </header>
       <Show
         when={!loadFailed()}
@@ -34,7 +42,9 @@ function AgentSessionContent() {
         <div class="flex min-h-0 flex-1 overflow-hidden">
           <Transcript />
         </div>
-        <div class="mx-auto w-full max-w-4xl shrink-0 px-4 pb-4">
+        <div class="mx-auto flex w-full max-w-4xl shrink-0 flex-col gap-2 px-4 pb-4">
+          <ChangesHandoff />
+          <ReviewNotesDock />
           <AgentComposer autofocus />
         </div>
       </Show>
@@ -55,7 +65,11 @@ export function AgentSessionPane(props: {
 
   return (
     <AgentSessionProvider blockId={props.id} onSessionId={props.onSessionId}>
-      <AgentSessionContent />
+      <AgentChangesProvider>
+        <AgentChangesSplit>
+          <AgentSessionContent />
+        </AgentChangesSplit>
+      </AgentChangesProvider>
     </AgentSessionProvider>
   );
 }

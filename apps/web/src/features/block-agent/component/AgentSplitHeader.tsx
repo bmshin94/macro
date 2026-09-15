@@ -1,3 +1,4 @@
+import { ChangesToggle } from '@app/features/agent-changes/agent-changes';
 import { useBlockEntityCommands } from '@app/features/next-soup/actions/use-block-entity-commands';
 import {
   type BlockTool,
@@ -139,6 +140,7 @@ export function AgentSplitHeader(props: {
       <Show when={!isMobile()}>
         <SplitHeaderRight>
           <div class="order-[1000] flex items-center gap-1">
+            <ChangesToggle />
             <For each={tools}>
               {(tool) => (
                 <Show when={!tool.condition || tool.condition()}>

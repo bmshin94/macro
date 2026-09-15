@@ -1,6 +1,8 @@
 import { SERVER_HOSTS } from '@core/constant/servers';
 import { fetchWithToken } from '@core/util/fetchWithToken';
 import type {
+  AgentSessionChangesPatchResponse,
+  AgentSessionChangesResponse,
   AgentSessionLogResponse,
   AgentSessionQueueResponse,
   AgentSessionResponse,
@@ -11,6 +13,7 @@ import type {
   LoadAgentModelsRequest,
   LoadAgentModelsResponse,
   PreviewAgentSessionsResponse,
+  PullRequestDraftResponse,
   SandboxSize,
   SandboxSizeBody,
 } from './generated/schemas';
@@ -155,6 +158,45 @@ export const agentHarnessServiceClient = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ size }),
       }
+    );
+  },
+
+  /**
+   * The session's latest captured changes: changed files with statuses and
+   * line counts, plus how the latest capture attempt went.
+   */
+  getChanges(sessionId: string) {
+    return fetchWithToken<AgentSessionChangesResponse>(
+      `${agentHarnessHost}/agent-sessions/${sessionId}/changes`,
+      { method: 'GET' }
+    );
+  },
+
+  /** The unified diff behind the session's latest changeset. 404 until one exists. */
+  getChangesPatch(sessionId: string) {
+    return fetchWithToken<AgentSessionChangesPatchResponse>(
+      `${agentHarnessHost}/agent-sessions/${sessionId}/changes/patch`,
+      { method: 'GET' }
+    );
+  },
+
+  /**
+   * Capture the session's changes again now. Answers at once with the state
+   * as it stands; the capture lands through the `agent_session_changes`
+   * realtime event.
+   */
+  refreshChanges(sessionId: string) {
+    return fetchWithToken<AgentSessionChangesResponse>(
+      `${agentHarnessHost}/agent-sessions/${sessionId}/changes/refresh`,
+      { method: 'POST' }
+    );
+  },
+
+  /** A pull request title and description drafted from the current changeset. */
+  draftPullRequest(sessionId: string) {
+    return fetchWithToken<PullRequestDraftResponse>(
+      `${agentHarnessHost}/agent-sessions/${sessionId}/changes/pull-request-draft`,
+      { method: 'POST' }
     );
   },
 
