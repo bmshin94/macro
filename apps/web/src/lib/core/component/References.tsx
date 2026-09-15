@@ -19,7 +19,7 @@ import type { ItemType } from '@service-storage/client';
 import type { ApiAttachmentEntityReference as EntityReference } from '@service-storage/generated/schemas/apiAttachmentEntityReference';
 import type { ApiAttachmentGenericReference as GenericReference } from '@service-storage/generated/schemas/apiAttachmentGenericReference';
 import { stringToItemType } from '@service-storage/itemType';
-import { createMemo, For, type JSX, Show } from 'solid-js';
+import { createMemo, For, type JSX, Show, Suspense } from 'solid-js';
 import { InlineItemPreview } from './ItemPreview';
 import { StaticMarkdown } from './LexicalMarkdown/component/core/StaticMarkdown';
 import { twoLineClampMarkdownTheme } from './LexicalMarkdown/theme';
@@ -330,6 +330,49 @@ export function References(props: ReferenceProps) {
           }}
         </For>
       </SidePanel.Card>
+    </Show>
+  );
+}
+
+type ReferencesSidePanelSectionProps = {
+  entityId: string;
+  entityType: ItemType;
+  order: number;
+};
+
+/**
+ * Side-panel "References" section for an entity's detail view. Renders only
+ * once the entity has at least one reference, with the count in the title,
+ * so record pages don't each re-implement the gating.
+ */
+export function ReferencesSidePanelSection(
+  props: ReferencesSidePanelSectionProps
+) {
+  const references = useAttachmentReferencesQuery(
+    () => props.entityId,
+    () => props.entityType
+  );
+  // `data` is a resource read that suspends the nearest boundary while the
+  // query is pending; gate on status so the whole side panel doesn't blank.
+  const count = () =>
+    references.isSuccess ? (references.data?.length ?? 0) : 0;
+
+  return (
+    <Show when={count() > 0}>
+      <SidePanel.Section
+        id="references"
+        title={<SidePanel.CountTitle label="References" count={count()} />}
+        order={props.order}
+      >
+        <Suspense fallback={<SidePanel.Loading />}>
+          <div class="text-xs">
+            <References
+              documentId={props.entityId}
+              entityType={props.entityType}
+            />
+          </div>
+        </Suspense>
+      </SidePanel.Section>
     </Show>
   );
 }

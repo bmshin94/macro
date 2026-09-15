@@ -14,7 +14,10 @@ import type {
   MentionItem,
 } from '../../../../utils/mentionsUtils';
 import { handleUserMention } from '../../../../utils/mentionsUtils';
-import { getBlockNameFromEntity } from './entityUtils';
+import {
+  getBlockNameFromEntity,
+  getMentionTrackTypeFromEntity,
+} from './entityUtils';
 
 // Resolve the display name for a mention insert. `entity.name` is the
 // happy path; falls back per-bucket so the inserted mention is never
@@ -67,11 +70,11 @@ async function handleEntityMention(
     blockName !== 'chat' &&
     !disableMentionTracking
   ) {
-    const trackType =
-      item.bucket === 'channel' || item.bucket === 'dm'
-        ? 'channel'
-        : 'document';
-    mentionId = await trackMention(blockId, trackType, entity.id);
+    mentionId = await trackMention(
+      blockId,
+      getMentionTrackTypeFromEntity(item),
+      entity.id
+    );
   }
 
   if (item.bucket === 'email') {

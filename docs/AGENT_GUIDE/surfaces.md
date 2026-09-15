@@ -314,6 +314,9 @@ On phones, recorded call headers omit the **Call Again** action.
 
 Board/List views, `Company` create button. Requires a team ("Join a team to enable CRM" →
 `Open team settings`).
+A company or contact record's side panel gains a `References` section (count in the title)
+once the record is mentioned in a channel message or a document; each row opens the
+mentioning message or document. The section is absent while the record has no mentions.
 
 ## Activity — `/app/component/activity`
 

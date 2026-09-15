@@ -1,6 +1,7 @@
 import type { BlockAlias, BlockName } from '@core/block';
 import { fileTypeToBlockName } from '@core/constant/allBlocks';
 import type { EntityItem } from '@core/context/quickAccess';
+import type { ItemType } from '@service-storage/client';
 import { match } from 'ts-pattern';
 import type { MentionItem } from '../../../../utils/mentionsUtils';
 
@@ -29,6 +30,19 @@ export function getBlockNameFromEntity(
       }
       return 'unknown';
     });
+}
+
+/**
+ * Entity type recorded when a document mentions this picker item, so the
+ * mentioned entity's References can find the document. Channels and DMs are
+ * `channel`, CRM companies are `crm_company`; everything else the picker
+ * offers is a document-like entity.
+ */
+export function getMentionTrackTypeFromEntity(item: EntityItem): ItemType {
+  return match<EntityItem['bucket'], ItemType>(item.bucket)
+    .with('channel', 'dm', () => 'channel')
+    .with('crm_company', () => 'crm_company')
+    .otherwise(() => 'document');
 }
 
 /**
