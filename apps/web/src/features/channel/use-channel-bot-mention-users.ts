@@ -8,6 +8,7 @@ import { useChannelBotsQuery } from '@queries/channel/channel-bots';
 import { queryReadyGate } from '@queries/gate';
 import type { Agent } from '@service-storage/generated/schemas/agent';
 import type { Bot } from '@service-storage/generated/schemas/bot';
+import type { MessageParent } from '@service-storage/messages';
 import { type Accessor, createMemo } from 'solid-js';
 
 function mentionUser(bot: Bot): IUser {
@@ -24,11 +25,12 @@ export function availableBotMentionUsers(
   channelBots: readonly Bot[],
   agents: readonly Agent[],
   cursorConnected: boolean,
-  codexConnected = false
+  codexConnected = false,
+  surface: 'channel' | 'document' = 'channel'
 ): IUser[] {
   const globalAgents = agents.filter(
     (agent) =>
-      agent.channel_scope === 'all' &&
+      (surface === 'document' || agent.channel_scope === 'all') &&
       agent.bot.has_agent &&
       (agent.harness !== 'cursor' || cursorConnected) &&
       (agent.harness !== 'codex-cloud' || codexConnected)
@@ -59,12 +61,14 @@ export function availableBotMentionUsers(
  * typeahead. Like `macroAiMentionUser()`, `email` is set to the bot's name so
  * persisted mentions render as "@BotName", and `id` uses the canonical
  * `bot|<uuid>` principal form so mentions are re-tagged as bot mentions at
- * send time (see `expandMentions`).
+ * send time (see `authoredMentions`).
  */
-export function useChannelBotMentionUsers(
-  channelId: Accessor<string>
+export function useMessageBotMentionUsers(
+  parent: Accessor<MessageParent>
 ): Accessor<IUser[]> {
-  const channelBots = useChannelBotsQuery(channelId);
+  const channelBots = useChannelBotsQuery(() =>
+    parent().type === 'channel' ? parent().id : ''
+  );
   const agents = useAgentsQuery();
   const cursorStatus = useCursorApiKeyStatusQuery();
   const canUseCodex = useCodexAgentsAccess();
@@ -78,7 +82,8 @@ export function useChannelBotMentionUsers(
       canUseCodex() &&
         codexStatus.isSuccess &&
         codexStatus.data.connected &&
-        !!codexStatus.data.environmentId?.trim()
+        !!codexStatus.data.environmentId?.trim(),
+      parent().type
     )
   );
 }
