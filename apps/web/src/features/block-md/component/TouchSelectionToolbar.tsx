@@ -3,7 +3,6 @@ import { toast } from '@core/component/Toast/Toast';
 import { ENABLE_MARKDOWN_COMMENTS } from '@core/constant/featureFlags';
 import { hasNativeEditMenu } from '@core/mobile/nativeEditMenu';
 import type { ElementName } from '@macro-inc/lexical-core';
-import ArrowLeftIcon from '@phosphor/arrow-left.svg';
 import CaretLeftIcon from '@phosphor/caret-left.svg';
 import CaretRightIcon from '@phosphor/caret-right.svg';
 import ChatTeardrop from '@phosphor/chat-teardrop.svg';
@@ -526,17 +525,18 @@ export function TouchSelectionToolbar(props: {
         </div>
       </div>
       <Show when={showingFormats()}>
-        {/* An arrow rather than a caret so it doesn't read as another page
-            step next to the chevrons. */}
+        {/* The option that opened this view, held down in place: a back arrow
+            here would read as another page step beside the chevrons. */}
         <Button
           size="icon-sm"
-          class={arrowButtonClass}
+          class={cn(arrowButtonClass, 'bg-accent-bg text-accent')}
           depth={3}
           variant="ghost"
-          aria-label="Back to actions"
+          aria-label="Format"
+          aria-pressed={true}
           onClick={() => setFormatView(false)}
         >
-          <ArrowLeftIcon class="size-4" />
+          <TextAA class="size-4" />
         </Button>
         <div class="mx-1 w-px shrink-0 self-stretch bg-edge" />
       </Show>
