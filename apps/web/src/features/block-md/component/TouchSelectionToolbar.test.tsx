@@ -104,10 +104,8 @@ describe('TouchSelectionToolbar', () => {
     fireEvent.click(getByRole('button', { name: 'Heading 1' }));
     expect(onBlockFormat).toHaveBeenCalledWith('heading1');
 
-    // The lit Format toggle takes the place of the option that opened the view.
-    const formatToggle = getByRole('button', { name: 'Format' });
-    expect(formatToggle.getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(formatToggle);
+    // Paging back off the first formatting page returns to the actions.
+    fireEvent.click(getByRole('button', { name: 'Back to actions' }));
     expect(getByRole('button', { name: 'Copy' })).toBeTruthy();
     expect(queryByRole('button', { name: 'Bold' })).toBeNull();
   });

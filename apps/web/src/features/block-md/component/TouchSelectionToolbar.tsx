@@ -82,9 +82,10 @@ const arrowButtonClass =
  * ends) and releasing past a threshold snaps one page over; chevrons move a
  * page at a time.
  *
- * "Format" swaps the whole option set for the formatting toggles, which are
- * paged the same way behind a back arrow — the dropdowns the desktop toolbar
- * uses for them would take focus from the editor and close the popup.
+ * "Format" swaps the whole option set for the formatting toggles, paged the
+ * same way, with the back chevron on their first page returning to the
+ * actions — the dropdowns the desktop toolbar uses for formatting would take
+ * focus from the editor and close the popup.
  *
  * Desktop renders MarkdownPopupToolbar instead; see MarkdownPopup for the
  * split.
@@ -356,8 +357,8 @@ export function TouchSelectionToolbar(props: {
     if (all.length === 0) return [];
     if (widths.length !== all.length) return [];
 
-    // The formatting view's back arrow is outside the track, so it eats into
-    // the budget on every one of its pages.
+    // The formatting view always shows the back chevron, even on a layout
+    // that would otherwise need no paging at all.
     const backSpace = showingFormats() ? arrowWidth() + DIVIDER_SPACE : 0;
     const totalBudget = Math.max(
       120,
@@ -402,13 +403,20 @@ export function TouchSelectionToolbar(props: {
 
   const clampedIndex = () =>
     Math.max(0, Math.min(pageIndex(), pages().length - 1));
-  const canPagePrev = () => clampedIndex() > 0;
+  /** Paging back off the first formatting page leaves the view entirely. */
+  const leavesFormatView = () => showingFormats() && clampedIndex() === 0;
+  const canPagePrev = () => clampedIndex() > 0 || leavesFormatView();
   const canPageNext = () => clampedIndex() < pages().length - 1;
 
-  const page = (direction: 1 | -1) =>
+  const page = (direction: 1 | -1) => {
+    if (direction === -1 && leavesFormatView()) {
+      setFormatView(false);
+      return;
+    }
     setPageIndex(() =>
       Math.max(0, Math.min(clampedIndex() + direction, pages().length - 1))
     );
+  };
 
   // --- Swipe paging -------------------------------------------------------
   // The finger drags the track live; releasing past the threshold commits
@@ -423,7 +431,7 @@ export function TouchSelectionToolbar(props: {
   let suppressClick = false;
 
   const handlePointerDown = (event: PointerEvent) => {
-    if (pages().length <= 1) return;
+    if (pages().length <= 1 && !leavesFormatView()) return;
     if (event.pointerType === 'mouse' && event.buttons !== 1) return;
     dragPointerId = event.pointerId;
     dragStartX = event.clientX;
@@ -444,9 +452,10 @@ export function TouchSelectionToolbar(props: {
         // synthetic pointers cannot be captured
       }
     }
-    // Resist dragging past the first/last page.
-    const atStart = clampedIndex() === 0 && dragRawDelta > 0;
-    const atEnd = clampedIndex() === pages().length - 1 && dragRawDelta < 0;
+    // Resist dragging past the ends — but the first formatting page has the
+    // actions behind it, so swiping back off it is a real move.
+    const atStart = !canPagePrev() && dragRawDelta > 0;
+    const atEnd = !canPageNext() && dragRawDelta < 0;
     setDragDelta(atStart || atEnd ? dragRawDelta * 0.25 : dragRawDelta);
   };
 
@@ -524,29 +533,15 @@ export function TouchSelectionToolbar(props: {
           </Button>
         </div>
       </div>
-      <Show when={showingFormats()}>
-        {/* The option that opened this view, held down in place: a back arrow
-            here would read as another page step beside the chevrons. */}
-        <Button
-          size="icon-sm"
-          class={cn(arrowButtonClass, 'bg-accent-bg text-accent')}
-          depth={3}
-          variant="ghost"
-          aria-label="Format"
-          aria-pressed={true}
-          onClick={() => setFormatView(false)}
-        >
-          <TextAA class="size-4" />
-        </Button>
-        <div class="mx-1 w-px shrink-0 self-stretch bg-edge" />
-      </Show>
       <Show when={canPagePrev()}>
         <Button
           size="icon-sm"
           class={arrowButtonClass}
           depth={3}
           variant="ghost"
-          aria-label="Previous options"
+          aria-label={
+            leavesFormatView() ? 'Back to actions' : 'Previous options'
+          }
           onClick={() => page(-1)}
         >
           <CaretLeftIcon class="size-4" />
