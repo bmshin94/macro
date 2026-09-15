@@ -158,7 +158,7 @@ export const NodeMenuOptions: Record<ElementName, DropdownItemProps> = {
   link: { label: 'Link', icon: LinkIcon, show: false, themeClass: '' },
 } as const;
 
-type InlineFormat =
+export type InlineFormat =
   | 'bold'
   | 'italic'
   | 'underline'
@@ -168,7 +168,7 @@ type InlineFormat =
   | 'superscript'
   | 'subscript';
 
-const InlineIcons: Record<
+export const InlineIcons: Record<
   InlineFormat,
   Component<JSX.SvgSVGAttributes<SVGSVGElement>>
 > = {
@@ -191,7 +191,7 @@ const InlineShortcuts: Partial<Record<InlineFormat, ValidHotkey>> = {
   code: 'cmd+e',
 } as const;
 
-const InlineLabels: Record<InlineFormat, string> = {
+export const InlineLabels: Record<InlineFormat, string> = {
   bold: 'Bold',
   italic: 'Italic',
   underline: 'Underline',

@@ -4,6 +4,7 @@ import {
   activeCommentThreadSignal,
   highlightedCommentThreadsSignal,
 } from '@block-md/comments/commentStore';
+import { markdownBlockErrorSignal } from '@block-md/signal/error';
 import { MobileDrawer } from '@components/app/mobile/MobileDrawer';
 import { useBlockId } from '@core/block';
 import { GeneralizedPopup } from '@core/component/GeneralizedPopup/Popup';
@@ -23,6 +24,8 @@ import {
   NODE_TRANSFORM,
   normalizeLinkUrl,
   registerRootEventListener,
+  type SelectionData,
+  UNLINK_COMMAND,
 } from '@core/component/LexicalMarkdown/plugins';
 import {
   $canConvertCheckboxesToTasks,
@@ -57,7 +60,7 @@ import {
 import { useCanComment, useCanEdit } from '@core/signal/permissions';
 import { debouncedDependent } from '@core/util/debounce';
 import { getScrollParentElement } from '@core/util/scrollParent';
-import type { NodeIdMappings } from '@macro-inc/lexical-core';
+import type { ElementName, NodeIdMappings } from '@macro-inc/lexical-core';
 import { $getId } from '@macro-inc/lexical-core/plugins/nodeIdPlugin';
 import ArrowUp from '@phosphor/arrow-up.svg';
 import ChatTeardrop from '@phosphor/chat-teardrop.svg';
@@ -80,6 +83,7 @@ import {
   $isRangeSelection,
   $setSelection,
   COMMAND_PRIORITY_HIGH,
+  FORMAT_TEXT_COMMAND,
   type RangeSelection,
 } from 'lexical';
 import {
@@ -94,7 +98,11 @@ import {
   useContext,
 } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
-import { FormatTools } from './FormatTools';
+import {
+  generatedAndWaitingSignal,
+  isGeneratingSignal,
+} from '../signal/generateSignal';
+import { FormatTools, type InlineFormat } from './FormatTools';
 import { TouchSelectionToolbar } from './TouchSelectionToolbar';
 
 const MENU_ID = 'markdown-popup';
@@ -105,11 +113,17 @@ export function MarkdownPopup(props: {
 }) {
   const blockId = useBlockId();
 
-  const { editor, plugins } = useContext(LexicalWrapperContext) ?? {};
+  const lexicalWrapper = useContext(LexicalWrapperContext);
+  const editor = lexicalWrapper?.editor;
+  const plugins = lexicalWrapper?.plugins;
   if (!editor || !plugins) {
     console.error('MarkdownPopup mounted outside of LexicalWrapperContext!');
     return '';
   }
+  // The formatting state (which inline formats and block styles the range
+  // carries) the touch toolbar paints its toggles from.
+  const selectionData = (): SelectionData | undefined =>
+    lexicalWrapper?.selection;
 
   const [anchorRef, setAnchorRef] = createSignal<HTMLDivElement>();
   const [menuRef, setMenuRef] = createSignal<HTMLDivElement>();
@@ -139,6 +153,11 @@ export function MarkdownPopup(props: {
   // the popup's inline input; the drawer outlives the popup.
   const [aiEditDrawerOpen, setAiEditDrawerOpen] = createSignal(false);
   const [aiEditInput, setAiEditInput] = createSignal('');
+  // The touch toolbar has no room for the desktop toolbar's inline link
+  // prompt, so the URL is typed in a drawer, which also outlives the popup.
+  const [linkDrawerOpen, setLinkDrawerOpen] = createSignal(false);
+  const [linkDrawerInput, setLinkDrawerInput] = createSignal('');
+  let savedTouchLinkSelection: RangeSelection | null = null;
 
   onMount(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -392,6 +411,25 @@ export function MarkdownPopup(props: {
   const shouldShowEditWithAiButton = () =>
     inlineAiEditing().enabled && canEdit();
 
+  // Mirrors FormatTools' own gating: nothing may be reformatted mid-generation
+  // or while the block is in an error state.
+  const [editorError] = markdownBlockErrorSignal;
+  const shouldShowFormatOptions = () =>
+    canEdit() &&
+    !isGeneratingSignal() &&
+    !generatedAndWaitingSignal() &&
+    editorError() === null;
+
+  const handleInlineFormat = (format: InlineFormat) => {
+    editor.dispatchCommand(FORMAT_TEXT_COMMAND, format);
+  };
+
+  const handleBlockFormat = (format: ElementName) => {
+    // Re-applying the style the range already has returns it to body text.
+    const isActive = selectionData()?.elementsInRange?.has(format);
+    editor.dispatchCommand(NODE_TRANSFORM, isActive ? 'paragraph' : format);
+  };
+
   const handleConvertToTasks = () => {
     const currentSelection = selection();
     const userId = currentUserId();
@@ -464,6 +502,35 @@ export function MarkdownPopup(props: {
       }
     });
     setPopupVisible(false);
+  };
+
+  const handleToggleLink = () => {
+    if (selectionData()?.hasLinks) {
+      editor.dispatchCommand(UNLINK_COMMAND, undefined);
+      return;
+    }
+    // The drawer input takes focus, which drops the editor selection, so
+    // snapshot the range now and restore it on submit.
+    savedTouchLinkSelection = editor.read(() => {
+      const current = $getSelection();
+      return $isRangeSelection(current) ? current.clone() : null;
+    });
+    setLinkDrawerInput('');
+    setLinkDrawerOpen(true);
+    setPopupVisible(false);
+  };
+
+  const handleTouchInsertLink = () => {
+    const input = linkDrawerInput().trim();
+    const url = normalizeLinkUrl(input);
+    if (!url) return;
+    const linkText = selection()?.text ?? input;
+    editor.update(() => {
+      if (savedTouchLinkSelection) $setSelection(savedTouchLinkSelection);
+    });
+    editor.dispatchCommand(INSERT_LINK_COMMAND, { url, linkText });
+    setLinkDrawerInput('');
+    setLinkDrawerOpen(false);
   };
 
   const handleShowComment = () => {
@@ -731,8 +798,12 @@ export function MarkdownPopup(props: {
             showTasksOption={shouldShowCheckboxToTaskButton()}
             showTableOption={shouldShowTableButton()}
             showEditWithAiOption={shouldShowEditWithAiButton()}
+            showFormatOption={
+              shouldShowFormatOptions() && (selection()?.text ?? '') !== ''
+            }
             showOpenCommentOption={highlightedCommentThreads().length > 0}
             locationCopied={locationCopied()}
+            selectionData={selectionData()}
             setPopupVisible={setPopupVisible}
             onConvertToTasks={handleConvertToTasks}
             onConvertListToTable={handleConvertListToTable}
@@ -741,6 +812,9 @@ export function MarkdownPopup(props: {
             onInsertComment={handleInsertComment}
             onPaste={() => void handlePaste()}
             onEditWithAi={handleOpenAiEditDrawer}
+            onInlineFormat={handleInlineFormat}
+            onBlockFormat={handleBlockFormat}
+            onToggleLink={handleToggleLink}
           />
         </GeneralizedPopup>
       </Show>
@@ -887,6 +961,56 @@ export function MarkdownPopup(props: {
                   }}
                 />
                 <AiEditSubmitButton />
+              </div>
+            </MobileDrawer.Content>
+          </MobileDrawer.Portal>
+        </MobileDrawer>
+        <MobileDrawer
+          side="bottom"
+          open={linkDrawerOpen()}
+          onOpenChange={(open: boolean) => {
+            if (!open) setLinkDrawerOpen(false);
+          }}
+          closeOnOutsidePointerStrategy="pointerdown"
+          preventScroll={false}
+          preventScrollbarShift={false}
+        >
+          <MobileDrawer.Portal>
+            <MobileDrawer.Overlay />
+            <MobileDrawer.Content aria-label="Insert link">
+              <MobileDrawer.Handle class="pb-1" />
+              <div class="flex items-center gap-2 px-4 pb-3">
+                <LinkIcon class="size-4 shrink-0 text-ink-extra-muted" />
+                <input
+                  type="url"
+                  inputMode="url"
+                  autocapitalize="off"
+                  autocomplete="off"
+                  spellcheck={false}
+                  class="grow bg-transparent py-1.5 text-sm placeholder:text-ink-placeholder focus:outline-none"
+                  placeholder="Paste or insert link"
+                  value={linkDrawerInput()}
+                  ref={(el) => {
+                    requestAnimationFrame(() => el.focus());
+                  }}
+                  onInput={(e) => setLinkDrawerInput(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleTouchInsertLink();
+                    }
+                  }}
+                />
+                <Button
+                  size="icon-sm"
+                  class="rounded-full"
+                  variant="strong"
+                  tooltip="Insert link"
+                  disabled={!linkDrawerInput().trim()}
+                  onClick={handleTouchInsertLink}
+                >
+                  <CheckIcon class="size-4" />
+                </Button>
               </div>
             </MobileDrawer.Content>
           </MobileDrawer.Portal>
