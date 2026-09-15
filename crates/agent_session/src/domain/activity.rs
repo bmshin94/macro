@@ -90,6 +90,8 @@ impl ActivitySource for AgentSessionLifecycleEvent {
             AgentSessionLifecycleEvent::Deleted(_) => {
                 Ingest::Purge(vec![(EntityType::AgentSession, session_id)])
             }
+            // Mentions notify named users; the prompt is already Messaged via TurnStarted.
+            AgentSessionLifecycleEvent::Mentioned(_) => Ingest::Ignore,
             AgentSessionLifecycleEvent::TurnEnded(_)
             | AgentSessionLifecycleEvent::Settled(_)
             | AgentSessionLifecycleEvent::WaitingForInput(_)

@@ -7,9 +7,9 @@ use macro_event_broker::Event;
 
 use super::*;
 use crate::domain::events::{
-    InputReceivedMetadata, SessionDeletedMetadata, SessionIdentity, SessionOpenedMetadata,
-    SessionRenamedMetadata, SessionSettledMetadata, SessionStoppedMetadata, TurnEndedMetadata,
-    TurnStartedMetadata, WaitingForInputMetadata,
+    InputReceivedMetadata, SessionDeletedMetadata, SessionIdentity, SessionMentionedMetadata,
+    SessionOpenedMetadata, SessionRenamedMetadata, SessionSettledMetadata, SessionStoppedMetadata,
+    TurnEndedMetadata, TurnStartedMetadata, WaitingForInputMetadata,
 };
 use crate::domain::model::{AgentSessionId, TurnId};
 
@@ -29,6 +29,7 @@ fn identity() -> SessionIdentity {
         bot_name: "Macro Coder".to_owned(),
         owner_id: user("macro|owner@macro.com"),
         origin: None,
+        audience: Vec::new(),
     }
 }
 
@@ -118,6 +119,19 @@ fn deleted_purges_the_session() {
         event.event.ingest(event.event_id),
         Ingest::Purge(vec![(EntityType::AgentSession, session_id())])
     );
+}
+
+#[test]
+fn mentioned_is_dropped() {
+    let event = envelope(AgentSessionLifecycleEvent::Mentioned(
+        SessionMentionedMetadata {
+            identity: identity(),
+            action_id: agent_runtime_protocol::domain::action::AgentActionId::mint(),
+            mentioned_by: Some(user("macro|teo@macro.com")),
+            mentioned: vec![user("macro|reviewer@macro.com")],
+        },
+    ));
+    assert_eq!(event.event.ingest(event.event_id), Ingest::Ignore);
 }
 
 #[test]
