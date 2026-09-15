@@ -30,7 +30,7 @@ import type { Component, ComponentProps, JSX } from 'solid-js';
 
 export type SvgIcon = Component<ComponentProps<'svg'>>;
 
-export type ElementMenuOption = {
+type ElementMenuOption = {
   label: string;
   icon: SvgIcon;
   show: boolean;

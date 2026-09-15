@@ -21,9 +21,20 @@ Markdown auto-format works while typing (`#` heading, `[]` checklist, `>` quote)
 text and inline mention chips (tasks, docs, channels, skills, …) by the title
 shown on the chip.
 
-On touch devices, the text-selection menu (Copy, Cut, Comment, Share, and other
-available actions) appears above the floating header, comment input, and bottom
-dock. It stays anchored to the selection while the document scrolls.
+On touch devices, the text-selection menu (Copy, Cut, Format, Comment, Share, and
+other available actions) appears above the floating header, comment input, and
+bottom dock. It stays anchored to the selection while the document scrolls.
+Options that do not fit the screen sit on later pages, reached with the
+`More options` / `Previous options` chevrons or by swiping the row sideways.
+
+`Format` replaces those actions with icon toggles: the inline formats (`Bold`,
+`Italic`, `Underline`, `Strikethrough`, `Highlight`, `Inline code`), then
+`Insert link`, then the block styles (`Body`, `Heading 1`–`Heading 3`, the three
+lists, `Block quote`, `Code block`). Each toggle is named by its accessible
+label and is lit while its format is on; picking the block style the line
+already has returns it to body text. `Insert link` opens a drawer for the URL
+(`Remove link` on an existing link), and `Back to actions` returns to the first
+row.
 
 On a touch device, swipe a list item right to indent one level (Apple Notes
 style) or left to outdent. Nested children move with the parent. The first

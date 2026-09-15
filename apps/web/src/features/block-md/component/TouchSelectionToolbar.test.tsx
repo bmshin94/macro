@@ -1,6 +1,6 @@
 import type { SelectionData } from '@core/component/LexicalMarkdown/plugins';
-import { cleanup, render, screen } from '@solidjs/testing-library';
 import type { ElementName } from '@macro-inc/lexical-core';
+import { cleanup, render, screen } from '@solidjs/testing-library';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { InlineFormat } from './formatMetadata';
 import { TouchSelectionToolbar } from './TouchSelectionToolbar';
@@ -149,9 +149,9 @@ describe('TouchSelectionToolbar formatting', () => {
     });
     openFormatPage();
 
-    expect(screen.queryAllByRole('button', { name: 'Insert link' })).toHaveLength(
-      0
-    );
+    expect(
+      screen.queryAllByRole('button', { name: 'Insert link' })
+    ).toHaveLength(0);
     visible('Remove link').click();
     expect(onLink).toHaveBeenCalled();
   });
