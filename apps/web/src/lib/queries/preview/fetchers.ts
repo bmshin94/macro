@@ -311,6 +311,52 @@ async function fetchCrmCompanyPreviews(
 }
 
 /**
+ * CRM contact mention previews. Same shape as `fetchCrmCompanyPreviews`:
+ * one `GET /crm/contacts/{id}` per mention, since the CRM REST surface is
+ * per-id and contact mentions are low cardinality. The backend already
+ * scopes visibility by team and role (hidden rows 404 for plain members),
+ * so the fetcher doesn't repeat that logic.
+ *
+ * Every `ItemType` a mention can carry needs a fetcher here: an item no
+ * fetcher claims is resolved by the dataloader as `no_access`, which is
+ * what made contact mentions render "No Access" for everyone, author
+ * included.
+ */
+async function fetchCrmContactPreviews(
+  contactIds: string[]
+): Promise<PreviewItem[]> {
+  return await Promise.all(
+    contactIds.map(async (id) => {
+      const base = { id, type: 'crm_contact' as const };
+      const result = await storageServiceClient.getContact({ contactId: id });
+
+      if (result.isErr()) {
+        // 404 covers wrong team, hidden+member, and a missing row alike, so
+        // "No Access" is the honest label; "Deleted" would claim knowledge
+        // the endpoint deliberately withholds.
+        return {
+          ...base,
+          access: 'no_access' as const,
+          loading: false as const,
+        };
+      }
+
+      const contact = result.value;
+      const displayName = contact.name ?? contact.email;
+
+      return {
+        ...base,
+        access: 'access' as const,
+        loading: false as const,
+        rawName: displayName,
+        name: displayName,
+        updatedAt: contact.updatedAt,
+      };
+    })
+  );
+}
+
+/**
  * Reuse the thread-messages query the email block fetches on open: returns
  * cached data (any staleness — previews tolerate 24h), or joins an in-flight
  * fetch, so the preview doesn't issue a separate getThread request.
@@ -455,6 +501,7 @@ export async function fetchRestPreviewBatch(
     doFetch(fetchProjectPreviews, filterMapToId(items, 'project')),
     doFetch(fetchEmailPreviews, filterMapToId(items, 'email')),
     doFetch(fetchCrmCompanyPreviews, filterMapToId(items, 'crm_company')),
+    doFetch(fetchCrmContactPreviews, filterMapToId(items, 'crm_contact')),
     doFetch(fetchCalendarEventPreviews, filterMapToId(items, 'calendar_event')),
   ]);
   const resultMap = new Map<string, PreviewItem>();
