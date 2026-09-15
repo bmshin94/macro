@@ -23,6 +23,7 @@ import {
   NODE_TRANSFORM,
   normalizeLinkUrl,
   registerRootEventListener,
+  UNLINK_COMMAND,
 } from '@core/component/LexicalMarkdown/plugins';
 import {
   $canConvertCheckboxesToTasks,
@@ -57,7 +58,7 @@ import {
 import { useCanComment, useCanEdit } from '@core/signal/permissions';
 import { debouncedDependent } from '@core/util/debounce';
 import { getScrollParentElement } from '@core/util/scrollParent';
-import type { NodeIdMappings } from '@macro-inc/lexical-core';
+import type { ElementName, NodeIdMappings } from '@macro-inc/lexical-core';
 import { $getId } from '@macro-inc/lexical-core/plugins/nodeIdPlugin';
 import ArrowUp from '@phosphor/arrow-up.svg';
 import ChatTeardrop from '@phosphor/chat-teardrop.svg';
@@ -80,6 +81,7 @@ import {
   $isRangeSelection,
   $setSelection,
   COMMAND_PRIORITY_HIGH,
+  FORMAT_TEXT_COMMAND,
   type RangeSelection,
 } from 'lexical';
 import {
@@ -94,7 +96,9 @@ import {
   useContext,
 } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
+import { mdStore } from '../signal/markdownBlockData';
 import { FormatTools } from './FormatTools';
+import type { InlineFormat } from './formatMetadata';
 import { TouchSelectionToolbar } from './TouchSelectionToolbar';
 
 const MENU_ID = 'markdown-popup';
@@ -139,6 +143,9 @@ export function MarkdownPopup(props: {
   // the popup's inline input; the drawer outlives the popup.
   const [aiEditDrawerOpen, setAiEditDrawerOpen] = createSignal(false);
   const [aiEditInput, setAiEditInput] = createSignal('');
+  // A link URL is typed in its own touch drawer, for the same reason.
+  const [linkDrawerOpen, setLinkDrawerOpen] = createSignal(false);
+  const [linkDrawerInput, setLinkDrawerInput] = createSignal('');
 
   onMount(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -193,6 +200,10 @@ export function MarkdownPopup(props: {
   const inlineAiEditing = useFeatureFlag(enableInlineAiEditing);
   const canComment = useCanComment();
   const currentUserId = useUserId();
+
+  // Which formats the selection already carries, for the toolbars' lit state.
+  const mdData = mdStore.get;
+  const selectionFormats = () => mdData.selection;
 
   const highlightedCommentThreads = highlightedCommentThreadsSignal.get;
   const setActiveCommentThread = activeCommentThreadSignal.set;
@@ -466,6 +477,53 @@ export function MarkdownPopup(props: {
     setPopupVisible(false);
   };
 
+  // Formatting from the touch toolbar. The toolbar cancels the tap's focus
+  // change, so the editor still owns the selection these act on.
+  const handleInlineFormat = (format: InlineFormat) => {
+    editor.dispatchCommand(FORMAT_TEXT_COMMAND, format);
+  };
+
+  const handleBlockFormat = (format: ElementName) => {
+    // Re-picking the block's current style returns it to body text, the way
+    // the desktop style menu toggles.
+    const isActive = selectionFormats()?.elementsInRange?.has(format);
+    editor.dispatchCommand(NODE_TRANSFORM, isActive ? 'paragraph' : format);
+  };
+
+  // The URL is typed in a drawer, so the selection has to be snapshotted
+  // before the popup closes and restored when the link is inserted.
+  let linkDrawerSelection: RangeSelection | null = null;
+
+  const handleTouchLink = () => {
+    if (selectionFormats()?.hasLinks) {
+      editor.dispatchCommand(UNLINK_COMMAND, undefined);
+      return;
+    }
+    linkDrawerSelection = editor.read(() => {
+      const current = $getSelection();
+      return $isRangeSelection(current) ? current.clone() : null;
+    });
+    setLinkDrawerInput('');
+    setLinkDrawerOpen(true);
+    setPopupVisible(false);
+  };
+
+  const handleInsertTouchLink = () => {
+    const input = linkDrawerInput().trim();
+    const url = normalizeLinkUrl(input);
+    if (!url) {
+      toast.failure('Not a valid link');
+      return;
+    }
+    const linkText = selection()?.text ?? input;
+    editor.update(() => {
+      if (linkDrawerSelection) $setSelection(linkDrawerSelection);
+    });
+    editor.dispatchCommand(INSERT_LINK_COMMAND, { url, linkText });
+    setLinkDrawerInput('');
+    setLinkDrawerOpen(false);
+  };
+
   const handleShowComment = () => {
     // Viewing a thread doesn't take text input, and the caret kept the
     // editor focused (the toolbar preserves the selection) — close the
@@ -733,6 +791,7 @@ export function MarkdownPopup(props: {
             showEditWithAiOption={shouldShowEditWithAiButton()}
             showOpenCommentOption={highlightedCommentThreads().length > 0}
             locationCopied={locationCopied()}
+            formatState={selectionFormats()}
             setPopupVisible={setPopupVisible}
             onConvertToTasks={handleConvertToTasks}
             onConvertListToTable={handleConvertListToTable}
@@ -741,6 +800,9 @@ export function MarkdownPopup(props: {
             onInsertComment={handleInsertComment}
             onPaste={() => void handlePaste()}
             onEditWithAi={handleOpenAiEditDrawer}
+            onInlineFormat={handleInlineFormat}
+            onBlockFormat={handleBlockFormat}
+            onLink={handleTouchLink}
           />
         </GeneralizedPopup>
       </Show>
@@ -887,6 +949,55 @@ export function MarkdownPopup(props: {
                   }}
                 />
                 <AiEditSubmitButton />
+              </div>
+            </MobileDrawer.Content>
+          </MobileDrawer.Portal>
+        </MobileDrawer>
+        <MobileDrawer
+          side="bottom"
+          open={linkDrawerOpen()}
+          onOpenChange={(open: boolean) => {
+            if (!open) setLinkDrawerOpen(false);
+          }}
+          closeOnOutsidePointerStrategy="pointerdown"
+          preventScroll={false}
+          preventScrollbarShift={false}
+        >
+          <MobileDrawer.Portal>
+            <MobileDrawer.Overlay />
+            <MobileDrawer.Content aria-label="Insert link">
+              <MobileDrawer.Handle class="pb-1" />
+              <div class="flex items-center gap-2 px-4 pb-3">
+                <LinkIcon class="size-4 shrink-0 text-ink-extra-muted" />
+                <input
+                  type="url"
+                  inputmode="url"
+                  autocapitalize="off"
+                  autocorrect="off"
+                  class="grow bg-transparent py-1.5 text-sm placeholder:text-ink-placeholder focus:outline-none"
+                  placeholder="Paste or type a link"
+                  value={linkDrawerInput()}
+                  ref={(el) => {
+                    requestAnimationFrame(() => el.focus());
+                  }}
+                  onInput={(e) => setLinkDrawerInput(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleInsertTouchLink();
+                    }
+                  }}
+                />
+                <Button
+                  size="icon-sm"
+                  class="rounded-full"
+                  variant="strong"
+                  label="Insert link"
+                  disabled={!linkDrawerInput().trim()}
+                  onClick={handleInsertTouchLink}
+                >
+                  <CheckIcon class="size-4" />
+                </Button>
               </div>
             </MobileDrawer.Content>
           </MobileDrawer.Portal>

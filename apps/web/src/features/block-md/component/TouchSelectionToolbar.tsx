@@ -1,16 +1,22 @@
+import type { SelectionData } from '@core/component/LexicalMarkdown/plugins';
 import { toast } from '@core/component/Toast/Toast';
 import { ENABLE_MARKDOWN_COMMENTS } from '@core/constant/featureFlags';
 import { hasNativeEditMenu } from '@core/mobile/nativeEditMenu';
+import type { ElementName } from '@macro-inc/lexical-core';
+import ArrowLeftIcon from '@phosphor/arrow-left.svg';
 import CaretLeftIcon from '@phosphor/caret-left.svg';
 import CaretRightIcon from '@phosphor/caret-right.svg';
 import ChatTeardrop from '@phosphor/chat-teardrop.svg';
 import GridIcon from '@phosphor/grid-four.svg';
+import BrokenLinkIcon from '@phosphor/link-break.svg';
+import LinkSimpleIcon from '@phosphor/link-simple.svg';
+import TextAaIcon from '@phosphor/text-aa.svg';
 import CheckIcon from '@phosphor-icons/core/bold/check-bold.svg?component-solid';
 import SparkleIcon from '@phosphor-icons/core/bold/sparkle-bold.svg?component-solid';
 import LoadingIcon from '@phosphor-icons/core/bold/spinner-gap-bold.svg?component-solid';
 import CheckSquareIcon from '@phosphor-icons/core/regular/check-square.svg?component-solid';
 import LinkIcon from '@phosphor-icons/core/regular/link.svg?component-solid';
-import { Button } from '@ui';
+import { Button, cn } from '@ui';
 import {
   createEffect,
   createMemo,
@@ -20,12 +26,28 @@ import {
   Show,
 } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
+import {
+  type InlineFormat,
+  InlineIcons,
+  InlineLabels,
+  isElementFormatActive,
+  isInlineFormatActive,
+  NodeMenuOptions,
+} from './formatMetadata';
 
 type TouchOption = {
   key: string;
   content: () => JSX.Element;
   onSelect: () => void;
   disabled?: () => boolean;
+  /**
+   * Marks the option as an icon-only formatting toggle: it renders square, is
+   * lit while its format is on, and takes its accessible name from `label`
+   * since it carries no text.
+   */
+  toggle?: { label: string; active: () => boolean };
+  /** False keeps the option flush against the one before it, with no divider. */
+  dividerBefore?: boolean;
 };
 
 // Toolbar buttons give no touch-down feedback: the ghost variant's
@@ -35,6 +57,62 @@ const optionButtonClass =
   'px-2 text-xs rounded-md py-1.25 shrink-0 whitespace-nowrap hover:bg-none! active:bg-none! hover:text-ink-muted! [-webkit-tap-highlight-color:transparent]';
 const arrowButtonClass =
   'rounded-md shrink-0 hover:bg-none! active:bg-none! hover:text-ink-muted! [-webkit-tap-highlight-color:transparent]';
+// Toggles suppress the same feedback, but only while off: pinning the hover
+// color on a lit toggle would drop the accent tint that marks it as on.
+const toggleButtonClass = (active: boolean) =>
+  cn(
+    'rounded-md shrink-0 hover:bg-none! active:bg-none! [-webkit-tap-highlight-color:transparent]',
+    !active && 'hover:text-ink-muted!'
+  );
+
+/** The inline formats offered on the format page, in order. */
+const INLINE_FORMATS: InlineFormat[] = [
+  'bold',
+  'italic',
+  'underline',
+  'strikethrough',
+  'highlight',
+  'code',
+];
+
+/**
+ * The block styles offered on the format page, in order. A few carry their own
+ * name: the menu labels are written for a list where a neighbouring label
+ * gives them context, which a lone icon does not.
+ */
+const BLOCK_FORMATS: { format: ElementName; label?: string }[] = [
+  { format: 'paragraph' },
+  { format: 'heading1' },
+  { format: 'heading2' },
+  { format: 'heading3' },
+  { format: 'list-bullet' },
+  { format: 'list-number' },
+  { format: 'list-check' },
+  { format: 'quote', label: 'Block quote' },
+  { format: 'code', label: 'Code block' },
+];
+
+/**
+ * One toolbar option. Rendered identically in the hidden measuring row and in
+ * the page track so the measured widths match what the user sees.
+ */
+function OptionButton(props: { option: TouchOption; onClick?: () => void }) {
+  const toggle = () => props.option.toggle;
+  const isActive = () => toggle()?.active() ?? false;
+  return (
+    <Button
+      size={toggle() ? 'icon-sm' : 'sm'}
+      class={toggle() ? toggleButtonClass(isActive()) : optionButtonClass}
+      depth={3}
+      variant={isActive() ? 'accent' : 'ghost'}
+      aria-label={toggle()?.label}
+      disabled={props.option.disabled?.()}
+      onClick={() => props.onClick?.()}
+    >
+      {props.option.content()}
+    </Button>
+  );
+}
 
 /**
  * The touch-device selection toolbar, mirroring the native edit menu (which
@@ -44,6 +122,12 @@ const arrowButtonClass =
  * sliding track: swiping drags it with the finger (with resistance at the
  * ends) and releasing past a threshold snaps one page over; chevrons move a
  * page at a time.
+ *
+ * "Format" swaps the actions for a page of formatting toggles — the inline
+ * formats, link, and block styles the desktop popup offers through dropdowns,
+ * which on touch would steal the editor focus the selection depends on. The
+ * toggles page and swipe the same way, and a back arrow returns to the
+ * actions.
  *
  * Desktop renders MarkdownPopupToolbar instead; see MarkdownPopup for the
  * split.
@@ -60,6 +144,8 @@ export function TouchSelectionToolbar(props: {
   /** The caret/selection touches an existing comment thread. */
   showOpenCommentOption: boolean;
   locationCopied: boolean;
+  /** Formats active in the current selection; lights the format toggles. */
+  formatState: SelectionData | undefined;
   setPopupVisible: (visible: boolean) => void;
   onConvertToTasks: () => void;
   onConvertListToTable: () => void;
@@ -68,8 +154,17 @@ export function TouchSelectionToolbar(props: {
   onInsertComment: () => void;
   onPaste: () => void;
   onEditWithAi: () => void;
+  onInlineFormat: (format: InlineFormat) => void;
+  onBlockFormat: (format: ElementName) => void;
+  onLink: () => void;
 }) {
-  const options = createMemo<TouchOption[]>(() => {
+  const [formatOpen, setFormatOpen] = createSignal(false);
+  // A selection that stops being editable (or stops being a selection at all)
+  // takes the format page with it, rather than leaving dead toggles up.
+  const showFormatPage = () =>
+    formatOpen() && props.canEdit && props.hasSelection;
+
+  const actionOptions = createMemo<TouchOption[]>(() => {
     const list: TouchOption[] = [];
     const pasteOption: TouchOption = {
       key: 'paste',
@@ -148,6 +243,16 @@ export function TouchSelectionToolbar(props: {
       if (hasNativeEditMenu()) {
         list.push(pasteOption);
       }
+      list.push({
+        key: 'format',
+        content: () => (
+          <>
+            <TextAaIcon class="size-4" />
+            Format
+          </>
+        ),
+        onSelect: () => setFormatOpen(true),
+      });
     }
     if (ENABLE_MARKDOWN_COMMENTS && props.canComment) {
       list.push({
@@ -189,6 +294,54 @@ export function TouchSelectionToolbar(props: {
     return list;
   });
 
+  // Dividers only separate the groups here, not every toggle: a rule between
+  // each of sixteen icons reads as a grid and costs a page's worth of width.
+  const formatOptions = createMemo<TouchOption[]>(() => [
+    ...INLINE_FORMATS.map((format, index) => ({
+      key: `inline-${format}`,
+      dividerBefore: index === 0,
+      toggle: {
+        label: InlineLabels[format],
+        active: () => isInlineFormatActive(props.formatState, format),
+      },
+      content: () => <Dynamic component={InlineIcons[format]} class="size-4" />,
+      onSelect: () => props.onInlineFormat(format),
+    })),
+    {
+      key: 'link',
+      dividerBefore: true,
+      toggle: {
+        label: props.formatState?.hasLinks ? 'Remove link' : 'Insert link',
+        active: () => !!props.formatState?.hasLinks,
+      },
+      content: () => (
+        <Dynamic
+          component={
+            props.formatState?.hasLinks ? BrokenLinkIcon : LinkSimpleIcon
+          }
+          class="size-4"
+        />
+      ),
+      onSelect: () => props.onLink(),
+    },
+    ...BLOCK_FORMATS.map(({ format, label }, index) => ({
+      key: `block-${format}`,
+      dividerBefore: index === 0,
+      toggle: {
+        label: label ?? NodeMenuOptions[format].label,
+        active: () => isElementFormatActive(props.formatState, format),
+      },
+      content: () => (
+        <Dynamic component={NodeMenuOptions[format].icon} class="size-4" />
+      ),
+      onSelect: () => props.onBlockFormat(format),
+    })),
+  ]);
+
+  const options = createMemo<TouchOption[]>(() =>
+    showFormatPage() ? formatOptions() : actionOptions()
+  );
+
   // --- Pagination ---------------------------------------------------------
   // The options render once into a hidden measuring row; its widths drive a
   // greedy partition into pages of whole options. Space for both chevrons is
@@ -216,6 +369,13 @@ export function TouchSelectionToolbar(props: {
   const [arrowWidth, setArrowWidth] = createSignal(28);
   const [pageIndex, setPageIndex] = createSignal(0);
 
+  const gapBefore = (option: TouchOption) =>
+    option.dividerBefore === false ? 0 : DIVIDER_SPACE;
+
+  /** The back arrow and its divider, which sit outside the paged track. */
+  const formatChromeWidth = () =>
+    showFormatPage() ? arrowWidth() + DIVIDER_SPACE : 0;
+
   const measure = () => {
     if (!measureRowRef) return false;
     const widths = Array.from(
@@ -233,9 +393,10 @@ export function TouchSelectionToolbar(props: {
   let lastOptionKeys: string | undefined;
   createEffect(() => {
     // Reset paging only when the option *set* changes (e.g. caret mode vs.
-    // selection mode) — a cosmetic rerender of the same options (the Share
-    // icon flipping to a check, the Tasks label while converting) keeps the
-    // user's page; the clamp effect below handles any repartition.
+    // selection mode, or the actions giving way to the format page) — a
+    // cosmetic rerender of the same options (the Share icon flipping to a
+    // check, the Tasks label while converting) keeps the user's page; the
+    // clamp effect below handles any repartition.
     const keys = options()
       .map((option) => option.key)
       .join('\n');
@@ -256,9 +417,13 @@ export function TouchSelectionToolbar(props: {
     if (all.length === 0) return [];
     if (widths.length !== all.length) return [];
 
-    const totalBudget = Math.max(120, window.innerWidth - PAGE_MARGIN);
+    const totalBudget = Math.max(
+      120,
+      window.innerWidth - PAGE_MARGIN - formatChromeWidth()
+    );
     const totalWidth = widths.reduce(
-      (sum, width, index) => sum + width + (index > 0 ? DIVIDER_SPACE : 0),
+      (sum, width, index) =>
+        sum + width + (index > 0 ? gapBefore(all[index]) : 0),
       0
     );
     if (totalWidth <= totalBudget) return [{ options: all, width: totalWidth }];
@@ -273,7 +438,7 @@ export function TouchSelectionToolbar(props: {
       const needed =
         currentOptions.length === 0
           ? widths[index]
-          : currentWidth + DIVIDER_SPACE + widths[index];
+          : currentWidth + gapBefore(option) + widths[index];
       if (currentOptions.length > 0 && needed > pageBudget) {
         result.push({ options: currentOptions, width: currentWidth });
         currentOptions = [option];
@@ -370,12 +535,13 @@ export function TouchSelectionToolbar(props: {
   const currentPageWidth = () => pages()[clampedIndex()]?.width ?? null;
 
   // Nothing in the toolbar may take focus from the editor: Copy/Cut act on
-  // the live selection, and the chevrons must leave the popup open (the
-  // editor's focusout closes it). Cancelling pointerdown ought to suffice —
-  // the spec then drops the compatibility mouse events, and Chrome and the
-  // iOS simulator do — but a real iPhone still synthesises mousedown for the
-  // tap, whose default moves focus to the button's nearest focusable
-  // ancestor, the block container. Cancelling mousedown too covers that.
+  // the live selection, the format toggles act on it too, and the chevrons
+  // must leave the popup open (the editor's focusout closes it). Cancelling
+  // pointerdown ought to suffice — the spec then drops the compatibility
+  // mouse events, and Chrome and the iOS simulator do — but a real iPhone
+  // still synthesises mousedown for the tap, whose default moves focus to the
+  // button's nearest focusable ancestor, the block container. Cancelling
+  // mousedown too covers that.
   const keepEditorFocus = (event: Event) => event.preventDefault();
 
   return (
@@ -395,16 +561,7 @@ export function TouchSelectionToolbar(props: {
       >
         <div class="flex w-max flex-row items-center" ref={measureRowRef}>
           <For each={options()}>
-            {(option) => (
-              <Button
-                size="sm"
-                class={optionButtonClass}
-                depth={3}
-                variant="ghost"
-              >
-                {option.content()}
-              </Button>
-            )}
+            {(option) => <OptionButton option={option} />}
           </For>
         </div>
         <div class="w-max" ref={measureArrowRef}>
@@ -418,6 +575,19 @@ export function TouchSelectionToolbar(props: {
           </Button>
         </div>
       </div>
+      <Show when={showFormatPage()}>
+        <Button
+          size="icon-sm"
+          class={arrowButtonClass}
+          depth={3}
+          variant="ghost"
+          aria-label="Back to actions"
+          onClick={() => setFormatOpen(false)}
+        >
+          <ArrowLeftIcon class="size-4" />
+        </Button>
+        <div class="mx-1 w-px shrink-0 self-stretch bg-edge" />
+      </Show>
       <Show when={canPagePrev()}>
         <Button
           size="icon-sm"
@@ -476,19 +646,15 @@ export function TouchSelectionToolbar(props: {
                 <For each={touchPage.options}>
                   {(option, index) => (
                     <>
-                      <Show when={index() > 0}>
+                      <Show
+                        when={index() > 0 && option.dividerBefore !== false}
+                      >
                         <div class="mx-1 w-px shrink-0 self-stretch bg-edge" />
                       </Show>
-                      <Button
-                        size="sm"
-                        class={optionButtonClass}
-                        depth={3}
-                        variant="ghost"
-                        disabled={option.disabled?.()}
+                      <OptionButton
+                        option={option}
                         onClick={() => option.onSelect()}
-                      >
-                        {option.content()}
-                      </Button>
+                      />
                     </>
                   )}
                 </For>
