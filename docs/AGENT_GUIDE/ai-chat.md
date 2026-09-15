@@ -3,11 +3,47 @@
 ## Where chats live
 
 - List: `Go to Agents` → `/app/component/agents`. With new app views enabled
-  on desktop, an Agents sidebar opens New Chat, Routines, configured Agents,
-  Connections, and Skills, followed by favorite and recent conversations.
-  Selecting a recent chat or agent session opens it inside the workspace.
+  on desktop, the Agents workspace has two halves picked by a **Chat | Code**
+  segmented control (`aria-label="Agents mode"`) at the top of its sidebar.
+  The choice persists per user on the device. **Chat** talks to agents that
+  answer from Macro's in-memory harness; **Code** hands work to coders, which
+  run on Cursor or on a machine paired through macrod. Whether an agent is a
+  coder follows from its harness; it is not a separate setting.
+  Below the switch sit a **New chat** / **New session** button, favorites,
+  and the mode's conversations: **Chats** (a flat list) or **Sessions**
+  (grouped **Active** / **Past** by whether the runtime is still up). Code
+  rows show the coder and the runtime state (Starting / Ready / Ended) under
+  the title with a dot on the icon while it is up. Routines, Connections, and
+  Skills are no longer sidebar pages: routines live in their own view,
+  connections under Settings → Connections, and skills behind the composer's
+  `/` menu. Selecting a recent chat or agent session opens it inside the
+  workspace; a coder session's header shows its status pill, repository, and
+  pull request chip, plus a runtime / model / session strip.
   Touch devices and users outside the flag retain the Owned / Running / Shared /
   Automations / Skills list.
+- **New chat** (Chat): a greeting names the selected agent. The composer's
+  pill row has an **Agent** pill (Macro, then your saved chat agents, then
+  **Create agent**, which opens the Agents roster page inside the workspace)
+  and the **Model override** pill. `/` opens the skills menu. Sending starts
+  an agent session with that agent and opens it in the workspace.
+- **New session** (Code): **Your coders** cards (`role="radiogroup"`,
+  `aria-label="Coder"`) list Macro Coder, Cursor, and saved coders, most
+  recently used first, each with its runtime dot, default model, last use,
+  and session count; a gear on a saved coder opens the roster page. Cursor
+  without an API key is a **Connect Cursor** button that opens Settings →
+  Harness. A coder on a macrod runtime is listed but cannot be started from
+  here (start it from a channel mention). The composer adds a **Repository**
+  pill: **No repository**, recent repositories, or **Add repository…**, which
+  accepts `owner/repo` or a URL and is remembered per user on the device. The
+  repository is sent as the session's `repoUrl`.
+- **Agents page** (inside the workspace, or Settings → Agents): tabs
+  **Agents** and **Coders** (`aria-label="Agent kind"`). Coders adds a
+  **Runtimes** card (Macro sandbox, Cursor with a gear to Harness settings,
+  each paired macrod runtime with a Remove action) and a **Bring your … to
+  Macro** footer whose **Pair a runtime** opens the pairing-code dialog. The
+  create/edit dialog has a **Coder** switch: on, the Runtime section is a
+  radio list of Cursor and paired runtimes; off, the agent runs on Macro's
+  built-in harness. The switch is disabled until a coding runtime exists.
 - A chat is `/app/chat/<uuid>`. A doc-scoped chat is `/app/md/<doc>/chat/<chat>` (split view).
 
 ## Start a standalone chat

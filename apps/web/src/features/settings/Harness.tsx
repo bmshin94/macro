@@ -19,23 +19,18 @@ import {
 } from '@queries/harnesses/harnesses';
 import type { Harness as RegisteredHarness } from '@service-storage/client';
 import { useSearchParams } from '@solidjs/router';
-import { Button, Dialog, Panel } from '@ui';
+import { Button } from '@ui';
 import { createSignal, For, type JSX, onMount, Show } from 'solid-js';
 import { HarnessPairingDialog } from './HarnessPairingDialog';
+import { HarnessRemoveDialog } from './HarnessRemoveDialog';
+import { BYOA_DOCS_URL, lastConnectedText } from './harness-shared';
 import { ConnectAction, StatusDot } from './integration-ui';
 import { SettingsCard, SettingsPage } from './primitives';
 
-const BYOA_DOCS_URL = 'https://docs.macro.com/AI/bring-your-own';
 const CURSOR_KEY_PREFIX = 'crsr_';
 
 function failureMessage(error: unknown, fallback: string): string {
   return (error instanceof ThrownResultError && error.message) || fallback;
-}
-
-function lastConnectedText(harness: RegisteredHarness): string {
-  return harness.last_connected_at
-    ? `Last connected ${new Date(harness.last_connected_at).toLocaleString()}`
-    : 'Never connected';
 }
 
 /** Settings UI for choosing and configuring the available agent harnesses. */
@@ -481,57 +476,6 @@ export function Harness() {
         )}
       </Show>
     </SettingsPage>
-  );
-}
-
-function HarnessRemoveDialog(props: {
-  harnessName: string;
-  pending: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => !open && !props.pending && props.onClose()}
-      position="center"
-      visibleScrim
-      class="w-[min(480px,calc(100vw-16px))]"
-    >
-      <Panel depth={2} class="rounded-xl text-ink">
-        <Panel.Header class="px-5 py-3">
-          <Dialog.Title class="text-sm font-semibold">
-            Remove {props.harnessName}?
-          </Dialog.Title>
-        </Panel.Header>
-        <Panel.Body class="p-5">
-          <Dialog.Description class="text-sm leading-5 text-ink-muted">
-            Agents using this harness will stop running until it's reconnected.
-            macrod on that machine will need to pair again.
-          </Dialog.Description>
-        </Panel.Body>
-        <Panel.Footer class="justify-end gap-2 px-5 py-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={props.pending}
-            onClick={props.onClose}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="danger"
-            size="sm"
-            disabled={props.pending}
-            onClick={props.onConfirm}
-          >
-            {props.pending ? 'Removing…' : 'Remove harness'}
-          </Button>
-        </Panel.Footer>
-      </Panel>
-    </Dialog>
   );
 }
 
