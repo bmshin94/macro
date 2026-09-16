@@ -2,10 +2,11 @@
  * @vitest-environment jsdom
  */
 
+import { isMobile } from '@core/mobile/isMobile';
 import { render as renderBare, screen } from '@solidjs/testing-library';
 import { QueryClient, QueryClientProvider } from '@tanstack/solid-query';
 import userEvent from '@testing-library/user-event';
-import { type JSX, onMount } from 'solid-js';
+import { createSignal, type JSX, onMount } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,9 +14,38 @@ const editorMocks = vi.hoisted(() => ({
   clear: vi.fn(),
   focus: vi.fn(),
   emitChange: undefined as ((markdown: string) => void) | undefined,
+  onEnter: undefined as (() => boolean) | undefined,
+}));
+
+vi.mock('../../../dictation/composer-dictation', () => ({
+  createComposerDictation: () => {
+    const [active, setActive] = createSignal(false);
+    return {
+      active,
+      phase: () => (active() ? 'listening' : 'idle'),
+      volumeHistory: () => [],
+      transcript: () => '',
+      message: () => '',
+      label: () => 'Start dictation',
+      disabled: () => false,
+      start: async () => {
+        setActive(true);
+      },
+      confirm: () => setActive(false),
+      cancel: () => setActive(false),
+    };
+  },
 }));
 
 vi.hoisted(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  );
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: (query: string) => ({
@@ -30,6 +60,8 @@ vi.hoisted(() => {
     }),
   });
 });
+
+vi.mock('@core/mobile/isMobile', () => ({ isMobile: vi.fn(() => false) }));
 
 vi.mock('@core/component/LexicalMarkdown/utils/create-composer-layout', () => ({
   createComposerLayout: (
@@ -201,7 +233,10 @@ vi.mock(
           editorMocks.emitChange = handler;
           return builder;
         },
-        onEnter: () => builder,
+        onEnter: (handler: () => boolean) => {
+          editorMocks.onEnter = handler;
+          return builder;
+        },
         buildHandle: () => handle,
         controls,
         lexical,
@@ -275,6 +310,58 @@ describe('Input slots', () => {
     editorMocks.clear.mockClear();
     editorMocks.focus.mockClear();
     editorMocks.emitChange = undefined;
+    editorMocks.onEnter = undefined;
+    vi.mocked(isMobile).mockReturnValue(false);
+  });
+
+  it('blocks handle and keyboard sends during dictation without clearing the draft', async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn();
+    let handle: InputHandle | undefined;
+    const { container } = render(() => (
+      <ChannelInput
+        input={{ ...baseInput, value: 'existing draft' }}
+        onReady={(value) => {
+          handle = value;
+        }}
+        onSend={onSend}
+      />
+    ));
+
+    await user.click(screen.getByRole('button', { name: 'Start dictation' }));
+    expect(container.querySelector('[data-input-layout]')).toHaveProperty(
+      'inert',
+      true
+    );
+    await handle?.send();
+    editorMocks.onEnter?.();
+    expect(onSend).not.toHaveBeenCalled();
+    expect(editorMocks.clear).not.toHaveBeenCalled();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('group', { name: 'Dictation' })).toBeNull();
+    await handle?.send();
+    expect(onSend).toHaveBeenCalledOnce();
+    expect(onSend.mock.calls[0]?.[0]?.value).toBe('existing draft');
+  });
+
+  it('starts dictation from the collapsed channel composer', async () => {
+    vi.mocked(isMobile).mockReturnValue(true);
+    const user = userEvent.setup();
+    const { container } = render(() => (
+      <ChannelInput input={baseInput} collapsible />
+    ));
+    const collapsed = container.querySelector('[data-composer-collapsed]');
+    expect(collapsed).toBeTruthy();
+    const microphone = collapsed?.querySelector(
+      'button[aria-label="Start dictation"]'
+    );
+    expect(microphone).toBeTruthy();
+    await user.click(microphone!);
+    expect(container.querySelector('[data-composer-collapsed]')).toBeNull();
+    expect(screen.getByRole('group', { name: 'Dictation' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Cancel dictation' }));
+    expect(screen.queryByRole('group', { name: 'Dictation' })).toBeNull();
   });
 
   it('does not start typing when the editor hydrates an empty composer', async () => {

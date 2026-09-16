@@ -7,6 +7,12 @@
  * `@core/component/AI/component/input/ChatInput.tsx`.
  */
 
+import {
+  DictationButton,
+  DictationFeedback,
+  DictationPanel,
+} from '@app/features/dictation/components/dictation-controls';
+import { createComposerDictation } from '@app/features/dictation/composer-dictation';
 import { buildConfig } from '@core/component/LexicalMarkdown/builder/MarkdownConfigBuilder';
 import { ComposerEditor } from '@core/component/LexicalMarkdown/component/ComposerEditor';
 import type { AgentCommandItem } from '@core/component/LexicalMarkdown/plugins';
@@ -74,10 +80,12 @@ export function AgentInput(props: AgentInputProps) {
   let containerRef: HTMLDivElement | undefined;
   let bodyRef: HTMLDivElement | undefined;
   useTouchOutsideToDismissKeyboard(() => containerRef);
+  const dictation = createComposerDictation(() => editor.lexical);
 
   // Sending while busy is allowed — the service queues prompts behind the
   // running turn.
-  const canSend = () => markdown().trim().length > 0 && !props.disabled;
+  const canSend = () =>
+    markdown().trim().length > 0 && !props.disabled && !dictation.active();
 
   // Caps tall drafts on a phone so the editor cannot eat the viewport
   // above the dock. Controls live in a footer row, not over the text.
@@ -95,6 +103,7 @@ export function AgentInput(props: AgentInputProps) {
   };
 
   const canSendNext = () =>
+    !dictation.active() &&
     markdown().trim().length === 0 &&
     props.busy &&
     props.hasQueuedMessages &&
@@ -178,11 +187,13 @@ export function AgentInput(props: AgentInputProps) {
       </Show>
       {/* h-auto beats Surface's size-full so the in-flow controls are not
           clipped over the editor (that was Auto sitting on the placeholder). */}
-      <ComposerSurface class="h-auto">
+      <ComposerSurface class="relative h-auto">
         {/* Desktop: one row, send right of the text. Touch: the text gets
             the whole width and the controls drop to a footer row (model
             left, send right) — the chat-tall / channel footer shape. */}
         <div
+          inert={dictation.active()}
+          classList={{ invisible: dictation.active() }}
           class="flex items-end gap-[3.75px] p-[7.5px] min-h-[48.75px] touch:min-h-0 touch:flex-col touch:items-stretch touch:gap-0 touch:p-0"
           onPointerDown={focusEditor}
           onMouseDown={focusEditor}
@@ -215,7 +226,11 @@ export function AgentInput(props: AgentInputProps) {
             <Show when={isTouchDevice() && props.modelControl}>
               <div class="min-w-0">{props.modelControl}</div>
             </Show>
-            <div class="ml-auto shrink-0">
+            <div class="ml-auto flex shrink-0 items-center gap-[3.75px]">
+              <DictationButton
+                dictation={dictation}
+                disabled={props.disabled}
+              />
               <Show
                 when={props.busy && props.onStop}
                 fallback={
@@ -259,7 +274,9 @@ export function AgentInput(props: AgentInputProps) {
             </div>
           </div>
         </div>
+        <DictationPanel dictation={dictation} />
       </ComposerSurface>
+      <DictationFeedback dictation={dictation} />
     </div>
   );
 }
