@@ -130,7 +130,9 @@ export function AgentModelSelector(props: AgentModelSelectorProps) {
         size="sm"
         aria-label="Agent model"
         disabled={disabled()}
+        aria-busy={props.changingTo !== undefined || undefined}
         class="h-8 max-w-[60vw] min-w-0 justify-start gap-1 rounded-lg border-none bg-transparent px-1.5 text-left text-sm text-ink-subtle hover:bg-hover"
+        classList={{ 'animate-pulse': props.changingTo !== undefined }}
       >
         <TextShimmer
           text={label()}
@@ -209,6 +211,8 @@ export function AgentModelSelector(props: AgentModelSelectorProps) {
         variant="ghost"
         size="sm"
         class={PILL_TRIGGER_CLASS}
+        classList={{ 'animate-pulse': props.changingTo !== undefined }}
+        aria-busy={props.changingTo !== undefined || undefined}
         disabled={disabled()}
       >
         <TextShimmer text={label()} active={props.changingTo !== undefined} />
@@ -255,6 +259,7 @@ export function AgentModelSelector(props: AgentModelSelectorProps) {
             options={catalogOptions()}
             onSelect={pick}
             disabled={disabled()}
+            busy={props.changingTo !== undefined}
             ariaLabel="Agent model"
             searchPlaceholder="Search models"
             triggerClass={PILL_TRIGGER_CLASS}

@@ -28,6 +28,8 @@ type ModelCatalogPickerProps = {
   searchPlaceholder?: string;
   ariaLabel?: string;
   placement?: 'top-start' | 'top-end' | 'bottom-start' | 'bottom-end';
+  /** A change is on the wire — the trigger pulses so the wait is visible. */
+  busy?: boolean;
 };
 
 function ModelRow(props: {
@@ -85,9 +87,11 @@ export function ModelCatalogPicker(props: ModelCatalogPickerProps) {
         size="sm"
         class={cn(
           'h-9 justify-between rounded-lg border border-edge-muted bg-transparent px-3 text-left text-sm text-ink hover:bg-ink/3',
+          props.busy && 'animate-pulse',
           props.triggerClass
         )}
         aria-label={props.ariaLabel}
+        aria-busy={props.busy || undefined}
         disabled={props.disabled}
       >
         <span class="truncate">{displayValue()}</span>
