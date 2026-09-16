@@ -11,7 +11,10 @@ use std::sync::Arc;
 
 use agent_harness::domain::ports::{HarnessBindings, HarnessPresence};
 use bot_id::BotId;
+use connection_gateway_client::ConnectionGatewayClient;
 use harness_id::HarnessId;
+use harnesses::domain::ports::HarnessRepo;
+use model_entity::EntityType;
 use sqlx::PgPool;
 
 /// [`HarnessBindings`] over the `agent_configs` table.
@@ -46,26 +49,44 @@ impl HarnessBindings for PgHarnessBindings {
 }
 
 /// [`HarnessPresence`] over the `harnesses` table.
-pub struct PgHarnessPresence {
-    pool: PgPool,
+pub struct PgHarnessPresence<R> {
+    repo: R,
+    gateway: Arc<ConnectionGatewayClient>,
 }
 
-impl PgHarnessPresence {
-    /// Wrap a pool.
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+impl<R: HarnessRepo> PgHarnessPresence<R> {
+    /// Record presence through the owning repository and notify its viewers.
+    pub fn new(repo: R, gateway: Arc<ConnectionGatewayClient>) -> Self {
+        Self { repo, gateway }
+    }
+
+    async fn update(&self, harness: HarnessId, connected: bool) -> anyhow::Result<()> {
+        let recipients = self
+            .repo
+            .record_presence(harness, connected)
+            .await
+            .map_err(Into::into)?;
+        if recipients.is_empty() {
+            return Ok(());
+        }
+        self.gateway
+            .batch_send_message(
+                "harnesses_invalidation".to_owned(),
+                serde_json::json!({}),
+                recipients
+                    .into_iter()
+                    .map(|user| EntityType::User.with_entity_string(user))
+                    .collect(),
+            )
+            .await?;
+        Ok(())
     }
 }
 
-impl HarnessPresence for PgHarnessPresence {
+impl<R: HarnessRepo> HarnessPresence for PgHarnessPresence<R> {
     fn connected(self: Arc<Self>, harness: HarnessId) -> Pin<Box<dyn Future<Output = ()> + Send>> {
         Box::pin(async move {
-            let result = sqlx::query!(
-                r#"UPDATE harnesses SET last_connected_at = now() WHERE id = $1"#,
-                harness.as_uuid(),
-            )
-            .execute(&self.pool)
-            .await;
+            let result = self.update(harness, true).await;
             if let Err(error) = result {
                 tracing::error!(error = ?error, %harness, "failed to record harness attach");
             }
@@ -77,12 +98,7 @@ impl HarnessPresence for PgHarnessPresence {
         harness: HarnessId,
     ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
         Box::pin(async move {
-            let result = sqlx::query!(
-                r#"UPDATE harnesses SET last_disconnected_at = now() WHERE id = $1"#,
-                harness.as_uuid(),
-            )
-            .execute(&self.pool)
-            .await;
+            let result = self.update(harness, false).await;
             if let Err(error) = result {
                 tracing::error!(error = ?error, %harness, "failed to record harness detach");
             }

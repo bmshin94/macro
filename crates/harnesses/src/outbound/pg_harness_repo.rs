@@ -108,6 +108,33 @@ async fn fetch_harness(
 impl HarnessRepo for PgHarnessRepo {
     type Err = anyhow::Error;
 
+    async fn record_presence(
+        &self,
+        harness_id: HarnessId,
+        connected: bool,
+    ) -> Result<Vec<String>, Self::Err> {
+        sqlx::query_scalar!(
+            r#"
+            WITH updated AS (
+                UPDATE harnesses
+                SET last_connected_at = CASE WHEN $2 THEN now() ELSE last_connected_at END,
+                    last_disconnected_at = CASE WHEN $2 THEN last_disconnected_at ELSE now() END
+                WHERE id = $1 AND deleted_at IS NULL
+                RETURNING owner_user_id, team_id
+            )
+            SELECT owner_user_id AS "user_id!" FROM updated WHERE owner_user_id IS NOT NULL
+            UNION
+            SELECT tu.user_id AS "user_id!"
+            FROM updated h JOIN team_user tu ON tu.team_id = h.team_id
+            "#,
+            harness_id.as_uuid(),
+            connected,
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("failed to record harness presence")
+    }
+
     async fn insert_pairing(&self, pairing: NewPairing) -> Result<bool, Self::Err> {
         let inserted = sqlx::query!(
             r#"

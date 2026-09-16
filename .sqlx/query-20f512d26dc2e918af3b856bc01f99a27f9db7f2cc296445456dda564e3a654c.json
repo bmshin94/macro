@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH updated AS (\n                UPDATE harnesses\n                SET last_connected_at = CASE WHEN $2 THEN now() ELSE last_connected_at END,\n                    last_disconnected_at = CASE WHEN $2 THEN last_disconnected_at ELSE now() END\n                WHERE id = $1 AND deleted_at IS NULL\n                RETURNING owner_user_id, team_id\n            )\n            SELECT owner_user_id AS \"user_id!\" FROM updated WHERE owner_user_id IS NOT NULL\n            UNION\n            SELECT tu.user_id AS \"user_id!\"\n            FROM updated h JOIN team_user tu ON tu.team_id = h.team_id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "20f512d26dc2e918af3b856bc01f99a27f9db7f2cc296445456dda564e3a654c"
+}

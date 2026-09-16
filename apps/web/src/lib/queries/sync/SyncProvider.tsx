@@ -29,6 +29,7 @@ import { handleCommsTyping } from '@queries/channel/typing';
 import { invalidateContacts } from '@queries/contacts/contacts';
 import { handleRefreshEmail } from '@queries/email/sync';
 import { invalidateFavorites } from '@queries/favorites/favorites';
+import { createHarnessPresenceSync } from '@queries/harnesses/sync';
 import {
   applyNotificationStatusUpdate,
   notificationStatusUpdatePayloadSchema,
@@ -69,6 +70,7 @@ function withParsedWebsocketPayload<T>(
 }
 
 export function QuerySyncProvider(props: SyncProviderProps) {
+  createHarnessPresenceSync();
   // Also cover the first connection: a lookup can finish before the socket opens.
   ws.addEventListener(WebsocketEvent.Open, invalidateAgentSessionMetadata);
   onCleanup(() =>

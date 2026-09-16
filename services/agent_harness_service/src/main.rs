@@ -556,7 +556,10 @@ async fn run() -> anyhow::Result<()> {
     // bound to it. Held here because the gateway puts dialed-in sockets into
     // it and the harness takes sessions out of it. Attach/detach is mirrored
     // to the harnesses table so the settings page can show connection state.
-    let runtimes = RuntimeRegistry::with_presence(Arc::new(PgHarnessPresence::new(pool.clone())));
+    let runtimes = RuntimeRegistry::with_presence(Arc::new(PgHarnessPresence::new(
+        PgHarnessRepo::new(pool.clone()),
+        Arc::clone(&connection_gateway),
+    )));
     let redis = redis::Client::open(config.redis_uri.as_ref())
         .context("failed to create the runtime command Redis client")?;
     let defaults = HarnessDefaults::new(SessionDefaults {

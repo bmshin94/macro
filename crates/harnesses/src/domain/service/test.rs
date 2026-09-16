@@ -79,6 +79,14 @@ struct OpenPairingCountsConfig {
 impl HarnessRepo for FakeRepo {
     type Err = anyhow::Error;
 
+    async fn record_presence(
+        &self,
+        _harness_id: HarnessId,
+        _connected: bool,
+    ) -> Result<Vec<String>, Self::Err> {
+        Ok(vec![])
+    }
+
     async fn insert_pairing(&self, pairing: NewPairing) -> Result<bool, Self::Err> {
         let mut calls = self.calls.lock().unwrap();
         calls.inserted_pairings.push(pairing);

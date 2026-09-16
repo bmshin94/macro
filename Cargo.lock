@@ -348,6 +348,7 @@ dependencies = [
  "macro_tower_layers",
  "macro_user_id",
  "macro_uuid",
+ "model-entity",
  "notification",
  "pipedream_mcp",
  "rdkafka",

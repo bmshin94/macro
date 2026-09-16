@@ -420,6 +420,10 @@ can remain loading until the 10-second discovery timeout; use Retry after reconn
 
 `Harness` configures Cursor and paired macrod runtimes. Cursor's default-model picker uses
 the same live model discovery and retains its existing save action.
+macrod's Connected/Disconnected indicator refreshes on runtime presence events over the
+connection gateway, not a polling timer. Reopening the browser connection refreshes it
+to recover changes missed while offline. This reports the runtime socket, not whether
+every agent session is healthy.
 
 ## Notifications
 

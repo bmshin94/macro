@@ -236,6 +236,32 @@ async fn visibility_spans_own_and_team_harnesses(pool: PgPool) {
     names.sort_unstable();
     assert_eq!(names, ["mine", "teams"]);
 
+    // Private events stay private; shared events go only to current team members.
+    for harness in &visible {
+        assert_eq!(
+            repo.record_presence(harness.id, true).await.unwrap(),
+            vec![OWNER_ID]
+        );
+    }
+    let strangers = repo
+        .list_visible_harnesses(
+            MacroUserIdStr::try_from("macro|stranger@example.com".to_owned()).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(strangers.len(), 1);
+    assert_eq!(
+        repo.record_presence(strangers[0].id, true).await.unwrap(),
+        vec!["macro|stranger@example.com"]
+    );
+    repo.delete_harness(strangers[0].id).await.unwrap();
+    assert!(
+        repo.record_presence(strangers[0].id, false)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
     assert!(repo.user_has_team(caller(), team_id).await.unwrap());
     assert!(!repo.user_owns_team(caller(), team_id).await.unwrap());
 }
@@ -303,6 +329,36 @@ async fn connected_state_follows_the_presence_timestamps(pool: PgPool) {
 
     let harness = repo.get_harness(harness_id).await.unwrap().unwrap();
     assert!(harness.connected);
+
+    assert_eq!(
+        repo.record_presence(harness_id, false).await.unwrap(),
+        vec![OWNER_ID]
+    );
+    assert!(
+        !repo
+            .get_harness(harness_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .connected
+    );
+    assert_eq!(
+        repo.record_presence(harness_id, true).await.unwrap(),
+        vec![OWNER_ID]
+    );
+    assert!(
+        repo.get_harness(harness_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .connected
+    );
+    assert!(
+        repo.record_presence(HarnessId::new_from_uuid(Uuid::from_u128(99)), true)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 
     sqlx::query!(r#"UPDATE harnesses SET last_disconnected_at = now() + interval '1 second'"#)
         .execute(&pool)

@@ -21,15 +21,13 @@ export type DeleteHarnessParams = {
 
 /**
  * The macrod harnesses registered for the signed-in user (and their team).
- * Refetched on a short interval so the connected indicator tracks the daemon
- * heartbeat without a manual refresh.
+ * Presence changes invalidate this query through the connection gateway.
  */
 export function useHarnessesQuery() {
   return useQuery(() => ({
     queryKey: harnessKeys.list.queryKey,
     queryFn: async (): Promise<Harness[]> =>
       await throwOnErr(() => storageServiceClient.getHarnesses()),
-    refetchInterval: 15_000,
   }));
 }
 

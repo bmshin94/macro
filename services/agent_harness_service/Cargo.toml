@@ -60,6 +60,7 @@ rootcause = { workspace = true }
 channels = { path = "../../crates/channels", features = ["ports", "outbound"] }
 anyhow = { workspace = true }
 macro_user_id = { path = "../../crates/macro_user_id" }
+model-entity = { path = "../../crates/model-entity" }
 axum = { workspace = true }
 axum-extra = { workspace = true, features = ["typed-header"] }
 aws-sdk-secretsmanager = { workspace = true }

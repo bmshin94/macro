@@ -70,6 +70,14 @@ pub trait HarnessRepo: Send + Sync + 'static {
     /// Repository error.
     type Err: Into<anyhow::Error> + Send;
 
+    /// Record runtime presence and return the users who can see this harness.
+    /// Deleted or missing harnesses return no recipients.
+    fn record_presence(
+        &self,
+        harness_id: HarnessId,
+        connected: bool,
+    ) -> impl Future<Output = Result<Vec<String>, Self::Err>> + Send;
+
     /// Persist a pairing. Returns `false` when the code is already taken.
     fn insert_pairing(
         &self,
