@@ -117,7 +117,11 @@ fn fold_machine(log: impl IntoIterator<Item = AgentSessionLog>) -> FoldMachineIm
 /// Frames must be pushed in log order. A machine only ever grows, so a caller
 /// tracking a live session keeps one per session and pushes for as long as
 /// the session lasts.
-#[derive(Debug, Default)]
+///
+/// `Clone` is what makes speculation possible: a
+/// [`SpeculativeFold`](crate::domain::speculation::SpeculativeFold) forks the
+/// confirmed machine and folds unconfirmed frames onto the copy.
+#[derive(Debug, Clone, Default)]
 pub struct FoldMachineImpl {
     state: FoldState,
     replay: replay::Replay,
@@ -128,6 +132,23 @@ impl FoldMachineImpl {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Fold a frame this client caused but the log has not confirmed. Every
+    /// message it derives is marked [`FoldedMessage::pending`] until the
+    /// confirmed frame is folded in its place.
+    pub fn push_speculative(&mut self, log: AgentSessionLog) -> Vec<FoldEvent<'_>> {
+        self.state.speculative = true;
+        self.push(log)
+    }
+
+    /// The ACP session id the runtime answers to, once the log has shown it:
+    /// the `session/new` or `session/load` that opened it, or any prompt
+    /// addressed to it. What a synthesized frame has to name so the replay
+    /// gate does not treat it as another session's traffic.
+    #[must_use]
+    pub fn acp_session_id(&self) -> Option<&str> {
+        self.state.acp_session.as_deref()
     }
 
     /// Every committed message, oldest first. A pending load is invisible here.
@@ -164,16 +185,30 @@ impl FoldMachineImpl {
 
 impl FoldMachine for FoldMachineImpl {
     fn push(&mut self, log: AgentSessionLog) -> Vec<FoldEvent<'_>> {
-        let changes = match self.replay.step(&mut self.state, log) {
+        // `push_speculative` sets the flag for exactly one frame; stepping
+        // consumes it, so a plain push is always a confirmed frame.
+        let outcome = self.replay.step(&mut self.state, log);
+        self.state.speculative = false;
+        let mut changes = match outcome {
             replay::Outcome::Changes(changes) => changes,
             replay::Outcome::Staged => return Vec::new(),
             replay::Outcome::Replaced => {
+                self.state.refresh_turn_state();
                 return vec![
                     FoldEvent::MessagesReplaced(Cow::Borrowed(&self.state.messages)),
                     FoldEvent::MetadataUpdated(Cow::Borrowed(&self.state.metadata)),
                 ];
             }
         };
+        // The turn state is a projection of everything the step touched, so
+        // it is refreshed once per push rather than by every handler.
+        if self.state.refresh_turn_state()
+            && !changes
+                .iter()
+                .any(|change| matches!(change, StepChange::Metadata))
+        {
+            changes.push(StepChange::Metadata);
+        }
         changes
             .into_iter()
             .filter_map(|change| match change {

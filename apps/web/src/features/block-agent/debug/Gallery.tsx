@@ -195,6 +195,7 @@ const FIXTURE_DIFF = {
 const FIXTURE_MESSAGE: FoldedMessage = {
   agentSessionId: 'demo',
   requestId: null,
+  pending: false,
   turn: 0,
   author: { kind: 'agent' },
   stop: { kind: 'end_turn' },

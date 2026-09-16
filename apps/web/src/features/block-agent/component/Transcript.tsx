@@ -18,11 +18,12 @@ import {
 } from 'solid-js';
 import { useAgentSession } from '../context/AgentSessionContext';
 import type { AgentMessageTarget } from '../core/search-location';
+import { WorkingLine } from '../ui/WorkingLine';
 import { Message } from './AgentMessage';
 import { ReplyToSelection } from './ReplyToSelection';
 
 export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
-  const { messages, quoteSelection, sessionId } = useAgentSession();
+  const { messages, quoteSelection, sessionId, turn } = useAgentSession();
   const initialTarget = props.searchTarget;
   const initialSessionId = sessionId();
   const splitPanel = useSplitPanel();
@@ -41,7 +42,21 @@ export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
         ])
       )
   );
-  const keys = createMemo(() => [...messageById().keys()]);
+  // The turn is open and the agent has said nothing yet: the newest message
+  // is the user's, so no agent row exists to carry the working line. One
+  // extra row at the tail says the wait is work, not a stall - a prompt still
+  // on the wire (`starting`) included.
+  const workingKey = () => `${sessionId() ?? ''}:working`;
+  const showsWorking = createMemo(() => {
+    const state = turn();
+    if (state !== 'starting' && state !== 'running') return false;
+    const last = messages().at(-1);
+    return last?.author.kind === 'user';
+  });
+  const keys = createMemo(() => [
+    ...messageById().keys(),
+    ...(showsWorking() ? [workingKey()] : []),
+  ]);
   let positionedTarget: AgentMessageTarget | undefined;
   // Navigation is an external effect. Wait for both log hydration and the
   // virtual list's layout; subsequent live folds must not repeat the jump.
@@ -107,16 +122,27 @@ export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
         onScroll={(state) => setScrollState(state)}
       >
         {({ id }) => (
-          <Show when={messageById().get(id)}>
-            {(message) => (
-              <div
-                class="macro-message-width mx-auto px-4 pb-4 min-w-0 rounded-lg"
-                classList={{ 'bg-accent/10': highlightedId() === id }}
-                data-search-target={highlightedId() === id ? 'true' : undefined}
-              >
-                <Message message={message()} />
+          <Show
+            when={id !== workingKey()}
+            fallback={
+              <div class="macro-message-width mx-auto px-4 pb-4 min-w-0">
+                <WorkingLine />
               </div>
-            )}
+            }
+          >
+            <Show when={messageById().get(id)}>
+              {(message) => (
+                <div
+                  class="macro-message-width mx-auto px-4 pb-4 min-w-0 rounded-lg"
+                  classList={{ 'bg-accent/10': highlightedId() === id }}
+                  data-search-target={
+                    highlightedId() === id ? 'true' : undefined
+                  }
+                >
+                  <Message message={message()} />
+                </div>
+              )}
+            </Show>
           </Show>
         )}
       </ThreadList>

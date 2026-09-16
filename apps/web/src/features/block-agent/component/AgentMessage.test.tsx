@@ -93,6 +93,7 @@ const message = (
 ): FoldedMessage => ({
   agentSessionId: 'session',
   requestId: null,
+  pending: false,
   turn: 0,
   author: { kind: 'agent' },
   parts,

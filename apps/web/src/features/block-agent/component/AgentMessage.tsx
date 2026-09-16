@@ -138,7 +138,11 @@ function showsWorkingLine(message: FoldedMessage): boolean {
 function UserMessage(props: { message: FoldedMessage }) {
   return (
     <div
-      class="flex w-full"
+      class="flex w-full transition-opacity"
+      // Still on the wire: the fold shows the prompt before the log confirms
+      // it, and the confirmation clears this in place.
+      classList={{ 'opacity-60': props.message.pending }}
+      aria-busy={props.message.pending || undefined}
       ref={(el) =>
         messageSendMotion(el, () =>
           props.message.requestId

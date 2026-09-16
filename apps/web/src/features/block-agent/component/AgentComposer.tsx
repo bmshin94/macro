@@ -1,13 +1,17 @@
 /**
- * The block's composer container: reads the composer controller from the
- * session context and drives the dumb `AgentInput` with derived props. All
- * block-level state stays on this side of the boundary.
+ * The block's composer container: reads the session from context and drives
+ * the dumb `AgentInput` with derived props. Every in-flight state it shows
+ * is read off the fold — the turn discriminant and the messages' pending
+ * marks — so the composer keeps no state of its own.
  */
 
+import { toast } from '@core/component/Toast/Toast';
 import { useUserId } from '@core/context/user';
 import { idToDisplayName } from '@core/user/util';
+import type { AgentAction } from '@service-agent-harness/generated/schemas';
 import { Show } from 'solid-js';
 import { useAgentSession } from '../context/AgentSessionContext';
+import { changingModel } from '../state/control-message';
 import {
   AgentInput,
   AgentModelSelector,
@@ -24,17 +28,38 @@ export function AgentComposer(props: {
   autofocus?: boolean;
 }) {
   const {
-    blockedOnUser,
-    composer,
     elicitation,
+    issue,
     loadFailed,
+    messages,
     metadata,
     pending,
     queue,
-    resuming,
+    turn,
     registerQuoteInsert,
   } = useAgentSession();
   const userId = useUserId();
+
+  // The fold speculates the action the moment it is issued, so success is
+  // observed there; only a refusal needs saying here.
+  const act = (action: AgentAction, failure: string) => {
+    void issue(action)?.then((result) => {
+      if (result.isErr()) toast.failure(failure);
+    });
+  };
+
+  // A turn is open in some form: the send button becomes a stop square and
+  // prompts sent now wait in the server queue behind it.
+  const busy = () => {
+    const state = turn();
+    return state !== 'idle' && state !== 'disconnected';
+  };
+  // The runtime is gone and the user has asked it for something anyway, so
+  // the service is bringing its sandbox back before it can deliver. There is
+  // no signal for this on the wire; it is the one honest inference from a
+  // disconnected runtime and a pending action of ours.
+  const resuming = () =>
+    turn() === 'disconnected' && messages().some((message) => message.pending);
 
   // Focus plumbing between the input and the queue list above it: Up at the
   // start of the input lands on the bottom (next-to-dispatch) queue row, and
@@ -75,7 +100,7 @@ export function AgentComposer(props: {
       <Show when={resuming()}>
         <ComposerNotice text="Waking the agent's sandbox…" active />
       </Show>
-      <Show when={blockedOnUser()}>
+      <Show when={turn() === 'blocked'}>
         <ComposerNotice
           text={
             elicitation.canAnswer()
@@ -87,15 +112,17 @@ export function AgentComposer(props: {
       <AgentInput
         placeholder="Message the agent, @mention anything"
         autofocus={props.autofocus}
-        busy={composer.busy()}
+        busy={busy()}
         hasQueuedMessages={queuedItems().length > 0}
         // Prompts go straight to the service, so sending needs a session to
         // post to — a block whose create is still on the wire can be typed
         // into, but not sent from, until the id lands.
         disabled={loadFailed() || pending()}
         commands={() => metadata()?.availableCommands ?? []}
-        onSend={composer.send}
-        onStop={composer.stop}
+        onSend={(prompt) =>
+          act({ type: 'prompt', prompt }, 'The message could not be sent')
+        }
+        onStop={() => act({ type: 'stop' }, 'The agent could not be stopped')}
         // Installed only while a queue row exists to land on: an installed
         // handler claims the keys (Up, and the shared plugin's other
         // leave-at-start keys), which must keep their defaults when there is
@@ -110,10 +137,12 @@ export function AgentComposer(props: {
         modelControl={
           <AgentModelSelector
             model={metadata()?.model ?? null}
-            changingTo={composer.changingModel()}
+            changingTo={changingModel(messages(), metadata()?.model ?? null)}
             options={metadata()?.supportedModels ?? []}
             disabled={loadFailed()}
-            onSelect={composer.setModel}
+            onSelect={(model) =>
+              act({ type: 'setModel', model }, 'The model could not be changed')
+            }
           />
         }
       />

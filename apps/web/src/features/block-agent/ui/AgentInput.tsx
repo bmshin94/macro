@@ -103,8 +103,11 @@ export function AgentInput(props: AgentInputProps) {
 
   const sendNext = () => {
     if (!canSendNext()) return;
-    // Stop bypasses the server queue. The cancelled turn ending immediately
-    // dispatches its oldest waiting action, so the queue remains FIFO.
+    // Stop bypasses the server queue: the fold shows it at once as a pending
+    // Stopped line, and when the runtime ends the cancelled turn the server
+    // dispatches the oldest waiting action, so the queue remains FIFO. How
+    // soon that is depends on the runtime - a booting sandbox cannot be
+    // interrupted until it is up.
     props.onStop?.();
   };
 

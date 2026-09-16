@@ -20,6 +20,7 @@ input_file: crates/agent_fold/fixtures/real/resumed_no_prompt.jsonl
             ],
         },
         stop: None,
+        pending: false,
     },
     FoldedMessage {
         id: TurnId(
@@ -476,6 +477,7 @@ input_file: crates/agent_fold/fixtures/real/resumed_no_prompt.jsonl
         stop: Some(
             EndTurn,
         ),
+        pending: false,
     },
     FoldedMessage {
         id: TurnId(
@@ -493,6 +495,7 @@ input_file: crates/agent_fold/fixtures/real/resumed_no_prompt.jsonl
             ],
         },
         stop: None,
+        pending: false,
     },
     FoldedMessage {
         id: TurnId(
@@ -623,6 +626,7 @@ input_file: crates/agent_fold/fixtures/real/resumed_no_prompt.jsonl
         stop: Some(
             EndTurn,
         ),
+        pending: false,
     },
     FoldedMessage {
         id: TurnId(
@@ -640,6 +644,7 @@ input_file: crates/agent_fold/fixtures/real/resumed_no_prompt.jsonl
             ],
         },
         stop: None,
+        pending: false,
     },
     FoldedMessage {
         id: TurnId(
@@ -823,6 +828,7 @@ input_file: crates/agent_fold/fixtures/real/resumed_no_prompt.jsonl
         stop: Some(
             EndTurn,
         ),
+        pending: false,
     },
     FoldedMessage {
         id: TurnId(
@@ -840,6 +846,7 @@ input_file: crates/agent_fold/fixtures/real/resumed_no_prompt.jsonl
             ],
         },
         stop: None,
+        pending: false,
     },
     FoldedMessage {
         id: TurnId(
@@ -1906,6 +1913,7 @@ input_file: crates/agent_fold/fixtures/real/resumed_no_prompt.jsonl
         stop: Some(
             EndTurn,
         ),
+        pending: false,
     },
     FoldedMessage {
         id: TurnId(
@@ -1923,6 +1931,7 @@ input_file: crates/agent_fold/fixtures/real/resumed_no_prompt.jsonl
             ],
         },
         stop: None,
+        pending: false,
     },
     FoldedMessage {
         id: TurnId(
@@ -2725,6 +2734,7 @@ input_file: crates/agent_fold/fixtures/real/resumed_no_prompt.jsonl
         stop: Some(
             EndTurn,
         ),
+        pending: false,
     },
     FoldedMessage {
         id: TurnId(
@@ -2742,6 +2752,7 @@ input_file: crates/agent_fold/fixtures/real/resumed_no_prompt.jsonl
             ],
         },
         stop: None,
+        pending: false,
     },
     FoldedMessage {
         id: TurnId(
@@ -3633,6 +3644,7 @@ input_file: crates/agent_fold/fixtures/real/resumed_no_prompt.jsonl
             ],
         },
         stop: None,
+        pending: false,
     },
     FoldedMessage {
         id: TurnId(
@@ -3657,5 +3669,6 @@ input_file: crates/agent_fold/fixtures/real/resumed_no_prompt.jsonl
             ],
         },
         stop: None,
+        pending: false,
     },
 ]

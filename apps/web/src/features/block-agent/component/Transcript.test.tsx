@@ -8,6 +8,7 @@ import { Transcript } from './Transcript';
 
 const session = vi.hoisted(() => ({
   sessionId: () => 'session',
+  turn: () => 'idle' as const,
   messages: () => [] as FoldedMessage[],
   quoteSelection: vi.fn(),
   touch: false,

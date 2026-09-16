@@ -37,6 +37,7 @@ impl FoldState {
             request_id: None,
             parts: NonEmpty::one(MessagePart::Text { text }),
             stop: None,
+            pending: self.speculative,
         });
         Some(Changed::new(message))
     }
@@ -69,6 +70,12 @@ impl FoldState {
         // message already says.
         let text = deserialize_params::<PromptRequest>(params)
             .map(|request| {
+                // A confirmed prompt names the session the runtime answers
+                // to; a speculative one only echoes what this fold already
+                // knew, so it must not become the source of that fact.
+                if !self.speculative {
+                    self.acp_session = Some(request.session_id.to_string());
+                }
                 request
                     .prompt
                     .into_iter()
@@ -88,12 +95,15 @@ impl FoldState {
                 request_id: AgentActionId::from_request_id(prompt_id),
                 parts: NonEmpty::one(MessagePart::Text { text }),
                 stop: None,
+                pending: self.speculative,
             });
             Changed::new(message)
         });
 
         self.turn = Some(Turn {
             id,
+            prompt_pending: self.speculative,
+            stop_requested: false,
             prompt_id: Some(prompt_id.clone()),
             agent: None,
             permission_positions: HashMap::new(),
@@ -212,6 +222,7 @@ impl FoldState {
                 text: String::new(),
             }),
             stop: None,
+            pending: self.speculative,
         });
         (message, Changed::new(message))
     }
@@ -234,6 +245,8 @@ impl FoldState {
 
         self.turn = Some(Turn {
             id,
+            prompt_pending: false,
+            stop_requested: false,
             prompt_id: None,
             agent: None,
             permission_positions: HashMap::new(),
