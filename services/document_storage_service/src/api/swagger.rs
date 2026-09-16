@@ -81,6 +81,11 @@ use favorites::inbound::axum_router::{
     AddFavoriteRequest, FavoriteEntityRef, ReorderFavoritesRequest,
 };
 use foreign_entity::domain::models::ForeignEntity;
+use initiative::domain::models::{
+    AssignTaskStatus, AssignTasksRequest, AssignTasksResponse, AssignTasksResult,
+    CreateInitiativeRequest, InitiativeDetail, InitiativeId, InitiativeList, InitiativeSummary,
+    UpdateInitiativeRequest,
+};
 use model::document::response::{
     CreateDocumentRequest, CreateDocumentResponse, CreateDocumentResponseData,
     DocumentResponseMetadata,
@@ -241,6 +246,7 @@ use utoipa::OpenApi;
         channels::inbound::axum_router::join_channel_handler,
         channels::inbound::axum_router::leave_channel_handler,
         channels::inbound::axum_router::get_channel_messages_handler,
+        channels::inbound::axum_router::get_channel_messages_catch_up_handler,
         channels::inbound::axum_router::post_channel_messages_handler,
         channels::inbound::axum_router::get_thread_replies_handler,
         channels::inbound::axum_router::get_message_with_context_handler,
@@ -340,6 +346,14 @@ use utoipa::OpenApi;
         reminders::inbound::axum_router::get_reminder_handler,
         reminders::inbound::axum_router::update_reminder_handler,
         reminders::inbound::axum_router::delete_reminder_handler,
+        // initiatives
+        initiative::inbound::axum_router::list::list_initiatives_handler,
+        initiative::inbound::axum_router::create::create_initiative_handler,
+        initiative::inbound::axum_router::get::get_initiative_handler,
+        initiative::inbound::axum_router::update::update_initiative_handler,
+        initiative::inbound::axum_router::delete::delete_initiative_handler,
+        initiative::inbound::axum_router::assign_tasks::assign_initiative_tasks_handler,
+        initiative::inbound::axum_router::unassign_task::unassign_initiative_task_handler,
         // collab surfaces
         collab_surface::inbound::axum_router::ensure_surface_handler,
         collab_surface::inbound::axum_router::get_surface_handler,
@@ -348,6 +362,7 @@ use utoipa::OpenApi;
 
         // foreign_entity
         foreign_entity::inbound::axum_router::get_foreign_entity_handler,
+        foreign_entity::inbound::axum_router::get_foreign_entity_by_source_handler,
 
         // threads
         threads::edit_thread::edit_thread_handler,
@@ -496,6 +511,16 @@ use utoipa::OpenApi;
             ReminderSchedule,
             CreateReminderRequest,
             UpdateReminderRequest,
+            InitiativeId,
+            InitiativeSummary,
+            InitiativeDetail,
+            InitiativeList,
+            CreateInitiativeRequest,
+            UpdateInitiativeRequest,
+            AssignTasksRequest,
+            AssignTasksResult,
+            AssignTasksResponse,
+            AssignTaskStatus,
             CollabSurfaceResponse,
             CollabSurfaceTokenResponse,
             EnsureCollabSurfaceRequest,

@@ -58,7 +58,7 @@ export type ViewShellLayout = {
 
 type ViewShellInternal = ViewShellLayout & { id: string };
 
-const RESIZE_GUTTER = 8;
+const RESIZE_GUTTER = 1;
 
 const ViewShellContext = createContext<ViewShellInternal>();
 
@@ -355,13 +355,29 @@ function Main(props: JSX.HTMLAttributes<HTMLElement>) {
   );
 }
 
+function TopBar(props: JSX.HTMLAttributes<HTMLDivElement>) {
+  const [local, rest] = splitProps(props, ['children', 'class']);
+  return (
+    <div
+      {...rest}
+      class={cn(
+        'flex h-12 min-w-0 shrink-0 items-center gap-1 border-b border-edge-muted px-4 py-3 touch:hidden',
+        local.class
+      )}
+      data-view-shell-top-bar=""
+    >
+      {local.children}
+    </div>
+  );
+}
+
 function Header(props: JSX.HTMLAttributes<HTMLElement>) {
   const [local, rest] = splitProps(props, ['children', 'class']);
   return (
     <header
       {...rest}
       class={cn(
-        'shrink-0 px-4 pb-3 pt-2 touch:px-(--mobile-chrome-gutter) touch:pt-[calc(var(--safe-top,0px)+0.5rem)]',
+        'shrink-0 px-4 py-4 touch:px-(--mobile-chrome-gutter) touch:pt-[calc(var(--safe-top,0px)+0.5rem)]',
         local.class
       )}
       data-view-shell-header=""
@@ -428,7 +444,7 @@ function Detail(props: JSX.HTMLAttributes<HTMLDivElement>) {
         <div
           {...rest}
           class={cn(
-            'absolute inset-y-0 right-0 z-10 min-h-0 border-l border-edge bg-panel shadow-menu',
+            'absolute inset-y-0 right-0 z-10 min-h-0 border-l border-edge-muted bg-panel shadow-menu',
             local.class
           )}
           style={{ width: `${layout().width}px`, 'max-width': '100%' }}
@@ -456,6 +472,7 @@ export const ViewShell = Object.assign(Root, {
   Root,
   Aside,
   Main,
+  TopBar,
   Header,
   Content,
   Detail,

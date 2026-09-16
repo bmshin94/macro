@@ -28,8 +28,9 @@
 #[cfg(test)]
 mod test;
 
-use crate::domain::model::{McpHeader, McpServer, McpTransport, ModelFamily};
-use crate::domain::ports::{CursorAgents, RepoResolver, RunStream, SessionNotifier};
+use crate::domain::model::{McpHeader, McpServer, McpTransport};
+use crate::domain::model_options::{MODEL_CONFIG_ID, cursor_model_config_options};
+use crate::domain::ports::{CursorAgents, RepositoryChooser, RunStream, SessionNotifier};
 use crate::domain::service::CursorSessionService;
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
@@ -37,11 +38,9 @@ use agent_client_protocol::schema::v1::{
     CloseSessionRequest, CloseSessionResponse, ContentBlock, ContentChunk, Error as AcpError,
     HttpHeader, Implementation, InitializeRequest, InitializeResponse, LoadSessionRequest,
     LoadSessionResponse, McpCapabilities, McpServer as AcpMcpServer, Meta, NewSessionRequest,
-    NewSessionResponse, PromptCapabilities, PromptRequest, PromptResponse, SessionConfigGroupId,
-    SessionConfigId, SessionConfigKind, SessionConfigOption, SessionConfigSelect,
-    SessionConfigSelectGroup, SessionConfigSelectOption, SessionConfigSelectOptions,
-    SessionConfigValueId, SessionId, SessionNotification, SessionUpdate,
-    SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, TextContent,
+    NewSessionResponse, PromptCapabilities, PromptRequest, PromptResponse, SessionConfigOption,
+    SessionId, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
+    SetSessionConfigOptionResponse, TextContent,
 };
 use agent_client_protocol::{
     Agent, ByteStreams, Client, ConnectTo, ConnectionTo, on_receive_notification,
@@ -49,19 +48,6 @@ use agent_client_protocol::{
 };
 use std::sync::{Arc, OnceLock};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
-
-/// The ACP config-option id for a session's model.
-///
-/// Defined here rather than shared with the Macro harness: this crate is a
-/// standalone ACP agent (see the `cursor_cloud_agents` binary) and must not
-/// depend on its embedder. `"model"` is the id every ACP client looks for, and
-/// the harness uses the same literal for the same reason.
-const MODEL_CONFIG_ID: &str = "model";
-
-/// Cursor's own "let the server pick" model (`GET /v1/models` lists it as
-/// `default`, displayed "Auto") — the select's resting value when nothing has
-/// been chosen.
-const AUTO_MODEL_ID: &str = "default";
 
 /// Delivers session updates as `session/update` notifications on the ACP
 /// connection.
@@ -76,13 +62,23 @@ const AUTO_MODEL_ID: &str = "default";
 /// Notifications enter the connection's own outgoing queue — the same one
 /// responses use — so a turn's updates and its `session/prompt` response
 /// cannot reorder.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct AcpNotifier {
     /// Empty until the connection is up. Write-once: one notifier serves one
     /// connection, exactly as one service does.
     connection: Arc<OnceLock<ConnectionTo<Client>>>,
+    pull_request: Option<Arc<dyn PullRequestReporter>>,
     bound: Arc<tokio::sync::Notify>,
     reload: Option<tokio::sync::mpsc::UnboundedSender<SessionId>>,
+}
+
+/// Host operation receiving PRs independently of ACP presentation.
+pub trait PullRequestReporter: Send + Sync {
+    /// Persist a PR reported by this provider.
+    fn set_pull_request<'a>(
+        &'a self,
+        url: &'a str,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<(), rootcause::Report>> + Send + 'a>>;
 }
 
 impl AcpNotifier {
@@ -98,6 +94,12 @@ impl AcpNotifier {
         self
     }
 
+    /// Use the embedding host's shared session operation for PR reports.
+    pub fn with_pull_requests(mut self, reporter: Arc<dyn PullRequestReporter>) -> Self {
+        self.pull_request = Some(reporter);
+        self
+    }
+
     /// Attach the connection updates will travel over.
     fn bind(&self, connection: ConnectionTo<Client>) {
         // A second bind can only be a bug in `serve`; the first connection
@@ -108,6 +110,17 @@ impl AcpNotifier {
 }
 
 impl SessionNotifier for AcpNotifier {
+    async fn set_pull_request(
+        &self,
+        _session: &SessionId,
+        url: &str,
+    ) -> Result<(), rootcause::Report> {
+        if let Some(reporter) = &self.pull_request {
+            reporter.set_pull_request(url).await?;
+        }
+        Ok(())
+    }
+
     async fn notify(
         &self,
         session: &SessionId,
@@ -297,8 +310,8 @@ fn agent_capabilities() -> AgentCapabilities {
 ///
 /// A clean EOF from the client is `Ok`; transport and protocol-level failures
 /// are the SDK's error.
-pub async fn serve<Reader, Writer, Cursor, Notifier, Repos>(
-    service: Arc<CursorSessionService<Cursor, Notifier, Repos>>,
+pub async fn serve<Reader, Writer, Cursor, Notifier, Chooser>(
+    service: Arc<CursorSessionService<Cursor, Notifier, Chooser>>,
     notifier: AcpNotifier,
     reader: Reader,
     writer: Writer,
@@ -308,7 +321,7 @@ where
     Writer: tokio::io::AsyncWrite + Send + 'static,
     Cursor: CursorAgents + RunStream + Send + Sync + 'static,
     Notifier: SessionNotifier + Send + Sync + 'static,
-    Repos: RepoResolver + Send + Sync + 'static,
+    Chooser: RepositoryChooser + 'static,
 {
     serve_transport(
         service,
@@ -326,8 +339,8 @@ where
 ///
 /// A clean EOF from the client is `Ok`; transport and protocol-level failures
 /// are the SDK's error.
-pub async fn serve_transport<Transport, Cursor, Notifier, Repos>(
-    service: Arc<CursorSessionService<Cursor, Notifier, Repos>>,
+pub async fn serve_transport<Transport, Cursor, Notifier, Chooser>(
+    service: Arc<CursorSessionService<Cursor, Notifier, Chooser>>,
     notifier: AcpNotifier,
     transport: Transport,
 ) -> Result<(), AcpError>
@@ -335,7 +348,7 @@ where
     Transport: ConnectTo<Agent> + 'static,
     Cursor: CursorAgents + RunStream + Send + Sync + 'static,
     Notifier: SessionNotifier + Send + Sync + 'static,
-    Repos: RepoResolver + Send + Sync + 'static,
+    Chooser: RepositoryChooser + 'static,
 {
     let startup_notifier = notifier.clone();
     Agent
@@ -534,14 +547,14 @@ where
 /// A failure to reach `GET /v1/models` costs the picker, not the session: the
 /// options come back empty and the client simply has nothing to offer, which is
 /// the state it was in before any of this existed.
-async fn session_config_options<Cursor, Notifier, Repos>(
-    service: &CursorSessionService<Cursor, Notifier, Repos>,
+async fn session_config_options<Cursor, Notifier, Chooser>(
+    service: &CursorSessionService<Cursor, Notifier, Chooser>,
     session: &SessionId,
 ) -> Vec<SessionConfigOption>
 where
     Cursor: CursorAgents + RunStream,
     Notifier: SessionNotifier,
-    Repos: RepoResolver,
+    Chooser: RepositoryChooser,
 {
     let models = match service.models().await {
         Ok(models) => models,
@@ -570,46 +583,7 @@ where
     //
     // If Cursor ever drops the entry there is no honest resting value, and no
     // picker beats one resting on a guess.
-    let current = current.or_else(|| {
-        models
-            .iter()
-            .find(|model| model.id == AUTO_MODEL_ID)
-            .map(|model| model.id.clone())
-    });
-    let Some(current) = current else {
-        return Vec::new();
-    };
-    let select_option = |model: &crate::domain::model::CursorModel| {
-        SessionConfigSelectOption::new(
-            SessionConfigValueId::new(model.id.clone()),
-            model.display_name.clone(),
-        )
-    };
-    let families = ModelFamily::group(&models);
-    let options = if ModelFamily::is_informative(&families) {
-        SessionConfigSelectOptions::Grouped(
-            families
-                .iter()
-                .map(|family| {
-                    SessionConfigSelectGroup::new(
-                        SessionConfigGroupId::new(family.id.clone()),
-                        family.name.clone(),
-                        family.models.iter().map(select_option).collect(),
-                    )
-                })
-                .collect(),
-        )
-    } else {
-        SessionConfigSelectOptions::Ungrouped(models.iter().map(select_option).collect())
-    };
-    vec![SessionConfigOption::new(
-        SessionConfigId::new(MODEL_CONFIG_ID),
-        "Model",
-        SessionConfigKind::Select(SessionConfigSelect::new(
-            SessionConfigValueId::new(current),
-            options,
-        )),
-    )]
+    cursor_model_config_options(&models, current)
 }
 
 /// Concatenate a prompt's content blocks into the single string Cursor takes.

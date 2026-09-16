@@ -1,13 +1,49 @@
+import type { ItemType } from '@service-storage/client';
 import type { AccessLevel } from '@service-storage/generated/schemas/accessLevel';
 import type { LinkShare } from '@service-storage/generated/schemas/linkShare';
 import type { UpdateSharePermissionRequestV2 } from '@service-storage/generated/schemas/updateSharePermissionRequestV2';
 
 export const NO_LINK_SHARE = 'NONE' as const;
 
+/**
+ * Entity types whose backend honors `sharePermission.teamShareAccessLevel`
+ * (documents via `PATCH /documents/{id}`, AI chats via `PATCH /chats/{id}`).
+ */
+const TEAM_SHAREABLE_ITEM_TYPES: ReadonlySet<ItemType> = new Set<ItemType>([
+  'document',
+  'chat',
+]);
+
+export function isTeamShareSupportedForItem(itemType: ItemType): boolean {
+  return TEAM_SHAREABLE_ITEM_TYPES.has(itemType);
+}
+
+/** Human noun for share-modal copy such as "Share this chat with the owner's team." */
+export function getShareItemNoun(itemType: ItemType): string {
+  switch (itemType) {
+    case 'email':
+      return 'email thread';
+    case 'agent_session':
+      return 'agent session';
+    default:
+      return itemType;
+  }
+}
+
 export type LinkShareScope = LinkShare | typeof NO_LINK_SHARE;
 
 export type LinkSharePayload = Required<
   Pick<UpdateSharePermissionRequestV2, 'linkShare' | 'linkShareAccessLevel'>
+>;
+
+export const NO_TEAM_SHARE = 'NONE' as const;
+
+export type TeamShareLevel = Exclude<AccessLevel, 'owner'>;
+
+export type TeamShareScope = TeamShareLevel | typeof NO_TEAM_SHARE;
+
+export type TeamSharePayload = Required<
+  Pick<UpdateSharePermissionRequestV2, 'teamShareAccessLevel'>
 >;
 
 type LinkShareScopeCopy = {
@@ -41,11 +77,25 @@ const LINK_SHARE_SCOPE_COPY: Record<LinkShareScope, LinkShareScopeCopy> = {
   },
 };
 
+const TEAM_SHARE_COPY: Record<TeamShareScope, string> = {
+  NONE: 'None',
+  view: 'View',
+  comment: 'Comment',
+  edit: 'Edit',
+};
+
 export const LINK_SHARE_SCOPE_OPTIONS = (
   ['NONE', 'PUBLIC', 'TEAM'] as const
 ).map((scope) => ({
   value: scope,
   label: LINK_SHARE_SCOPE_COPY[scope].label,
+}));
+
+export const TEAM_SHARE_SCOPE_OPTIONS = (
+  ['NONE', 'view', 'comment', 'edit'] as const
+).map((scope) => ({
+  value: scope,
+  label: TEAM_SHARE_COPY[scope],
 }));
 
 export function getLinkShareScope(
@@ -85,6 +135,29 @@ export function getLinkShareScopeCopy(
   scope: LinkShareScope
 ): LinkShareScopeCopy {
   return LINK_SHARE_SCOPE_COPY[scope];
+}
+
+export function getTeamShareScope(
+  teamShareAccessLevel: AccessLevel | null | undefined
+): TeamShareScope {
+  if (
+    teamShareAccessLevel === 'view' ||
+    teamShareAccessLevel === 'comment' ||
+    teamShareAccessLevel === 'edit'
+  ) {
+    return teamShareAccessLevel;
+  }
+  return NO_TEAM_SHARE;
+}
+
+export function buildTeamSharePayload(scope: TeamShareScope): TeamSharePayload {
+  return {
+    teamShareAccessLevel: scope === NO_TEAM_SHARE ? null : scope,
+  };
+}
+
+export function getTeamShareScopeCopy(scope: TeamShareScope): string {
+  return TEAM_SHARE_COPY[scope];
 }
 
 export function getShareStatus(

@@ -1,4 +1,5 @@
 import { ViewShell } from '@app/components/view-shell';
+import { MaybeSoupEntityActionDrawerManager } from '@app/features/soup';
 import { createSizeBreakpoints } from '@app/util/create-size-breakpoints';
 import { useGlobalBlockOrchestrator } from '@components/app/GlobalAppState';
 import { PreviewPanel } from '@components/app/PreviewPanel';
@@ -6,7 +7,7 @@ import { useSplitPanelOrThrow } from '@components/app/split-layout/layoutUtils';
 import { SplitPanel } from '@components/app/split-panel';
 import { StaticMarkdownContext } from '@core/component/LexicalMarkdown/component/core/StaticMarkdown';
 import { isTouchDevice } from '@core/mobile/isTouchDevice';
-import { isChannelEntity, ListEntityMetadataQueryProvider } from '@entity';
+import { ListEntityMetadataQueryProvider } from '@entity';
 import SpinnerIcon from '@phosphor/spinner.svg';
 import { createElementSize } from '@solid-primitives/resize-observer';
 import { createMemo, createSignal, onMount, Show, Suspense } from 'solid-js';
@@ -18,7 +19,12 @@ import {
   CHANNELS_MIN_RAIL_WIDTH,
   CHANNELS_NARROW_RAIL_WIDTH,
 } from './constants';
-import { useChannelsQuery } from './queries';
+import {
+  deduplicateChannels,
+  resolveSelectedChannel,
+  useChannelByIdQuery,
+  useChannelsSources,
+} from './queries';
 import type { ChannelsViewStateOptions } from './types';
 
 export type ChannelsViewProps = {
@@ -31,6 +37,7 @@ function ChannelsViewRoot() {
   const orchestrator = useGlobalBlockOrchestrator();
   const { state, setAsideWidth, setMobileTab, setRailMode } = useChannelsView();
   const [workspace, setWorkspace] = createSignal<HTMLDivElement>();
+  const [railSearchOpen, setRailSearchOpen] = createSignal(false);
   const workspaceSize = createElementSize(workspace);
   const breakpoints = createSizeBreakpoints(
     () => workspaceSize.width ?? undefined,
@@ -53,17 +60,54 @@ function ChannelsViewRoot() {
           width: state.asideWidth,
           min: CHANNELS_MIN_RAIL_WIDTH,
           max: CHANNELS_MAX_RAIL_WIDTH,
+          preserveDuringResize: false,
         };
 
-  const channelsQuery = useChannelsQuery(() =>
-    isTouchDevice() ? state.mobileTab : 'recents'
+  const sources = useChannelsSources(
+    (scope) => {
+      if (isTouchDevice())
+        return scope !== 'search' && state.mobileTab === scope;
+      if (railSearchOpen()) return scope === 'search';
+      if (scope === 'search') return false;
+      if (scope === 'recents') return state.tab === 'recents';
+      return (
+        state.tab === 'browse' &&
+        (railMode() === 'full' || state.slimGroups[scope])
+      );
+    },
+    (group) => state.sortBy[group]
   );
-  const channels = createMemo(() =>
-    (channelsQuery.data?.entities ?? []).filter(isChannelEntity)
+  const loadedChannels = createMemo(() =>
+    deduplicateChannels([
+      sources.channels.items(),
+      sources.direct_messages.items(),
+      sources.recents.items(),
+      sources.search.items(),
+    ])
   );
-  const selectedChannel = createMemo(() =>
-    channels().find((channel) => channel.id === state.selectedChannelId)
+  const loadedSelectedChannel = createMemo(() =>
+    resolveSelectedChannel(state.selectedChannelId, loadedChannels())
   );
+  const selectedChannelQuery = useChannelByIdQuery(
+    () => state.selectedChannelId,
+    () =>
+      !isTouchDevice() &&
+      state.selectedChannelId !== undefined &&
+      loadedSelectedChannel() === undefined
+  );
+  const selectedChannel = createMemo(() => {
+    const loaded = loadedSelectedChannel();
+    if (loaded) return loaded;
+    if (!selectedChannelQuery.isEnabled || selectedChannelQuery.isLoading) {
+      return;
+    }
+
+    return resolveSelectedChannel(
+      state.selectedChannelId,
+      loadedChannels(),
+      selectedChannelQuery.data?.entities
+    );
+  });
 
   onMount(() => panel.handle.setDisplayName('Channels'));
 
@@ -80,7 +124,7 @@ function ChannelsViewRoot() {
                     aside={railLayout()}
                     breakpoints={{ collapsed: 0 }}
                     layoutBreakpoint="collapsed"
-                    main={{ min: 224 }}
+                    main={{ min: 224, preferredWidth: 640 }}
                     resizable={railMode() === 'full'}
                   >
                     <ViewShell.Aside
@@ -89,9 +133,11 @@ function ChannelsViewRoot() {
                       }}
                     >
                       <ChannelsRail
-                        channels={channels()}
+                        sources={sources}
                         mode={railMode()}
                         onModeChange={setRailMode}
+                        searchOpen={railSearchOpen()}
+                        onSearchOpenChange={setRailSearchOpen}
                       />
                     </ViewShell.Aside>
                     <ViewShell.Main class="overflow-hidden">
@@ -117,14 +163,6 @@ function ChannelsViewRoot() {
                               selectedEntity={channel()}
                               orchestrator={orchestrator}
                               splitPanelContext={panel}
-                              headerLeading={
-                                <Show when={railMode() === 'slim'}>
-                                  <SplitPanel.ControlGroup class="mr-1">
-                                    <SplitPanel.BackButton />
-                                    <SplitPanel.ForwardButton />
-                                  </SplitPanel.ControlGroup>
-                                </Show>
-                              }
                             />
                           </Suspense>
                         )}
@@ -134,23 +172,24 @@ function ChannelsViewRoot() {
                 </div>
               }
             >
-              <Suspense
-                fallback={
-                  <div class="grid size-full place-items-center text-ink-muted">
-                    <SpinnerIcon
-                      aria-label="Loading channels"
-                      class="size-5 animate-spin"
-                    />
-                  </div>
-                }
-              >
-                <ChannelsMobileView
-                  channels={channels()}
-                  source={channelsQuery}
-                  tab={state.mobileTab}
-                  onTabChange={setMobileTab}
-                />
-              </Suspense>
+              <MaybeSoupEntityActionDrawerManager>
+                <Suspense
+                  fallback={
+                    <div class="grid size-full place-items-center text-ink-muted">
+                      <SpinnerIcon
+                        aria-label="Loading channels"
+                        class="size-5 animate-spin"
+                      />
+                    </div>
+                  }
+                >
+                  <ChannelsMobileView
+                    source={sources[state.mobileTab]}
+                    tab={state.mobileTab}
+                    onTabChange={setMobileTab}
+                  />
+                </Suspense>
+              </MaybeSoupEntityActionDrawerManager>
             </Show>
           </SplitPanel.Body>
         </SplitPanel.Root>

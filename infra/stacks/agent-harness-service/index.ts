@@ -2,6 +2,7 @@ import * as aws from '@pulumi/aws';
 import * as pulumi from '@pulumi/pulumi';
 import {
   config,
+  CODEX_OAUTH_KMS_ALIAS,
   getAiToolsInfra,
   getMacroApiToken,
   getServiceUrl,
@@ -47,10 +48,7 @@ const MACRO_API_TOKENS = getMacroApiToken();
 
 // ── AI tools infra ───────────────────────────────────────────────────────────
 
-const aiTools =
-  stack === 'dev'
-    ? getAiToolsInfra()
-    : { secretArns: [], queueArns: [], bucketArns: [] };
+const aiTools = getAiToolsInfra();
 
 // ── Stack references ─────────────────────────────────────────────────────────
 
@@ -66,18 +64,6 @@ const cloudStorageClusterName = cloudStorageStack
   .getOutput('cloudStorageClusterName')
   .apply((value) => value as string);
 
-// ── Queues ───────────────────────────────────────────────────────────────────
-// Channel side effects use these in every environment. Dev's AI tool bundle
-// includes both plus the additional tool queues.
-
-const notificationIngressQueueArn = aws.sqs
-  .getQueueOutput({ name: `notification-ingress-queue-${stack}` })
-  .apply((queue) => queue.arn);
-
-const contactsQueueArn = aws.sqs
-  .getQueueOutput({ name: `contacts-queue-${stack}` })
-  .apply((queue) => queue.arn);
-
 // ── Service ──────────────────────────────────────────────────────────────────
 
 const vpc = get_coparse_api_vpc();
@@ -89,7 +75,6 @@ const service = new AgentHarnessService(`agent-harness-service-${stack}`, {
   serviceContainerPort: 8101,
   egressContainerPort: 8102,
   healthCheckPath: '/health',
-  isPrivate: false,
   ecsClusterArn: cloudStorageClusterArn,
   cloudStorageClusterName,
   secretKeyArns: [
@@ -99,12 +84,13 @@ const service = new AgentHarnessService(`agent-harness-service-${stack}`, {
     githubSyncAppPemArn,
     ...aiTools.secretArns,
   ],
-  queueArns:
-    stack === 'dev'
-      ? [...aiTools.queueArns]
-      : [notificationIngressQueueArn, contactsQueueArn],
+  queueArns: [...aiTools.queueArns],
   bucketArns: [...aiTools.bucketArns],
   containerEnvVars: [
+    {
+      name: 'CODEX_OAUTH_KMS_KEY_ID',
+      value: CODEX_OAUTH_KMS_ALIAS,
+    },
     {
       name: 'ENVIRONMENT',
       value: stack,

@@ -13,7 +13,6 @@ import { openEntityInSplitFromUnifiedList } from '@app/features/next-soup/utils'
 import {
   MaybeSoupEntityActionDrawerManager,
   SoupEntityContextMenu,
-  useSoupListNavigationHotkeys,
 } from '@app/features/soup';
 import { DEBUG_SETTING_KEYS, useDebugSetting } from '@app/lib/debugSettings';
 import { makePersistedState } from '@app/lib/persistence';
@@ -42,10 +41,10 @@ import CaretDownIcon from '@phosphor/caret-down.svg';
 import CheckIcon from '@phosphor/check.svg';
 import SpinnerIcon from '@phosphor/spinner.svg';
 import { PROPERTY_OPTION_IDS, SYSTEM_PROPERTY_IDS } from '@property';
+import { useTagSets, useTagSetsReady } from '@property/tags/tag-sets-context';
 import { useBulkSaveEntityPropertiesMutation } from '@queries/properties/entity';
-import { useTagsQuery } from '@queries/properties/tags';
 import { EntityType } from '@service-properties/generated/schemas/entityType';
-import { Button, cn, Surface } from '@ui';
+import { Button, cn } from '@ui';
 import {
   createEffect,
   createMemo,
@@ -99,9 +98,14 @@ type TasksListActivationMetadata = {
   newSplit?: boolean;
 };
 
-export function TaskList() {
+export type TaskListProps = {
+  /** The focusable list root, for callers that hand keyboard focus back. */
+  ref?: (element: HTMLDivElement) => void;
+};
+
+export function TaskList(props: TaskListProps) {
   const panel = useSplitPanelOrThrow();
-  const { state, setState } = useTasksView();
+  const { state, setState, openTask } = useTasksView();
   const userId = useUserId();
   const forceEmptyState = useDebugSetting(
     DEBUG_SETTING_KEYS.FORCE_EMPTY_STATES
@@ -116,15 +120,16 @@ export function TaskList() {
   const toggleGroup = (groupId: string) =>
     setState('collapsedGroupIds', toggleValue(groupId));
 
-  const source = withSplitPanelOwner(listOwnedSlotName('data-source'), () => {
-    const tagsQuery = useTagsQuery();
-
-    return useTasksDataSource(state, {
+  const tagSets = useTagSets();
+  const tagSetsReady = useTagSetsReady();
+  const source = withSplitPanelOwner(listOwnedSlotName('data-source'), () =>
+    useTasksDataSource(state, {
       userId,
-      tagSets: () => tagsQuery.data ?? [],
+      tagSets,
+      tagSetsReady,
       isGroupExpanded,
-    });
-  });
+    })
+  );
 
   function openEntity(
     entity: EntityData,
@@ -177,9 +182,15 @@ export function TaskList() {
     const newSplit =
       metadata?.newSplit === true || metadata?.event?.shiftKey === true;
 
-    openEntity(sourceRow.entity, {
-      openInNewSplit: newSplit,
-      replacePreview: metadata?.event?.altKey === true && !newSplit,
+    if (newSplit) {
+      openEntity(sourceRow.entity, { openInNewSplit: true });
+
+      return;
+    }
+
+    openTask({
+      id: sourceRow.entity.id,
+      fallbackName: sourceRow.entity.name,
     });
   }
 
@@ -195,21 +206,6 @@ export function TaskList() {
       onActivate,
     })
   );
-
-  withSplitPanelOwner(listOwnedSlotName('navigation-hotkeys'), () => {
-    useSoupListNavigationHotkeys({
-      splitHotkeyScope: panel.splitHotkeyScope,
-      viewId: 'tasks',
-      dataSource: source,
-      controller: list,
-      handle: panel.handle,
-      openEntityInSplit: (task, options) => {
-        openEntity(task, {
-          mergeHistory: options.mergeHistory,
-        });
-      },
-    });
-  });
 
   const entityActionViewContext = () =>
     resolveEntityActionViewContext({
@@ -313,13 +309,6 @@ export function TaskList() {
     enabled: panel.isPanelActive,
     navigation: {
       onNavigate: (event) => {
-        const row = event.result?.item;
-        if (row?.kind === 'entity' && panel.handle.isControllerSplit()) {
-          openEntity(row.entity, {
-            mergeHistory: true,
-          });
-        }
-
         if (event.kind !== 'move' || event.direction !== 1) return;
         if (source.isLoadingMore() || !source.hasMore()) {
           return;
@@ -377,7 +366,6 @@ export function TaskList() {
     activeTab = nextTab;
     listInteractions.selection.clear();
     list.focus.clear({ reason: 'programmatic' });
-    panel.handle.resetPreview();
     setPersistedListState((current) => ({ ...current, scrollOffset: 0 }));
   });
 
@@ -391,10 +379,6 @@ export function TaskList() {
     });
     if (restored) return;
     if (isTouchDevice()) return;
-    if (panel.handle.isControllerSplit()) {
-      panel.handle.resetPreview();
-      return;
-    }
 
     list.focus.first({
       isNavigable: (row) => row.kind === 'entity',
@@ -423,22 +407,17 @@ export function TaskList() {
 
   return (
     <MaybeSoupEntityActionDrawerManager>
-      <Surface
-        depth={isTouchDevice() ? 0 : 2}
-        hideBorder={isTouchDevice()}
-        ref={setGrid}
+      <div
+        ref={(element: HTMLDivElement) => {
+          setGrid(element);
+          props.ref?.(element);
+        }}
         role="grid"
         aria-label="Tasks"
         aria-multiselectable="true"
         aria-activedescendant={list.focus.key()}
         tabIndex={0}
-        class={cn(
-          '@container/u-list flex min-h-0 min-w-0 flex-col outline-none',
-          {
-            'rounded-2xl p-2': !isTouchDevice(),
-            'rounded-none bg-transparent p-0': isTouchDevice(),
-          }
-        )}
+        class="@container/u-list relative flex size-full min-h-0 min-w-0 flex-col overflow-hidden outline-none"
       >
         <ListLayoutProvider ref={grid}>
           <ResponsiveTaskListHeader />
@@ -715,7 +694,7 @@ export function TaskList() {
             />
           </Show>
         </ListLayoutProvider>
-      </Surface>
+      </div>
     </MaybeSoupEntityActionDrawerManager>
   );
 }

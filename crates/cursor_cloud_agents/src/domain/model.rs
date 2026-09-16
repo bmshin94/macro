@@ -98,6 +98,18 @@ impl RepoUrl {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// `owner/name` for a github.com url, the form a person recognizes.
+    ///
+    /// `None` for anything else — a self-hosted host, or a github.com url
+    /// with more or fewer path segments than a repository has — so callers
+    /// fall back to printing the whole url rather than a guessed slug.
+    #[must_use]
+    pub fn github_owner_and_name(&self) -> Option<&str> {
+        let path = self.0.strip_prefix("https://github.com/")?;
+        let (owner, name) = path.split_once('/')?;
+        (!owner.is_empty() && !name.is_empty() && !name.contains('/')).then_some(path)
+    }
 }
 
 impl std::fmt::Display for RepoUrl {
@@ -137,12 +149,20 @@ pub struct RunOutcome {
     pub text: Option<String>,
 }
 
-impl RunOutcome {
+impl RunStatus {
     /// Whether the run has ended, in any way. `Unknown` counts as terminal:
     /// a status this crate cannot read is not one worth polling forever on.
     #[must_use]
     pub fn is_terminal(&self) -> bool {
-        !matches!(self.status, RunStatus::Creating | RunStatus::Running)
+        !matches!(self, Self::Creating | Self::Running)
+    }
+}
+
+impl RunOutcome {
+    /// Whether the run has ended, in any way. See [`RunStatus::is_terminal`].
+    #[must_use]
+    pub fn is_terminal(&self) -> bool {
+        self.status.is_terminal()
     }
 }
 

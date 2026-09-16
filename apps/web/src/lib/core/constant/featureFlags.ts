@@ -665,16 +665,6 @@ export const enableChatV3Agents = defineFlag({
   default: onInDev,
 });
 
-// The agent session composer behind `Create → Agent`: pick an agent and a
-// model override before the session opens. Off, the entry opens a managed
-// session straight away as it always has. Override with
-// VITE_ENABLE_AGENT_SESSION_COMPOSER.
-export const enableAgentSessionComposer = defineFlag({
-  key: 'enable-agent-session-composer',
-  env: 'ENABLE_AGENT_SESSION_COMPOSER',
-  default: onInDev,
-});
-
 // The `@cursor` mention entry: agent sessions served by Cursor cloud agents
 // on Macro's Cursor account. PostHog-gated per user; the backend additionally
 // restricts these sessions to @macro.com senders. Override with
@@ -683,6 +673,13 @@ export const enableCursorAgents = defineFlag({
   key: 'enable-cursor-agents',
   env: 'ENABLE_CURSOR_AGENTS',
   default: onInDev,
+});
+
+// Codex cloud agent mentions, composer choices, and harness settings also
+// require enableChatV3Agents. Override with VITE_ENABLE_CODEX_AGENTS.
+export const enableCodexAgents = defineFlag({
+  key: 'enable-codex-agents',
+  env: 'ENABLE_CODEX_AGENTS',
 });
 
 // The Recent view: the touched-by-me feed (everything the viewer mutated,

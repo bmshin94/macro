@@ -8,7 +8,7 @@ import {
   mergeAst,
   NIL_UUID,
   type TargetExpr,
-} from '@app/features/soup';
+} from '@app/features/soup/filters';
 import type { SoupAstBody, SoupAstItemsQueryArgs } from '@queries/soup/items';
 import { startOfDay, subWeeks } from 'date-fns';
 import { match } from 'ts-pattern';
@@ -22,10 +22,6 @@ export type InboxQueryCapabilities = {
   reminders: boolean;
   snippets: boolean;
 };
-
-function visibleEntity(field: string): TargetExpr {
-  return clause.not(clause.eq(field, NIL_UUID));
-}
 
 function documentClause(
   expressions: TargetExpr[],
@@ -107,29 +103,6 @@ function noiseClause(): FacetClause {
   });
 }
 
-function allClause(
-  capabilities: InboxQueryCapabilities,
-  userId: string | undefined
-): FacetClause {
-  const filters: FacetClause = {
-    df: documentClause([visibleEntity('documentId')], capabilities),
-    ef: visibleEntity('threadId'),
-    chanf: visibleEntity('channelId'),
-    cthf: clause.eq('channelThreadParticipantId', userId ?? NIL_UUID),
-    cf: visibleEntity('chatId'),
-    pf: visibleEntity('folderId'),
-  };
-
-  if (capabilities.foreignEntities) {
-    filters.fef = clause.and(
-      clause.eq('foreignEntitySource', 'github_pull_request'),
-      clause.eq('foreignEntityIncludesMe', true)
-    );
-  }
-
-  return confine(filters);
-}
-
 function remindersClause(): FacetClause {
   return confine({
     remf: clause.and(
@@ -149,7 +122,6 @@ function tabClause(
   return match(tab)
     .with('signal', () => signalClause(capabilities, now, userId))
     .with('noise', noiseClause)
-    .with('all', () => allClause(capabilities, userId))
     .with('reminders', remindersClause)
     .exhaustive();
 }
@@ -196,8 +168,6 @@ export function buildInboxQuery(
 
   if (context.tab === 'signal' || context.tab === 'noise') {
     body.emailView = 'inbox';
-  } else if (context.tab === 'all') {
-    body.emailView = 'all';
   }
 
   return {

@@ -62,7 +62,7 @@ export type AddFavoriteRequest = {
     /**
      * The type of the entity to favorite.
      */
-    entityType: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session';
+    entityType: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session' | 'scheduled_action' | 'initiative';
 };
 
 /**
@@ -122,6 +122,20 @@ export type Agent = {
 };
 
 /**
+ * Identifies one accepted [`AgentAction`] end to end: returned by the
+ * control endpoint, written as the JSON-RPC request id on the action's wire
+ * frame, and read back off that frame as `request_id` on the folded message
+ * it derives.
+ *
+ * Minted only by the server at accept time, as a v7 uuid so ids sort by mint
+ * time. On the wire and in JSON it is the bare uuid, and a uuid-shaped
+ * request id is the whole ownership test: the server is the only writer of
+ * runtime-bound frames. The machine's own handshake request ids
+ * (`agent_session:{session}:{n}`) are not uuids and stay `None`.
+ */
+export type AgentActionId = string;
+
+/**
  * Whether an agent is available everywhere or only in selected channels.
  */
 export type AgentChannelScope = 'all' | 'selected';
@@ -158,6 +172,97 @@ export type AgentMcpServers = {
      * The apps, in the order the agent's author picked them.
      */
     servers: Array<AgentMcpServer>;
+};
+
+/**
+ * Filters for agent sessions.
+ */
+export type AgentSessionFilters = {
+    /**
+     * Agent session ids to filter by. Empty to include all accessible sessions.
+     */
+    ids?: Array<string>;
+    /**
+     * Opt this query into agent sessions at all. Agent sessions are off by
+     * default — see [`crate::ast::agent_session::AgentSessionLiteral::Include`].
+     * Asking for specific `ids` or `owners` also opts in.
+     */
+    include?: boolean;
+    /**
+     * Filter by session owner. Examples: ['macro|user1@user.com']. Empty to
+     * include every owner.
+     */
+    owners?: Array<string>;
+};
+
+/**
+ * Events publishable to [`MacroAgentSessionLifecycleTopic`].
+ *
+ * The serde tag and [`AgentSessionLifecycleEventName`] spell the same wire
+ * names: subscribers filter on them, so they are API. The
+ * `event_names_match_the_wire` test holds the two in step. Exhaustive on
+ * purpose: a consumer's match should break when a variant is added.
+ */
+export type AgentSessionLifecycleEvent = {
+    event_type: 'agent_session.opened';
+    /**
+     * A session was created.
+     */
+    metadata: SessionOpenedMetadata;
+} | {
+    event_type: 'agent_session.turn_started';
+    /**
+     * A prompt was delivered to the runtime.
+     */
+    metadata: TurnStartedMetadata;
+} | {
+    event_type: 'agent_session.turn_ended';
+    /**
+     * The runtime answered a turn.
+     */
+    metadata: TurnEndedMetadata;
+} | {
+    event_type: 'agent_session.settled';
+    /**
+     * A turn ended with nothing queued behind it.
+     */
+    metadata: SessionSettledMetadata;
+} | {
+    event_type: 'agent_session.waiting_for_input';
+    /**
+     * The agent is blocked on a question to its owner.
+     */
+    metadata: WaitingForInputMetadata;
+} | {
+    event_type: 'agent_session.input_received';
+    /**
+     * The question was answered or withdrawn.
+     */
+    metadata: InputReceivedMetadata;
+} | {
+    event_type: 'agent_session.mentioned';
+    /**
+     * A prompt named other users who can open the session.
+     */
+    metadata: SessionMentionedMetadata;
+} | {
+    event_type: 'agent_session.stopped';
+    /**
+     * The session's live actor is gone.
+     */
+    metadata: SessionStoppedMetadata;
+} | {
+    event_type: 'agent_session.renamed';
+    /**
+     * The session was renamed.
+     */
+    metadata: SessionRenamedMetadata;
+} | {
+    event_type: 'agent_session.deleted';
+    /**
+     * The session was deleted.
+     */
+    metadata: SessionDeletedMetadata;
 };
 
 export type Anchor = PdfAnchor;
@@ -725,6 +830,12 @@ export type ApiCountedReaction = {
  */
 export type ApiEntityFilterAst = {
     /**
+     * Filters applied to agent sessions (wire key `asf`). Like reminders,
+     * empty/omitted returns **no** agent sessions: they are opt-in, so the
+     * caller must send `inc`, an id, or an owner to get any.
+     */
+    asf?: unknown;
+    /**
      * filters applied to canonical calendar events
      */
     calf?: unknown;
@@ -1018,6 +1129,45 @@ export type ApprovePairingRequest = {
      * Owning team. Omit for a private, user-owned harness.
      */
     team_id?: string | null;
+};
+
+/**
+ * Status written onto one assign result.
+ */
+export type AssignTaskStatus = 'assigned' | 'moved' | 'notATask' | 'notFound' | 'skippedNoPermission';
+
+/**
+ * Assign-tasks HTTP body.
+ */
+export type AssignTasksRequest = {
+    /**
+     * Task ids to assign, in request order.
+     */
+    taskIds: Array<string>;
+};
+
+/**
+ * Assign-tasks HTTP response.
+ */
+export type AssignTasksResponse = {
+    /**
+     * Outcomes in request order after dedupe.
+     */
+    results: Array<AssignTasksResult>;
+};
+
+/**
+ * Per-task outcome of an assign call.
+ */
+export type AssignTasksResult = {
+    /**
+     * What happened to the task.
+     */
+    status: AssignTaskStatus;
+    /**
+     * Task id this outcome describes.
+     */
+    taskId: string;
 };
 
 /**
@@ -2282,6 +2432,10 @@ export type ChannelMessageFilters = {
      */
     created_after?: string | null;
     /**
+     * When set, only return top-level messages created strictly after this timestamp.
+     */
+    created_after_exclusive?: string | null;
+    /**
      * When set, only return top-level messages created before this timestamp.
      */
     created_before?: string | null;
@@ -2766,7 +2920,7 @@ export type CollabSurfaceResponse = {
     /**
      * Type of the parent entity.
      */
-    parentEntityType: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session';
+    parentEntityType: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session' | 'scheduled_action' | 'initiative';
     /**
      * Lifecycle state (`ready` for every surface visible via the API).
      */
@@ -3247,6 +3401,28 @@ export type CreateEntityMentionResponse = {
     user_id?: string | null;
 };
 
+/**
+ * Create-initiative HTTP body.
+ */
+export type CreateInitiativeRequest = {
+    /**
+     * Optional description.
+     */
+    description?: string | null;
+    /**
+     * Optional member user ids. Invalid ids fail at the service boundary.
+     */
+    memberIds?: Array<string> | null;
+    /**
+     * Display name.
+     */
+    name: string;
+    /**
+     * When true, share with the owner's team at create time.
+     */
+    shareWithTeam?: boolean | null;
+};
+
 export type CreateInstructionsDocumentResponse = {
     documentId: string;
 };
@@ -3346,7 +3522,7 @@ export type CreateReminderRequest = {
     /**
      * Type of the entity to attach the reminder to. Requires `entityId`.
      */
-    entityType?: null | 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session';
+    entityType?: null | 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session' | 'scheduled_action' | 'initiative';
     /**
      * When and how often the reminder fires.
      */
@@ -3933,6 +4109,12 @@ export type CrmTeamSettingsResponse = {
      * Who can change the deal stage set in CRM settings.
      */
     edit_stages_role: CrmPermissionRole;
+    /**
+     * System stage option id to team stage option id for seeded stages.
+     */
+    legacy_stage_ids: {
+        [key: string]: string;
+    };
     /**
      * Who can move deals out of a closed stage.
      */
@@ -4606,7 +4788,7 @@ export type DocumentSyncContentUpdatedMetadata = {
  */
 export type DocumentTeamShareResponse = {
     /**
-     * Whether the document is currently shared with the owner's team.
+     * Whether explicit team sharing is enabled; inherited team access does not count.
      */
     sharedWithTeam: boolean;
     /**
@@ -4885,6 +5067,10 @@ export type EmailFilters = {
      */
     include_labels?: Array<string>;
     /**
+     * Filter by the email thread's read flag, independently of notification state.
+     */
+    is_read?: boolean | null;
+    /**
      * Restrict to specific inboxes by email_links.id. Empty means "any inbox the
      * caller can access" (soup expands to the full set at the router edge).
      */
@@ -4936,13 +5122,17 @@ export type EnsureCollabSurfaceRequest = {
     /**
      * Type of the parent entity access derives from.
      */
-    parentEntityType: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session';
+    parentEntityType: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session' | 'scheduled_action' | 'initiative';
 };
 
 /**
  * a bundle of all of the filters for each entity type
  */
 export type EntityFilters = {
+    /**
+     * the bundled [AgentSessionFilters]
+     */
+    agent_session_filters?: AgentSessionFilters;
     /**
      * the bundled [CalendarEventFilters]
      */
@@ -5215,7 +5405,7 @@ export type Favorite = {
     /**
      * The type of the favorited entity.
      */
-    entityType: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session';
+    entityType: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session' | 'scheduled_action' | 'initiative';
     /**
      * File type of the favorited document, when applicable.
      */
@@ -5237,7 +5427,7 @@ export type FavoriteEntityRef = {
     /**
      * The type of the favorited entity.
      */
-    entityType: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session';
+    entityType: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session' | 'scheduled_action' | 'initiative';
 };
 
 /**
@@ -6132,6 +6322,126 @@ export type HashMap = {
 export type HighlightType = 1 | 2 | 3;
 
 /**
+ * A turn the runtime never answered: the session stopped underneath it.
+ */
+export type InFlightTurnSummary = {
+    /**
+     * The action that opened the turn.
+     */
+    action_id: AgentActionId;
+    actor?: null | MacroUserIdStr;
+    /**
+     * The magic-chip message posted for this turn, when one was.
+     */
+    announcement_message_id?: string | null;
+    /**
+     * Position in the session's log.
+     */
+    turn: number;
+};
+
+/**
+ * Full initiative returned to a caller, including members, tasks, and share state.
+ */
+export type InitiativeDetail = {
+    /**
+     * When the initiative was created.
+     */
+    createdAt: string;
+    /**
+     * Optional description.
+     */
+    description?: string | null;
+    /**
+     * Opaque identifier.
+     */
+    id: InitiativeId;
+    /**
+     * Member user ids. The owner is never stored here.
+     */
+    memberIds: Array<MacroUserIdStr>;
+    /**
+     * Display name.
+     */
+    name: string;
+    /**
+     * Owner of the initiative.
+     */
+    ownerId: MacroUserIdStr;
+    /**
+     * Current share permission.
+     */
+    sharePermission: SharePermissionV2;
+    /**
+     * Task ids currently assigned to the initiative.
+     */
+    taskIds: Array<string>;
+    /**
+     * When the initiative was last updated.
+     */
+    updatedAt: string;
+    /**
+     * Caller's access level on this initiative.
+     */
+    userAccessLevel: AccessLevel;
+};
+
+/**
+ * Opaque identifier for an initiative. Minted as UUIDv7 in application code.
+ */
+export type InitiativeId = string;
+
+/**
+ * Accessible-initiative list.
+ */
+export type InitiativeList = {
+    /**
+     * Initiatives the caller can view.
+     */
+    initiatives: Array<InitiativeSummary>;
+};
+
+/**
+ * List-row view of an initiative.
+ */
+export type InitiativeSummary = {
+    /**
+     * Optional description.
+     */
+    description?: string | null;
+    /**
+     * Opaque identifier.
+     */
+    id: InitiativeId;
+    /**
+     * Display name.
+     */
+    name: string;
+    /**
+     * When the initiative was last updated.
+     */
+    updatedAt: string;
+};
+
+/**
+ * The pending question was answered or withdrawn.
+ */
+export type InputReceivedMetadata = {
+    /**
+     * The action that opened the turn.
+     */
+    action_id: AgentActionId;
+    /**
+     * The session.
+     */
+    identity: SessionIdentity;
+    /**
+     * The turn that was asking.
+     */
+    turn: number;
+};
+
+/**
  * Why a document interaction was reported.
  */
 export type InteractionReason = 'edited' | 'first_join' | 'last_leave';
@@ -6269,20 +6579,20 @@ export type NewChannelAttachment = {
 };
 
 /**
- * Notification state filters for channel message queries.
+ * Notification-level filters that apply to an entity type.
  */
 export type NotificationFilters = {
     /**
-     * Filter by notification done state. `Some(true)` selects done
-     * notifications; `Some(false)` selects not-done notifications.
+     * Include entities with a non-deleted notification in any of these exact states.
+     * Empty means no notification restriction. Active means `[unseen, seen]`.
      */
-    done?: boolean | null;
-    /**
-     * Filter by notification seen state. `Some(true)` selects seen
-     * notifications; `Some(false)` selects not-seen notifications.
-     */
-    seen?: boolean | null;
+    states?: Array<NotificationState>;
 };
+
+/**
+ * The mutually exclusive lifecycle states of a user's notification.
+ */
+export type NotificationState = 'unseen' | 'seen' | 'done';
 
 /**
  * A pending pairing, as shown to the approving user.
@@ -7026,7 +7336,7 @@ export type Reminder = {
     /**
      * Type of the associated entity, when the reminder is attached to one.
      */
-    entityType?: null | 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session';
+    entityType?: null | 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session' | 'scheduled_action' | 'initiative';
     /**
      * Reminder id.
      */
@@ -7247,6 +7557,126 @@ export type SaveDocumentResponseData = {
 };
 
 /**
+ * The session was deleted.
+ */
+export type SessionDeletedMetadata = {
+    /**
+     * The session as it was.
+     */
+    identity: SessionIdentity;
+};
+
+/**
+ * Who and what a session is; carried by every lifecycle event so a
+ * consumer never has to look the session up.
+ */
+export type SessionIdentity = {
+    /**
+     * Everyone with a stake in what happens next: the owner plus every user
+     * who has prompted or answered this session. Resolved by the emitter so
+     * a consumer fanning out never has to read the session's log.
+     */
+    audience?: Array<MacroUserIdStr>;
+    /**
+     * Bot the session runs for.
+     */
+    bot_id: BotId;
+    /**
+     * The bot's display name at the time of the event.
+     */
+    bot_name: string;
+    origin?: null | ThreadOrigin;
+    /**
+     * User who owns the session.
+     */
+    owner_id: MacroUserIdStr;
+    /**
+     * The session.
+     */
+    session_id: string;
+    /**
+     * User-facing session name at the time of the event.
+     */
+    session_name: string;
+};
+
+/**
+ * A prompt named other users who can open the session. Published when the
+ * prompt is accepted, not when it is answered: "come look at this" should
+ * not wait for the turn.
+ */
+export type SessionMentionedMetadata = {
+    /**
+     * The action carrying the prompt.
+     */
+    action_id: AgentActionId;
+    /**
+     * The session.
+     */
+    identity: SessionIdentity;
+    /**
+     * The users named, already narrowed to those who can open the session
+     * and never including the author.
+     */
+    mentioned: Array<MacroUserIdStr>;
+    mentioned_by?: null | MacroUserIdStr;
+};
+
+/**
+ * A session was created.
+ */
+export type SessionOpenedMetadata = {
+    /**
+     * Harness slug the session runs on.
+     */
+    harness: string;
+    /**
+     * The session.
+     */
+    identity: SessionIdentity;
+    /**
+     * Model slug the session runs with.
+     */
+    model: string;
+};
+
+/**
+ * The session was renamed; `identity` carries the new name.
+ */
+export type SessionRenamedMetadata = {
+    /**
+     * The session, with its new name.
+     */
+    identity: SessionIdentity;
+};
+
+/**
+ * A turn ended and nothing is queued: the agent has stopped working.
+ */
+export type SessionSettledMetadata = {
+    /**
+     * The session.
+     */
+    identity: SessionIdentity;
+    last_turn?: null | TurnSummary;
+};
+
+/**
+ * The session's live actor is gone: idle teardown, transport loss, or crash.
+ */
+export type SessionStoppedMetadata = {
+    /**
+     * The session.
+     */
+    identity: SessionIdentity;
+    /**
+     * Why it stopped, as the session machine reported it.
+     */
+    reason: string;
+    turn_in_flight?: null | InFlightTurnSummary;
+};
+
+/**
  * Request body for `PUT /companies/{company_id}/hidden`.
  */
 export type SetCompanyHiddenRequest = {
@@ -7375,6 +7805,7 @@ export type SharePermissionV2 = {
      * The owner of the item
      */
     owner: string;
+    teamShareAccessLevel?: null | AccessLevel;
 };
 
 /**
@@ -7404,6 +7835,61 @@ export type SimpleMention = {
      * Mentioned entity type.
      */
     entity_type: string;
+};
+
+/**
+ * An agent session as displayed in Soup.
+ *
+ * Mirrors [`crate::chat::SoupChat`]: an agent session is the coding-agent
+ * counterpart of a chat, so it carries the same identity, ownership, and
+ * recency fields plus the session's last known status.
+ */
+export type SoupAgentSessionSoupPropertiesField = {
+    /**
+     * Properties attached to the entity.
+     */
+    properties: Array<SoupProperty>;
+} & {
+    /**
+     * The bot running this session
+     */
+    botId: string;
+    /**
+     * The time the session was created
+     */
+    createdAt: string;
+    /**
+     * The agent session uuid
+     */
+    id: string;
+    /**
+     * The user-facing name of the session
+     */
+    name: string;
+    /**
+     * Who the session belongs to
+     */
+    ownerId: string;
+    /**
+     * The session's last known status.
+     *
+     * `no_messages` until the first system event arrives, `disconnected` if
+     * the connection dropped without a clean close, otherwise the wire name
+     * of the most recent system event (for example `session/end`).
+     */
+    status: string;
+    /**
+     * The channel thread the session was opened from, when any
+     */
+    threadId?: string | null;
+    /**
+     * The time the session was last modified
+     */
+    updatedAt: string;
+    /**
+     * The time the session was last viewed by the requesting user
+     */
+    viewedAt?: string | null;
 };
 
 /**
@@ -7778,6 +8264,10 @@ export type SoupChatSoupPropertiesField = {
      * Whether the chat is persistent or not
      */
     isPersistent: boolean;
+    /**
+     * The last model selected for a sent message (`provider/model` id).
+     */
+    model?: string | null;
     /**
      * The name of the chat
      */
@@ -8220,6 +8710,12 @@ export type SoupItem = {
      */
     data: SoupReminderSoupPropertiesField;
     tag: 'reminder';
+} | {
+    /**
+     * Agent session item.
+     */
+    data: SoupAgentSessionSoupPropertiesField;
+    tag: 'agentSession';
 };
 
 /**
@@ -8423,7 +8919,7 @@ export type SoupReminderReference = {
     /**
      * The referenced entity's type.
      */
-    entityType: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session';
+    entityType: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session' | 'scheduled_action' | 'initiative';
     /**
      * File type, when the reference is a document — `md`, `pdf`, and so on.
      */
@@ -8694,6 +9190,24 @@ export type Thread = {
     updatedAt?: string | null;
 };
 
+/**
+ * The channel thread a session was opened from, when it was.
+ */
+export type ThreadOrigin = {
+    /**
+     * Channel the thread lives in.
+     */
+    channel_id: string;
+    /**
+     * The message whose mention opened the session.
+     */
+    originating_message_id: string;
+    /**
+     * Root message of the thread.
+     */
+    thread_id: string;
+};
+
 export type ThreadResponse = {
     data: Array<CommentThread>;
 };
@@ -8747,6 +9261,89 @@ export type TranscriptSegmentRequest = {
      * (it stamps egress bootstrap, not first audio frame).
      */
     streamStartedAt?: string | null;
+};
+
+/**
+ * The runtime answered a turn. Another prompt may follow at once; see
+ * [`SessionSettledMetadata`] for "nothing left to do".
+ */
+export type TurnEndedMetadata = {
+    /**
+     * The action that opened the turn.
+     */
+    action_id: AgentActionId;
+    actor?: null | MacroUserIdStr;
+    /**
+     * The magic-chip message posted for this turn, when one was.
+     */
+    announcement_message_id?: string | null;
+    /**
+     * The session.
+     */
+    identity: SessionIdentity;
+    /**
+     * Prompts still waiting behind this turn.
+     */
+    queued_remaining: number;
+    /**
+     * The ACP stop reason, or `"error"` when the runtime refused the prompt.
+     */
+    stop_reason: string;
+    /**
+     * Position in the session's log.
+     */
+    turn: number;
+};
+
+/**
+ * A prompt was delivered to the runtime.
+ */
+export type TurnStartedMetadata = {
+    /**
+     * The action that opened the turn.
+     */
+    action_id: AgentActionId;
+    actor?: null | MacroUserIdStr;
+    /**
+     * The magic-chip message posted for this turn, when one was.
+     */
+    announcement_message_id?: string | null;
+    /**
+     * The session.
+     */
+    identity: SessionIdentity;
+    /**
+     * Position in the session's log.
+     */
+    turn: number;
+};
+
+/**
+ * A turn the runtime answered.
+ */
+export type TurnSummary = {
+    /**
+     * The action that opened the turn.
+     */
+    action_id: AgentActionId;
+    actor?: null | MacroUserIdStr;
+    /**
+     * The magic-chip message posted for this turn, when one was.
+     */
+    announcement_message_id?: string | null;
+    /**
+     * The agent's last text in the turn, whole; what the magic chip shows
+     * once the turn ends. `None` when the turn produced no prose.
+     */
+    excerpt?: string | null;
+    /**
+     * The ACP stop reason, or `"error"` when the runtime refused the prompt.
+     */
+    stop_reason: string;
+    /**
+     * Position in the session's log.
+     */
+    turn: number;
 };
 
 export type TypedSuccessResponse = {
@@ -8887,6 +9484,26 @@ export type UpdateCrmTeamSettingsRequest = {
     team_views?: unknown;
 };
 
+/**
+ * Update-initiative HTTP body. Absent fields are left unchanged. `member_ids`
+ * present is a full replace.
+ */
+export type UpdateInitiativeRequest = {
+    /**
+     * Replacement description. `Some("")` clears it after trim.
+     */
+    description?: string | null;
+    /**
+     * Full replacement member list when present.
+     */
+    memberIds?: Array<string> | null;
+    /**
+     * Replacement name.
+     */
+    name?: string | null;
+    sharePermission?: null | UpdateSharePermissionRequestV2;
+};
+
 export type UpdateOperation = 'add' | 'remove' | 'replace';
 
 /**
@@ -8927,6 +9544,7 @@ export type UpdateSharePermissionRequestV2 = {
     channelSharePermissions?: Array<UpdateChannelSharePermission> | null;
     linkShare?: null | LinkShare;
     linkShareAccessLevel?: null | AccessLevel;
+    teamShareAccessLevel?: null | AccessLevel;
 };
 
 /**
@@ -9099,6 +9717,32 @@ export type ViewsResponse = {
 };
 
 /**
+ * The agent asked its owner a question and is blocked on the answer.
+ */
+export type WaitingForInputMetadata = {
+    /**
+     * The action that opened the turn.
+     */
+    action_id: AgentActionId;
+    /**
+     * The magic-chip message posted for this turn, when one was.
+     */
+    announcement_message_id?: string | null;
+    /**
+     * The session.
+     */
+    identity: SessionIdentity;
+    /**
+     * The question, as the agent phrased it.
+     */
+    question: string;
+    /**
+     * The turn asking.
+     */
+    turn: number;
+};
+
+/**
  * Webhook row returned by application APIs.
  *
  * Clients deserialize this, so both derives are used.
@@ -9167,7 +9811,7 @@ export type Webhook = {
  * with the event payload. Endpoint validation additionally sends a
  * `WebhookValidationTestEvent`, which is not part of this union.
  */
-export type WebhookEvent = DocumentTopicEvent | ChannelTopicEvent;
+export type WebhookEvent = DocumentTopicEvent | ChannelTopicEvent | AgentSessionLifecycleEvent;
 
 /**
  * Event and optional entity-id constraints used to match webhook deliveries.
@@ -10730,6 +11374,50 @@ export type PostChannelMessagesResponses = {
 };
 
 export type PostChannelMessagesResponse = PostChannelMessagesResponses[keyof PostChannelMessagesResponses];
+
+export type GetChannelMessagesCatchUpData = {
+    body?: never;
+    path: {
+        /**
+         * Channel ID
+         */
+        channel_id: string;
+    };
+    query: {
+        /**
+         * Exclusive RFC3339 lower bound. Messages at this instant are omitted.
+         */
+        after: string;
+        /**
+         * Page size (1-100, default 50)
+         */
+        limit?: number;
+        /**
+         * Base64 encoded cursor value for older messages
+         */
+        cursor?: string;
+        /**
+         * Base64 encoded cursor value for newer messages
+         */
+        previous_cursor?: string;
+    };
+    url: '/channels/{channel_id}/messages/catch-up';
+};
+
+export type GetChannelMessagesCatchUpErrors = {
+    400: ErrorResponse;
+    401: ErrorResponse;
+    404: ErrorResponse;
+    500: ErrorResponse;
+};
+
+export type GetChannelMessagesCatchUpError = GetChannelMessagesCatchUpErrors[keyof GetChannelMessagesCatchUpErrors];
+
+export type GetChannelMessagesCatchUpResponses = {
+    200: ApiChannelMessagesPage;
+};
+
+export type GetChannelMessagesCatchUpResponse = GetChannelMessagesCatchUpResponses[keyof GetChannelMessagesCatchUpResponses];
 
 export type GetMessageWithContextData = {
     body?: never;
@@ -12585,9 +13273,19 @@ export type SetDocumentTeamShareData = {
 };
 
 export type SetDocumentTeamShareErrors = {
+    /**
+     * Owner has no team
+     */
     400: ErrorResponse;
+    /**
+     * Acting identity is absent or is not the actual owner
+     */
     401: ErrorResponse;
     404: ErrorResponse;
+    /**
+     * Sharing facts changed or an untracked grant conflicts
+     */
+    409: ErrorResponse;
     500: ErrorResponse;
 };
 
@@ -12695,7 +13393,16 @@ export type GetEntityPermissionResponse = GetEntityPermissionResponses[keyof Get
 export type ListFavoritesData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Restrict to favorites whose entity is one of these types.
+         */
+        entityType?: Array<'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session' | 'scheduled_action' | 'initiative'>;
+        /**
+         * Restrict to favorites whose entity is one of these ids.
+         */
+        entityId?: Array<string>;
+    };
     url: '/favorites';
 };
 
@@ -12759,7 +13466,7 @@ export type RemoveFavoriteByEntityData = {
         /**
          * The type of an entity in Macro
          */
-        entity_type: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session';
+        entity_type: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session' | 'scheduled_action' | 'initiative';
         /**
          * The id of the favorited entity.
          */
@@ -12780,6 +13487,37 @@ export type RemoveFavoriteByEntityError = RemoveFavoriteByEntityErrors[keyof Rem
 export type RemoveFavoriteByEntityResponses = {
     200: unknown;
 };
+
+export type GetForeignEntityBySourceData = {
+    body?: never;
+    path: {
+        /**
+         * Foreign entity source, e.g. github_pull_request
+         */
+        source: string;
+        /**
+         * Identifier assigned by the source system; may contain slashes
+         */
+        foreign_entity_id: string;
+    };
+    query?: never;
+    url: '/foreign_entity/by_source/{source}/{foreign_entity_id}';
+};
+
+export type GetForeignEntityBySourceErrors = {
+    400: ErrorResponse;
+    401: ErrorResponse;
+    404: ErrorResponse;
+    500: ErrorResponse;
+};
+
+export type GetForeignEntityBySourceError = GetForeignEntityBySourceErrors[keyof GetForeignEntityBySourceErrors];
+
+export type GetForeignEntityBySourceResponses = {
+    200: ForeignEntity;
+};
+
+export type GetForeignEntityBySourceResponse = GetForeignEntityBySourceResponses[keyof GetForeignEntityBySourceResponses];
 
 export type GetForeignEntityData = {
     body?: never;
@@ -13150,6 +13888,217 @@ export type UpsertHistoryHandlerResponses = {
 };
 
 export type UpsertHistoryHandlerResponse = UpsertHistoryHandlerResponses[keyof UpsertHistoryHandlerResponses];
+
+export type ListInitiativesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/initiatives';
+};
+
+export type ListInitiativesErrors = {
+    /**
+     * Missing or invalid credentials
+     */
+    401: ErrorResponse;
+    500: ErrorResponse;
+};
+
+export type ListInitiativesError = ListInitiativesErrors[keyof ListInitiativesErrors];
+
+export type ListInitiativesResponses = {
+    200: InitiativeList;
+};
+
+export type ListInitiativesResponse = ListInitiativesResponses[keyof ListInitiativesResponses];
+
+export type CreateInitiativeData = {
+    body: CreateInitiativeRequest;
+    path?: never;
+    query?: never;
+    url: '/initiatives';
+};
+
+export type CreateInitiativeErrors = {
+    400: ErrorResponse;
+    /**
+     * Missing or invalid credentials
+     */
+    401: ErrorResponse;
+    409: ErrorResponse;
+    /**
+     * Name exceeds the maximum length
+     */
+    422: ErrorResponse;
+    500: ErrorResponse;
+};
+
+export type CreateInitiativeError = CreateInitiativeErrors[keyof CreateInitiativeErrors];
+
+export type CreateInitiativeResponses = {
+    200: InitiativeDetail;
+};
+
+export type CreateInitiativeResponse = CreateInitiativeResponses[keyof CreateInitiativeResponses];
+
+export type DeleteInitiativeData = {
+    body?: never;
+    path: {
+        /**
+         * Initiative identifier.
+         */
+        initiative_id: string;
+    };
+    query?: never;
+    url: '/initiatives/{initiative_id}';
+};
+
+export type DeleteInitiativeErrors = {
+    400: ErrorResponse;
+    /**
+     * Missing or invalid credentials
+     */
+    401: ErrorResponse;
+    404: ErrorResponse;
+    500: ErrorResponse;
+};
+
+export type DeleteInitiativeError = DeleteInitiativeErrors[keyof DeleteInitiativeErrors];
+
+export type DeleteInitiativeResponses = {
+    200: GenericSuccessResponse;
+};
+
+export type DeleteInitiativeResponse = DeleteInitiativeResponses[keyof DeleteInitiativeResponses];
+
+export type GetInitiativeData = {
+    body?: never;
+    path: {
+        /**
+         * Initiative identifier.
+         */
+        initiative_id: string;
+    };
+    query?: never;
+    url: '/initiatives/{initiative_id}';
+};
+
+export type GetInitiativeErrors = {
+    400: ErrorResponse;
+    /**
+     * Missing or invalid credentials
+     */
+    401: ErrorResponse;
+    404: ErrorResponse;
+    500: ErrorResponse;
+};
+
+export type GetInitiativeError = GetInitiativeErrors[keyof GetInitiativeErrors];
+
+export type GetInitiativeResponses = {
+    200: InitiativeDetail;
+};
+
+export type GetInitiativeResponse = GetInitiativeResponses[keyof GetInitiativeResponses];
+
+export type UpdateInitiativeData = {
+    body: UpdateInitiativeRequest;
+    path: {
+        /**
+         * Initiative identifier.
+         */
+        initiative_id: string;
+    };
+    query?: never;
+    url: '/initiatives/{initiative_id}';
+};
+
+export type UpdateInitiativeErrors = {
+    400: ErrorResponse;
+    /**
+     * Missing or invalid credentials
+     */
+    401: ErrorResponse;
+    404: ErrorResponse;
+    409: ErrorResponse;
+    /**
+     * Name exceeds the maximum length
+     */
+    422: ErrorResponse;
+    500: ErrorResponse;
+};
+
+export type UpdateInitiativeError = UpdateInitiativeErrors[keyof UpdateInitiativeErrors];
+
+export type UpdateInitiativeResponses = {
+    200: InitiativeDetail;
+};
+
+export type UpdateInitiativeResponse = UpdateInitiativeResponses[keyof UpdateInitiativeResponses];
+
+export type AssignInitiativeTasksData = {
+    body: AssignTasksRequest;
+    path: {
+        /**
+         * Initiative identifier.
+         */
+        initiative_id: string;
+    };
+    query?: never;
+    url: '/initiatives/{initiative_id}/tasks';
+};
+
+export type AssignInitiativeTasksErrors = {
+    400: ErrorResponse;
+    /**
+     * Missing or invalid credentials
+     */
+    401: ErrorResponse;
+    404: ErrorResponse;
+    500: ErrorResponse;
+};
+
+export type AssignInitiativeTasksError = AssignInitiativeTasksErrors[keyof AssignInitiativeTasksErrors];
+
+export type AssignInitiativeTasksResponses = {
+    200: AssignTasksResponse;
+};
+
+export type AssignInitiativeTasksResponse = AssignInitiativeTasksResponses[keyof AssignInitiativeTasksResponses];
+
+export type UnassignInitiativeTaskData = {
+    body?: never;
+    path: {
+        /**
+         * Initiative identifier.
+         */
+        initiative_id: string;
+        /**
+         * Task identifier.
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/initiatives/{initiative_id}/tasks/{task_id}';
+};
+
+export type UnassignInitiativeTaskErrors = {
+    400: ErrorResponse;
+    /**
+     * Missing or invalid credentials
+     */
+    401: ErrorResponse;
+    404: ErrorResponse;
+    500: ErrorResponse;
+};
+
+export type UnassignInitiativeTaskError = UnassignInitiativeTaskErrors[keyof UnassignInitiativeTaskErrors];
+
+export type UnassignInitiativeTaskResponses = {
+    200: GenericSuccessResponse;
+};
+
+export type UnassignInitiativeTaskResponse = UnassignInitiativeTaskResponses[keyof UnassignInitiativeTaskResponses];
 
 export type GetInstructionsHandlerData = {
     body?: never;
@@ -13818,13 +14767,13 @@ export type ListRemindersData = {
     path?: never;
     query?: {
         /**
-         * The type of an entity in Macro
+         * Restrict to reminders attached to an entity of these types.
          */
-        entityType?: 'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session';
+        entityType?: Array<'user' | 'chat' | 'channel' | 'channel_message' | 'document' | 'project' | 'email_thread' | 'calendar_event' | 'team' | 'call' | 'foreign_entity' | 'static_file' | 'crm_company' | 'crm_contact' | 'reminder' | 'skill' | 'agent_session' | 'scheduled_action' | 'initiative'>;
         /**
-         * Restrict to reminders attached to this entity id. Requires `entityType`.
+         * Restrict to reminders attached to these entity ids.
          */
-        entityId?: string;
+        entityId?: Array<string>;
         /**
          * Include reminders that have already fired.
          */

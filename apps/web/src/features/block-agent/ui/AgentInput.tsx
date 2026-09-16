@@ -8,14 +8,14 @@
  */
 
 import { buildConfig } from '@core/component/LexicalMarkdown/builder/MarkdownConfigBuilder';
-import { MarkdownShell } from '@core/component/LexicalMarkdown/builder/MarkdownShell';
+import { ComposerEditor } from '@core/component/LexicalMarkdown/component/ComposerEditor';
 import type { AgentCommandItem } from '@core/component/LexicalMarkdown/plugins';
 import { isMobile } from '@core/mobile/isMobile';
 import { isTouchDevice } from '@core/mobile/isTouchDevice';
 import { useTouchOutsideToDismissKeyboard } from '@core/mobile/useTouchOutsideToDismissKeyboard';
 import { $insertReferencedPaste } from '@macro-inc/lexical-core';
 import EnterIcon from '@phosphor-icons/core/regular/arrow-bend-down-left.svg?component-solid';
-import { Button, SendButton, Surface } from '@ui';
+import { Button, ComposerSurface, SendButton } from '@ui';
 import { createSignal, type JSX, onCleanup, onMount, Show } from 'solid-js';
 
 /**
@@ -154,10 +154,20 @@ export function AgentInput(props: AgentInputProps) {
   // (channel EditorShell / chat surface) so the whole box is tappable,
   // including on touch — pointerdown stays inside the user gesture that
   // iOS needs to raise the keyboard.
+  //
+  // The tap's own default must not run afterwards: a mousedown on a target
+  // with nothing focusable above it blurs the active element — the editor
+  // just focused — and the keyboard drops again. Cancel pointerdown, and
+  // mousedown too because a real iPhone still synthesises it after a
+  // cancelled pointerdown (see `keepEditorFocus` in TouchSelectionToolbar).
+  // Taps inside the contenteditable keep their defaults so the caret lands
+  // under the finger.
   const focusEditor = (event: Event) => {
     const target = event.target as HTMLElement | null;
-    if (target?.closest('button')) return;
-    editor.controls.focus();
+    if (!target || target.closest('button')) return;
+    if (editor.lexical.getRootElement()?.contains(target)) return;
+    event.preventDefault();
+    if (event.type === 'pointerdown') editor.controls.focus();
   };
 
   return (
@@ -168,21 +178,19 @@ export function AgentInput(props: AgentInputProps) {
       </Show>
       {/* h-auto beats Surface's size-full so the in-flow controls are not
           clipped over the editor (that was Auto sitting on the placeholder). */}
-      <Surface class="rounded-xl touch:rounded-2xl h-auto" depth={2} solid>
+      <ComposerSurface class="h-auto">
         {/* Desktop: one row, send right of the text. Touch: the text gets
             the whole width and the controls drop to a footer row (model
             left, send right) — the chat-tall / channel footer shape. */}
         <div
-          class="flex items-end gap-1 px-2 py-1.5 touch:flex-col touch:items-stretch touch:gap-1.5 touch:px-3 touch:pt-2.5 touch:pb-2"
+          class="flex items-end gap-[3.75px] p-[7.5px] min-h-[48.75px] touch:min-h-0 touch:flex-col touch:items-stretch touch:gap-0 touch:p-0"
           onPointerDown={focusEditor}
+          onMouseDown={focusEditor}
         >
-          {/* No vertical padding of its own: the shell is min-h-8 and editor
-            paragraphs carry my-1.5, so the row's py-1.5 is the whole frame —
-            the same 44px single-line height as ChatInput. */}
           <div
             id={AGENT_INPUT_TEXT_AREA_ID}
             ref={bodyRef}
-            class="min-w-0 flex-1 pl-1 text-sm text-ink touch:pl-0 touch:text-base"
+            class="min-w-0 flex-1 text-base text-ink not-touch:px-[9.375px] not-touch:py-[4.6875px] not-touch:leading-[24.375px] not-touch:min-h-[24.375px] not-touch:text-composer-ink touch:px-3 touch:py-2"
             classList={{
               // While empty only the placeholder renders; keep it to one clipped
               // line so it doesn't wrap into the single-line height.
@@ -193,7 +201,7 @@ export function AgentInput(props: AgentInputProps) {
                 isMultiline() && isMobile(),
             }}
           >
-            <MarkdownShell
+            <ComposerEditor
               config={editor}
               placeholder={
                 props.placeholder ?? 'Message the agent, @mention anything'
@@ -203,7 +211,7 @@ export function AgentInput(props: AgentInputProps) {
           </div>
 
           {/* In-flow — never absolute over the text. */}
-          <div class="flex shrink-0 items-center gap-1 pb-0.5 touch:pb-0">
+          <div class="flex shrink-0 items-center gap-[3.75px] touch:h-8 touch:gap-2 touch:p-2 touch:mb-2">
             <Show when={isTouchDevice() && props.modelControl}>
               <div class="min-w-0">{props.modelControl}</div>
             </Show>
@@ -212,6 +220,7 @@ export function AgentInput(props: AgentInputProps) {
                 when={props.busy && props.onStop}
                 fallback={
                   <SendButton
+                    appearance="composer"
                     tooltip="Send"
                     disabled={!canSend()}
                     onClick={send}
@@ -222,17 +231,22 @@ export function AgentInput(props: AgentInputProps) {
                   when={canSendNext()}
                   fallback={
                     <Button
-                      variant="ghost"
-                      size="icon-sm"
+                      variant={isTouchDevice() ? 'ghost' : 'strong'}
+                      size="icon-composer"
                       label="Stop"
                       onClick={() => props.onStop?.()}
-                      class="rounded-[11px] size-7.5 text-ink-extra-muted not-disabled:bg-ink/5 not-disabled:hover:bg-ink/10"
+                      class={
+                        isTouchDevice()
+                          ? 'rounded-full size-7.5 text-ink-extra-muted not-disabled:bg-ink/5 not-disabled:hover:bg-ink/10'
+                          : undefined
+                      }
                     >
-                      <div class="size-3.5 rounded-sm bg-current" />
+                      <div class="size-3.5 not-touch:size-[13.125px] rounded-sm bg-current" />
                     </Button>
                   }
                 >
                   <SendButton
+                    appearance="composer"
                     aria-label="Send next queued message"
                     tooltip="Send next queued message"
                     shortcut="Enter"
@@ -245,7 +259,7 @@ export function AgentInput(props: AgentInputProps) {
             </div>
           </div>
         </div>
-      </Surface>
+      </ComposerSurface>
     </div>
   );
 }

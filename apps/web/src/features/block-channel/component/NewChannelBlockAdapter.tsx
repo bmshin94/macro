@@ -1,4 +1,9 @@
 import {
+  ChatWithAgentButton,
+  ChatWithAgentIcon,
+  openChatWithAgent,
+} from '@app/features/chat/ChatWithAgentButton';
+import {
   makeRenameAction,
   useBlockEntityCommands,
 } from '@app/features/next-soup/actions';
@@ -37,7 +42,7 @@ import {
 } from '@channel/Channel/link';
 import { ChannelParticipantsTab } from '@channel/Participants/ChannelParticipantsTab';
 import { HeaderIsland } from '@components/app/split-layout/components/HeaderIsland';
-import { SplitFileMenu } from '@components/app/split-layout/components/SplitFileMenu';
+import { BlockSplitFileMenu } from '@components/app/split-layout/components/SplitFileMenu';
 import { SplitHeaderRight } from '@components/app/split-layout/components/SplitHeader';
 import { SplitTitleFileMenu } from '@components/app/split-layout/components/SplitLabel';
 import {
@@ -185,6 +190,19 @@ function NewTop(props: { channelId: string }) {
     });
   };
 
+  // Seed for "Ask Macro": a new chat with this channel @mentioned, so the
+  // user does not have to create an agent and mention the channel by hand.
+  const askMacroEntity = () => {
+    const type = channelType();
+    if (!type) return undefined;
+    return {
+      type: 'channel' as const,
+      id: props.channelId,
+      name: channelName() ?? 'New Channel',
+      channelType: type,
+    };
+  };
+
   // Mobile has no room for inline tabs; the title file-menu drawer leads with
   // them instead, as a titled radio group mirroring the active tab. Built
   // from tabs() so the call tab keeps its live-call label.
@@ -211,7 +229,7 @@ function NewTop(props: { channelId: string }) {
         onTabChange={setActiveTab}
       />
       <SplitTitleFileMenu>
-        <SplitFileMenu
+        <BlockSplitFileMenu
           id={props.channelId}
           itemType="channel"
           name={channelName() ?? 'New Channel'}
@@ -221,6 +239,17 @@ function NewTop(props: { channelId: string }) {
           entity={channelEntity()}
           mobileViews={isMobile() ? mobileViews() : undefined}
           tools={[
+            {
+              label: 'Ask Macro',
+              icon: ChatWithAgentIcon,
+              action: () => {
+                const entity = askMacroEntity();
+                if (!entity) return;
+                void openChatWithAgent(entity);
+              },
+              // Desktop gets a header button instead (see below).
+              condition: () => isMobile() && !!askMacroEntity(),
+            },
             {
               group: 'file',
               label: 'Rename',
@@ -239,6 +268,16 @@ function NewTop(props: { channelId: string }) {
           ]}
         />
       </SplitTitleFileMenu>
+      {/* Desktop only: on mobile the action lives in the title drawer above. */}
+      <Show when={!isMobile() && askMacroEntity()}>
+        {(entity) => (
+          <SplitHeaderRight>
+            <HeaderIsland>
+              <ChatWithAgentButton entity={entity()} label="Ask Macro" />
+            </HeaderIsland>
+          </SplitHeaderRight>
+        )}
+      </Show>
       {/* Hidden once the user has joined — the call surface owns the UI. */}
       <Show when={ENABLE_CALLS && !call.isInThisChannel()}>
         <SplitHeaderRight>

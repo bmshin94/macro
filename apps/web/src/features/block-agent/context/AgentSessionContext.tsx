@@ -1,3 +1,4 @@
+import { isCodexBotId } from '@core/constant/codexAgent';
 /**
  * Block-level state for the agent block, following the chat block's
  * `ChatInputProvider`/`useChatInputContext` convention: the provider owns the
@@ -10,7 +11,6 @@
  */
 
 import { isCursorBotId } from '@core/constant/cursorAgent';
-import { useUserId } from '@core/context/user';
 import { useAgentSessionExternalUrlQuery } from '@queries/agent-session/session';
 import type {
   FoldedMessage,
@@ -159,12 +159,10 @@ export function AgentSessionProvider(
     isDisconnected(status.status())
       ? undefined
       : (feed.metadata()?.pendingElicitation ?? undefined);
-  const viewerId = useUserId();
   const elicitation = createElicitationController({
     sessionId,
     pending: pendingElicitation,
-    ownerId: () => feed.session()?.ownerId,
-    viewerId,
+    canEdit: () => feed.session()?.canEdit,
   });
   const blockedOnUser = () => working() && pendingElicitation() !== undefined;
 
@@ -190,7 +188,7 @@ export function AgentSessionProvider(
           The poll component gates on `isSuccess` so it should not suspend;
           this boundary is the backstop if a read of `query.data` ever does. */}
       <Suspense fallback={null}>
-        <CursorExternalUrlPoll
+        <CloudExternalUrlPoll
           sessionId={sessionId}
           session={feed.session}
           applySnapshot={feed.applySnapshot}
@@ -231,7 +229,7 @@ export function AgentSessionProvider(
  * the feed's snapshot. Lives in its own Suspense so the rest of the block
  * stays mounted while this query's first fetch is in flight.
  */
-function CursorExternalUrlPoll(props: {
+function CloudExternalUrlPoll(props: {
   sessionId: Accessor<string | undefined>;
   session: Accessor<AgentSessionResponse | undefined>;
   applySnapshot: (session: AgentSessionResponse) => void;
@@ -242,7 +240,9 @@ function CursorExternalUrlPoll(props: {
     const id = props.sessionId();
     const session = props.session();
     if (!id || !session || session.external?.url) return undefined;
-    return isCursorBotId(session.botId) ? id : undefined;
+    return isCursorBotId(session.botId) || isCodexBotId(session.botId)
+      ? id
+      : undefined;
   });
   createEffect(() => {
     // `query.data` suspends while pending and throws once it errors

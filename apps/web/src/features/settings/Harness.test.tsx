@@ -1,9 +1,14 @@
+const codexAccess = vi.hoisted(() => ({ enabled: true }));
+vi.mock('@core/codex/flag', () => ({
+  useCodexAgentsAccess: () => () => codexAccess.enabled,
+}));
+
 /**
  * @vitest-environment jsdom
  */
 
-import { useCursorModelsQuery } from '@queries/auth/cursor-api-key';
-import type { CursorModelsResponse } from '@service-auth/generated/schemas';
+import { useAgentModelsQuery } from '@queries/agents/models';
+import type { LoadAgentModelsResponse } from '@service-agent-harness/generated/schemas';
 import {
   fireEvent,
   render,
@@ -20,6 +25,10 @@ import { Suspense } from 'solid-js';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Harness } from './Harness';
 
+vi.mock('./codex/views/CodexHarness', () => ({
+  CodexHarness: () => <div data-testid="codex-harness" />,
+}));
+
 const mocks = vi.hoisted(() => ({
   status: {
     isSuccess: true,
@@ -32,12 +41,15 @@ const mocks = vi.hoisted(() => ({
     isPlaceholderData: false,
   },
   models: {
-    isSuccess: true,
+    data: {
+      status: 'available' as const,
+      currentModel: 'default-model',
+      models: [{ id: 'default-model', name: 'Default Model' }],
+    },
     isPending: false,
     isError: false,
-    data: {
-      models: [{ id: 'default-model', displayName: 'Default Model' }],
-    },
+    isSuccess: true,
+    refetch: vi.fn(),
   },
   save: vi.fn(),
   disconnect: vi.fn(),
@@ -80,11 +92,14 @@ vi.mock('@queries/auth/cursor-api-key', () => ({
     mutateAsync: mocks.disconnect,
     isPending: false,
   }),
-  useCursorModelsQuery: vi.fn(() => mocks.models),
   useSetCursorDefaultModel: () => ({
     mutateAsync: mocks.setDefaultModel,
     isPending: false,
   }),
+}));
+
+vi.mock('@queries/agents/models', () => ({
+  useAgentModelsQuery: vi.fn(() => mocks.models),
 }));
 
 vi.mock('@queries/harnesses/harnesses', () => ({
@@ -101,6 +116,9 @@ vi.mock('@queries/harnesses/harnesses', () => ({
     },
     get isError() {
       return Boolean(code()) && harnessMocks.pairing.isError;
+    },
+    get isSuccess() {
+      return Boolean(code()) && !harnessMocks.pairing.isError;
     },
     get error() {
       return harnessMocks.pairing.isError ? new Error('gone') : null;
@@ -148,6 +166,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  codexAccess.enabled = true;
   vi.clearAllMocks();
   mocks.status.data = {
     registered: false,
@@ -155,6 +174,14 @@ beforeEach(() => {
     updatedAt: null,
   };
   mocks.status.isPlaceholderData = false;
+  mocks.models.data = {
+    status: 'available',
+    currentModel: 'default-model',
+    models: [{ id: 'default-model', name: 'Default Model' }],
+  };
+  mocks.models.isPending = false;
+  mocks.models.isError = false;
+  mocks.models.isSuccess = true;
   mocks.save.mockResolvedValue(undefined);
   mocks.disconnect.mockResolvedValue(undefined);
   harnessMocks.query.data = [];
@@ -166,20 +193,31 @@ beforeEach(() => {
 });
 
 describe('Harness', () => {
+  it.each([false, true])(
+    'gates Codex settings on rollout access %s',
+    (enabled) => {
+      codexAccess.enabled = enabled;
+      render(() => <Harness />);
+      expect(screen.queryByTestId('codex-harness') !== null).toBe(enabled);
+    }
+  );
+
   it.each(['success', 'error'] as const)(
     'keeps settings visible while Cursor models load and after %s',
     async (outcome) => {
       mocks.status.data.registered = true;
-      let resolveModels!: (models: CursorModelsResponse) => void;
+      let resolveModels!: (models: LoadAgentModelsResponse) => void;
       let rejectModels!: (error: Error) => void;
-      const response = new Promise<CursorModelsResponse>((resolve, reject) => {
-        resolveModels = resolve;
-        rejectModels = reject;
-      });
+      const response = new Promise<LoadAgentModelsResponse>(
+        (resolve, reject) => {
+          resolveModels = resolve;
+          rejectModels = reject;
+        }
+      );
       const client = new QueryClient({
         defaultOptions: { queries: { retry: false } },
       });
-      vi.mocked(useCursorModelsQuery).mockImplementationOnce(() =>
+      vi.mocked(useAgentModelsQuery).mockImplementationOnce(() =>
         useQuery(() => ({
           queryKey: ['pending-cursor-models'],
           queryFn: () => response,
@@ -208,19 +246,15 @@ describe('Harness', () => {
           expect(screen.getByText(/Could not load Cursor models/)).toBeTruthy()
         );
         expect(screen.queryByText('Settings suspended')).toBeNull();
-        expect(
-          (
-            screen.getByRole('combobox', {
-              name: 'Default model',
-            }) as HTMLSelectElement
-          ).disabled
-        ).toBe(true);
+        expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
       } else {
         resolveModels({
+          status: 'available',
+          currentModel: 'loaded-model',
           models: [
             {
               id: 'loaded-model',
-              displayName: 'Loaded Model',
+              name: 'Loaded Model',
               group: 'Cursor',
             },
           ],

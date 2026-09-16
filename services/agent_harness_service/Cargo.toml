@@ -17,19 +17,24 @@ name = "agent_harness_service_doppler_config"
 path = "src/doppler_config.rs"
 
 [dependencies]
+codex_cloud_agents = { path = "../../crates/codex_cloud_agents" }
+codex_connection = { path = "../../crates/codex_connection" }
 agent_egress = { path = "../../crates/agent_egress" }
 agent_fold = { path = "../../crates/agent_fold" }
 agent_harness = { path = "../../crates/agent_harness" }
 agent_inmem = { path = "../../crates/agent_inmem" }
 ai_tools = { path = "../../crates/ai_tools" }
 agent_runtime_protocol = { path = "../../crates/agent_runtime_protocol", features = ["utoipa"] }
-agent_session = { path = "../../crates/agent_session" }
+agent_session = { path = "../../crates/agent_session", features = ["ai_tools"] }
+ai_toolset = { path = "../../crates/ai_toolset" }
+rmcp = { workspace = true }
 agent_trigger = { path = "../../crates/agent_trigger", features = ["outbound"] }
 ai_usage = { path = "../../crates/ai_usage" }
 aws-sdk-sqs = { workspace = true }
 bot_id = { path = "../../crates/bot_id" }
 bots = { path = "../../crates/bots" }
 harness_id = { path = "../../crates/harness_id" }
+harnesses = { path = "../../crates/harnesses", default-features = false, features = ["outbound", "ports"] }
 connection_gateway_client = { path = "../../crates/connection_gateway_client" }
 aws-sdk-kms = { workspace = true }
 cursor_api_key = { path = "../../crates/cursor_api_key" }
@@ -58,6 +63,7 @@ channels = { path = "../../crates/channels", features = ["ports", "outbound"] }
 anyhow = { workspace = true }
 macro_user_id = { path = "../../crates/macro_user_id" }
 axum = { workspace = true }
+axum-extra = { workspace = true, features = ["typed-header"] }
 aws-sdk-secretsmanager = { workspace = true }
 kafka_util = { path = "../../crates/kafka_util" }
 macro_auth = { path = "../../crates/macro_auth" }
@@ -88,4 +94,6 @@ tracing = { workspace = true }
 workspace-hack = { version = "0.1", path = "../../crates/workspace-hack" }
 
 [dev-dependencies]
+agent-client-protocol = { workspace = true }
 agent_session = { path = "../../crates/agent_session", features = ["test-utils"] }
+harness_id = { path = "../../crates/harness_id", features = ["test-utils"] }

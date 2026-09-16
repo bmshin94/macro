@@ -23,16 +23,20 @@ import type { Sdk as StaticFilesSdk } from '../../generated/static-files/sdk.gen
 import type { Sdk as StorageSdk } from '../../generated/storage/sdk.gen';
 import type { Sdk as UnfurlSdk } from '../../generated/unfurl/sdk.gen';
 
-export const agentHarnessExcluded =
-  [] as const satisfies readonly (keyof AgentHarnessSdk)[];
+export const agentHarnessExcluded = [
+  'loadAgentModelsHandler',
+  'previewAgentSessions',
+] as const satisfies readonly (keyof AgentHarnessSdk)[];
 
 export const agentHarnessBacklog =
   [] as const satisfies readonly (keyof AgentHarnessSdk)[];
 
 export const authExcluded = [
   'appleLogin',
+  'cancelCodexLogin',
   'checkGithubLinkStatus',
   'checkGmailLinkStatus',
+  'configureCodex',
   'createCheckoutSessionV2',
   'createInProgressLink',
   'createMergeRequest',
@@ -44,8 +48,10 @@ export const authExcluded = [
   'deleteTeam',
   'deleteTeamInviteHandler',
   'deleteUser',
+  'disconnectCodex',
   'enrichGithubPullRequests',
   'generateEmailLink',
+  'getCodexConnection',
   'getCursorApiKey',
   'getLegacyUserPermissions',
   'getPermissions',
@@ -64,6 +70,7 @@ export const authExcluded = [
   'initOutlookLink',
   'inviteToTeam',
   'joinTeam',
+  'listCodexEnvironments',
   'listCursorModels',
   'logout',
   'oauth2Callback',
@@ -76,6 +83,7 @@ export const authExcluded = [
   'patchUserGroup',
   'patchUserOnboarding',
   'patchUserTutorial',
+  'pollCodexLogin',
   'postProfilePictures',
   'putCursorApiKey',
   'putCursorDefaultModel',
@@ -90,6 +98,7 @@ export const authExcluded = [
   'sessionCreation',
   'sessionLogin',
   'ssoLogin',
+  'startCodexLogin',
   'toggleTeamAutoJoinDomain',
   'toggleTeamNonAdminInvites',
   'verifyEmailLink',
@@ -310,17 +319,20 @@ export const storageExcluded = [
 
 export const storageBacklog = [
   'approveHarnessPairing',
+  'assignInitiativeTasks',
   'claimHarnessPairing',
   'createAgent',
   'createAnchor',
   'createDocument',
   'createEntityMention',
   'createHarnessPairing',
+  'createInitiative',
   'createReminder',
   'createUserApiKey',
   'deleteAnchor',
   'deleteEntityMention',
   'deleteHarness',
+  'deleteInitiative',
   'deleteSelfHarness',
   'deleteReminder',
   'deleteUserApiKey',
@@ -337,12 +349,14 @@ export const storageBacklog = [
   'getProjectPermissionsV2',
   'getProjectUserAccessLevel',
   'getHarnessPairing',
+  'getInitiative',
   'getSelfHarness',
   'getReminder',
   'listAgents',
   'listHarnessAgents',
   'listHarnessSessions',
   'listHarnesses',
+  'listInitiatives',
   'listOccurrences',
   'listReminders',
   'listTeamOutOfOffice',
@@ -352,7 +366,9 @@ export const storageBacklog = [
   'saveDocumentHandler',
   'simpleSave',
   'toggleShareWithTeam',
+  'unassignInitiativeTask',
   'updateAgent',
+  'updateInitiative',
   'updateReminder',
   'validateDocumentPermissionsToken',
 ] as const satisfies readonly (keyof StorageSdk)[];

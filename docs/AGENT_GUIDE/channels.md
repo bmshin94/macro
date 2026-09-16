@@ -14,16 +14,61 @@
 Channels are invite-only ("Only people you invite can see this channel"). A DM is just a
 channel between two users.
 
+## Agent session entities
+
+The Agents list includes owned and shared sessions. Rows show the shared agent
+icon and session title; opening one navigates to `/app/agent/<id>`. The session title
+menu uses the shared entity actions: Favorite/Unfavorite and Copy link, plus
+Rename and Delete for the owner. Rename uses the shared rename dialog, not a
+session-specific modal. Folder moves, duplication, and property/tag editing are
+not offered because those APIs do not support sessions. Runtime controls remain
+session-specific.
+
 ## Message composer
+
+Composer and conversation body text use `text-base` (15px at the default root
+size) on desktop and mobile. The shared scale uses 14px for `text-sm` and 12px
+for `text-xs`, with accessibility text scaling preserved.
+
+Desktop message text uses a 16px horizontal inset and a compact gap above the
+toolbar, consistent at narrow and wide composer widths.
+
+The new-message compose screen and channel message/reply inputs use the same
+attachment and send controls on mobile and desktop, with no format toggle.
+iOS uses the native media attachment picker.
+Short drafts place attachment, message text, and send on one row on both mobile
+and desktop. Multiline drafts and attachments expand the composer with its
+actions below the editor.
+When checking this transition, add and remove a line break or attachment and
+confirm the draft and caret position survive. The attachment and send controls
+should remain usable in both layouts, including when editing an existing message.
+The iOS share sheet keeps its editor above the attachment and formatting controls.
+Check this arrangement at both phone and tablet widths.
+
+The shared `@` menu also offers `Recent agent sessions` after Channels and
+before Companies (the latest 500 accessible sessions, searchable by title or
+persona). These inline chips show the shared
+agent icon and an underlined session name, and open the existing session when clicked.
+They are references, not bot invocations: selecting a session does not start a new
+agent run. Sending or editing a message that references a session you own grants
+that channel/DM edit access to it. Non-owner references do not create grants.
+Access follows active membership; deleting the reference does not revoke the
+grant. Inaccessible sessions render a private/deleted label. Chips omit persona
+avatars and status; previews refresh periodically while the browser tab is active
+to update titles and access.
 
 Placeholder `Type @ to share with #<name>`. Click it, `type_text`, press Enter to send.
 The message renders immediately with avatar, email, timestamp. Composer extras: `Attach
-files`, `Format`, a `Task` switch (turns the message into a task), `Send message` button.
+files` and the `Send message` button. Replies also include a close-reply control.
 
 Hover a message for its action menu. `Reply` on a top-level message opens that thread. On
 an existing thread reply, it inserts a one-line reply-target reference into the composer;
-clicking the reference navigates back to that reply. If text in the message is
+clicking the reference navigates back to that reply. References to the current
+channel navigate in place, including inside the preview panel, without opening
+another split. If text in the message is
 browser-selected before `Reply` is clicked, the reference previews only the selected text.
+Clicking `Reply` again for a message already referenced anywhere in the draft keeps
+the existing reference and draft unchanged, even if a different text selection is used.
 For agent-session messages, the reference previews the resolved answer or current activity
 rather than the internal Magic Chip marker.
 Agent-session announcements use the same ReplyTarget reference for the prompting channel
@@ -40,17 +85,84 @@ event is created — no invitation goes out from the initial request. It cannot 
 email at all. The bot's prompt carries the current date and time in the mentioning user's
 own time zone (their primary calendar's), so it resolves relative times ("tomorrow at 4",
 "EOD") without asking; when no calendar is connected the prompt falls back to UTC and the
-bot asks before scheduling a specific clock time. `@macro-new` / `@coder` / `@cursor` open
+bot asks before scheduling a specific clock time. `@macro-new` / `@coder` / `@cursor` / `@codex` open
 an agent session; follow-up
 `@` mentions of that bot in the same thread route to it.
 The reply renders a Magic Chip: a rounded card of constant height that is present
-from the moment the session boots. Its answer area shows a pulsing star while the
-agent works, then the opening of the answer clipped to four lines and faded out; its
-bottom row reads the current activity (`Booting agent`, `Writing response`, ...) and
-`Open session` once the turn ends. A `Show more` cue sits over the fade: click the
-answer text to expand it in place (`Show less` collapses it again); click the
-bottom row to open the agent session. Before an
-answer exists, clicking the answer area also opens the session.
+from the moment the session boots. Its header names the persona (`Macro Agent`,
+`Cursor Agent`), the model, and what the turn is doing (`Booting agent`, `Running
+command · cargo test`, `Waiting for you`, `Done`); clicking the header or its arrow
+(`Open in session`) opens the agent session. The area under the header holds the agent's
+latest passage: a pulsing star while the agent is busy before it writes, the passage as it
+streams, and the final passage once the turn ends - the last text the agent wrote, not the
+whole turn, and a finished turn with nothing said leaves the area empty. The area is
+cropped at the chip's height with a fade at its foot; clicking it expands it in place, and
+clicking again collapses it. Before anything is there to expand, clicking the area also
+opens the session.
+
+`@codex` requires both `enable-chat-v3-agents` and `enable-codex-agents`.
+It appears when the mentioning user has connected ChatGPT and saved a
+cloud environment in Settings → Harness. New sessions use that environment on
+`main`; there is no automatic repository selection. Follow-up mentions continue the same agent session. When
+the provider URL arrives, the session header offers **Open in Codex**. Codex
+assistant text appears as complete messages while tool activity and thinking
+can continue updating during the turn. Mention
+eligibility is covered by component/query tests; the channel interaction requires
+a configured backend for end-to-end verification.
+
+Cursor sessions choose a repository from the mentioning user's linked GitHub App
+installations on their first prompt. A session without a repository can still use
+Macro and connected MCP tools, but cannot use the Git proxy. For a PR smoke test,
+link the GitHub account and App installation in the same environment first, then
+name the repository explicitly in a new session's prompt.
+
+PR status in an open Magic Chip updates from connection-gateway events after
+webhook sync. Reconnecting refreshes active PR lookups to recover missed updates.
+A late webhook does not require reloading the page.
+
+Coding agents use `macro_internal.set_pull_request` to register an existing or
+new GitHub PR with their session. Macro Internal MCP is hosted by the harness
+service at `/mcp/internal` on its egress listener, separately from workspace MCP.
+Cursor, sandbox, and macrod sessions receive session-scoped credentials; the
+model supplies only the URL. The tool records the link, not the GitHub PR itself.
+The shared Macro system instructions ask agents to register PRs when
+`macro_internal.set_pull_request` is available. Macro Internal MCP also advertises
+this guidance in its server instructions. It is not prepended to individual user
+messages. Cursor
+enables automatic PR creation when a repository is selected. Its returned URL
+is also recorded because
+automatic creation can finish after the agent stops. Repeated registration is
+idempotent. The PR URL is stored on the session row, independently of conversation
+history. Registration sends a session-update gateway notification so mounted
+chips reload the current link; reconnecting also refreshes it. Multiple chips
+for the same session share its metadata, and loading it leaves the surrounding
+editor visible.
+
+When Cursor or Codex reports a pull request, the chip header shows its GitHub
+link. Codex links can arrive after the assistant finishes; a session-update event
+refreshes mounted chips without a new conversation message. Codex checks provider
+PR metadata every 20 seconds while attached. Viewing a disconnected Codex session
+reads saved history; sending a message reattaches the runtime. Refresh requires its original
+ChatGPT connection to remain connected. The link remains
+usable while the webhook mapping is loading or absent, then becomes a Macro PR
+entity link once synced. On narrow chips, long PR names truncate with an
+ellipsis; hover the link to inspect the full title. Codex delayed-link discovery,
+duplicate and changed metadata updates, and opening the exact PR URL were verified
+in Chromium with mocked session snapshots and realtime invalidation. This UI check
+does not prove live provider discovery; backend tests separately cover delayed
+provider metadata.
+
+When the agent stops to ask a question the question takes the area in the passage's
+place, cropped and expandable the same way: the prompt, then what is asked - a form's
+fields (choice rows with an accent box, an `Other` row when the agent allows a free-text
+answer, text and number inputs, a yes/no), a URL request's host and address, or a Macro
+user tool's draft (`SendEmail`, `CreateCalendarEvent`) in the tool's own composer - the
+same email compose or calendar event form the session shows, editable in place; expand
+the area to reach its `Send`/`Create`, which answers with the edited draft. A row at the
+bottom of the area carries the other decisions, refusal first: `Dismiss · Open in session`
+for a tool draft, `Decline · Submit · Open in session` (or `Open` for a URL) for a question.
+Only the session's owner can act; other viewers see the question read-only and the header
+names who is being waited on. Once answered, the area shows the agent's passage again.
 Agent replies may contain mention chips (`<m-document-mention>`) that render like any
 other channel mention. With GraphQL enabled, document mentions and preview cards load
 in bounded batches, including task status/priority/assignees and the viewer's edit
@@ -73,6 +185,19 @@ when only slightly above the bottom. Composer and viewport resizing respect the
 same boundary. Returning to the bottom resumes following; loading older messages
 preserves the reading position.
 
+On Safari and iOS, open or navigate near the oldest loaded messages and allow the
+history buffer to fill, then flick into older history. Loading should stop once
+roughly six screens are available above the viewport and resume as you approach
+that buffer. Check that pagination retains the visible message, and that latest
+stays pinned when messages arrive, images load, or the composer resizes. Verify
+message/reply navigation, restoration, and the custom scrollbar after pagination.
+Very long flings or slow responses can still exhaust the available scroll range.
+
+Inline document mentions should show their stored title before entering the viewport
+and while preview requests are pending. With a slow preview response, check that a
+long, unchanged title retains its line wrapping as the preview loads; a renamed
+document should update to its fetched title afterward.
+
 Message and reply links reveal the target inside its thread. Keyboard message
 navigation scrolls only when the selected message is outside the usable viewport.
 Returning through split navigation restores the saved message position and expanded
@@ -86,10 +211,62 @@ A touch tap leaves pending navigation intact; a vertical finger drag cancels it.
 The `[data-channel-scroll]` element is the scroll surface. Its virtualized rows are
 keyed by message ID; offscreen rows are normally absent from the DOM.
 
+Reopening a channel already loaded this session requests
+`GET /dss/channels/<id>/messages/catch-up?after=<newest cached created_at>&limit=50`
+and merges the result into the cached first page. A first open, a message link,
+a channel cached away from its latest page, and a delta longer than one page use
+`GET /dss/channels/<id>/messages`. The `channel_messages_load` event records
+`path` (`catch_up` or `full`) and `reason`
+(`watermark`, `list_ahead`, `no_cache`, `cache_not_at_latest`, `load_around`,
+`delta_overflow`, or `catch_up_error`).
+
+## Chat navigation rail
+
+On desktop, the Chat rail has `All` and `Recent` tabs. All contains an
+optional `Favorites` section above the independently paginated `Channels` and
+`DMs` sections. It appears when the user has channel favorites and only lists
+channels. Channel favorites open in the channel preview. Shift-clicking a
+favorite, channel, or DM opens that conversation in a new split instead.
+The search action beside the tabs opens a search field below them and replaces
+the active tab contents with matching channels and direct messages from one
+activity-ordered source. Search results use compact rows on `All` and
+conversation cards on `Recent`. Switching tabs preserves the active search and
+query, then scrolls the results to the selected channel when present or to the
+start. Closing search restores the active tab and applies the same scroll
+behavior to its lists. An empty result uses the standard search empty state
+artwork and wraps long queries.
+Collapsing a section does not discard its loaded pages. Recent has its own
+pagination cursor. Each list is virtualized, so offscreen conversations may not
+exist in the DOM.
+Channels and DMs each have a sort action before their create action. They can be
+sorted by last viewed, last updated, or date created, and each choice persists
+independently as a user preference.
+In slim mode, Favorites remains a separate collapsible section, while Channels
+and DMs render in one continuous list without section headings. The gear action
+in the footer controls whether each group appears and exposes the same
+independently persisted sort choices.
+Compact channel and DM rows in All have the same height. Section headings place
+their caret immediately after the title and reveal it on hover or while the
+section is collapsed; hovering only undims the heading text, while
+keyboard-focusing the heading with Arrow keys or `j` / `k` gives it a background.
+Clicking a section heading toggles it without moving the keyboard highlight;
+keyboard activation still toggles the highlighted section.
+
+Arrow Down / `j` at the last loaded conversation holds focus while that
+section loads its next page. Once loading finishes, the next press advances
+into the appended rows. If the section has no next page, navigation proceeds
+to the next section. `[` and `]` jump between the visible Favorites, Channels,
+and DMs section headers.
+
+On touch layouts, the `Recent`, `Channels`, and `DMs` pill tabs each retain
+their own loaded pages and load more as their active list approaches the end.
+
 ## Channel tabs
 
 Radio group at the top of the channel pane: `Messages` / `Attachments` / `Participants`,
-plus a `Call` button. Clicking the radio input can time out — click the adjacent label text
+plus `Ask Macro` and `Call` buttons. `Ask Macro` opens a new chat pane with the channel
+already @mentioned as context (see ai-chat.md). On mobile it lives in the channel title's
+`...` drawer instead. Clicking the radio input can time out — click the adjacent label text
 instead.
 
 `Participants` tab:
@@ -105,3 +282,15 @@ instead.
 
 New users get `Macro Support x <name>` seeded with a welcome message that @mentions them —
 useful as a guaranteed-existing channel in tests.
+
+Locally sent channel messages and thread replies enter with a brief upward slide
+and fade, without bubble scaling. Opening history or remounting a row does not
+replay the effect. Reduced-motion preferences disable it.
+
+For mobile send regressions, keep the software keyboard open and send several
+short and multiline messages consecutively. The keyboard should remain open,
+the cleared composer should retain focus, and a pinned chat should remain at the
+bottom through composer resizing and server acknowledgement. Check that restoring
+the caret after send does not pan the page while the keyboard resizes. Repeat with dictation
+and check that sent text does not return. Scroll into history before an incoming
+message or acknowledgement and verify that it does not pull you to latest.

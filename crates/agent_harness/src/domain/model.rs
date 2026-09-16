@@ -1,7 +1,8 @@
 //! Commands and values used by the harness domain.
 
 use agent_client_protocol::schema::v1::{HttpHeader, McpServer as AcpMcpServer, McpServerHttp};
-use agent_egress::domain::model::McpServerSlug;
+use agent_egress::domain::model::{McpServerSlug, RepoSlug};
+use agent_fold::domain::model::TurnSignal;
 use agent_runtime_protocol::domain::action::{AgentAction, AgentActionId};
 use agent_session::domain::model::{AgentMcpServers, AgentSessionId, MessageId, SandboxSize};
 use agent_session::domain::ports::ControlEvent;
@@ -63,6 +64,8 @@ pub enum AgentKind {
     SandboxedCoder,
     /// A Cursor cloud agent, served over an in-process ACP pipe.
     Cursor,
+    /// A per-owner Codex cloud conversation served over ACP.
+    CodexCloud,
     /// The in-process (in-memory) "macro(new)" bot, served by `agent_inmem`.
     InMemory,
     /// The bot's operator hosts the runtime and dials the gateway; no
@@ -78,6 +81,8 @@ impl AgentKind {
             Self::SandboxedCoder
         } else if bot == bot_id::CURSOR_BOT_ID {
             Self::Cursor
+        } else if bot == bot_id::CODEX_BOT_ID {
+            Self::CodexCloud
         } else if bot == bot_id::MACRO_NEW_BOT_ID {
             Self::InMemory
         } else {
@@ -90,6 +95,7 @@ impl AgentKind {
     pub fn from_harness(harness: &str) -> Self {
         match harness {
             "cursor" => Self::Cursor,
+            "codex-cloud" => Self::CodexCloud,
             "in-memory" | "macro-inmem" => Self::InMemory,
             // Registered macrod harnesses are the deliberate external case:
             // the agent's `harness_id` names whose daemon serves it.
@@ -211,14 +217,18 @@ pub enum HarnessCommand {
         /// The user responsible, as on [`Self::EditQueued`].
         actor: Option<MacroUserIdStr<'static>>,
     },
-    /// The session's runtime answered its in-flight turn: clear the busy
-    /// mark and dispatch the next queued action. Internal - enqueued by the
-    /// turn observer on the managing replica, never forwarded.
-    TurnEnded,
+    /// The session's fold reported a turn fact: an ended turn clears the
+    /// busy mark and dispatches the next queued action; a raised or cleared
+    /// question is published as is. Internal - enqueued by the turn observer
+    /// on the managing replica, never forwarded.
+    Turn(TurnSignal),
     /// The session's live actor stopped: clear the busy mark and nothing
     /// more - resuming a dead runtime stays the next user action's job.
-    /// Internal, like [`Self::TurnEnded`].
-    SessionStopped,
+    /// Internal, like [`Self::Turn`].
+    SessionStopped {
+        /// Why the actor stopped.
+        reason: String,
+    },
     /// Change the session's sandbox size and the owner's default.
     SetSandboxSize(SandboxSize),
     /// Release a session's live resources and delete it.
@@ -306,6 +316,13 @@ pub struct SessionAnnouncement {
     pub triggered_by: MacroUserIdStr<'static>,
 }
 
+/// The channel message an announcement became.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AnnouncedMessage {
+    /// The posted message: the magic chip its turn renders into.
+    pub message_id: Uuid,
+}
+
 /// Values required to provision a new session container.
 #[derive(Debug, Clone)]
 pub struct SpawnContainer {
@@ -371,6 +388,9 @@ pub const SESSION_TOKEN_VARIABLE: &str = "MACRO_SESSION_TOKEN";
 /// kept short and stable because agents namespace tool names under it.
 pub const MACRO_MCP_NAME: &str = "macro";
 
+/// Harness-owned session tools, separate from the workspace MCP catalog.
+pub const INTERNAL_MCP_NAME: &str = "macro_internal";
+
 impl SandboxEgress {
     /// Where the proxy serves `slug` - the URL a client dials to reach that
     /// server, whichever client it is.
@@ -403,16 +423,35 @@ impl SandboxEgress {
         ]
     }
 
-    /// Every server the session may dial, as `(name, url)` pairs: Macro's own
-    /// server first, then the advertised apps under their Pipedream slugs.
+    /// The workspace and internal MCP servers, followed by the owner's apps,
+    /// as `(name, url)` pairs.
     ///
     /// The one enumeration behind both renderings - [`Self::acp_servers`] and
     /// the Cursor API's - so the two can never advertise different sets.
     pub fn server_entries(&self) -> impl Iterator<Item = (String, String)> + '_ {
-        std::iter::once((MACRO_MCP_NAME.to_owned(), self.macro_mcp_url())).chain(
+        [
+            (MACRO_MCP_NAME.to_owned(), self.macro_mcp_url()),
+            (
+                INTERNAL_MCP_NAME.to_owned(),
+                format!("{}/mcp/internal", self.base_url),
+            ),
+        ]
+        .into_iter()
+        .chain(
             self.mcp_servers
                 .iter()
                 .map(|slug| (slug.as_str().to_owned(), self.mcp_url(slug))),
+        )
+    }
+
+    /// Session-scoped internal tools, also supplied to external runtimes.
+    pub fn internal_mcp_server(&self) -> AcpMcpServer {
+        AcpMcpServer::Http(
+            McpServerHttp::new(INTERNAL_MCP_NAME, format!("{}/mcp/internal", self.base_url))
+                .headers(vec![HttpHeader::new(
+                    "Authorization",
+                    self.authorization_header(),
+                )]),
         )
     }
 
@@ -461,6 +500,36 @@ impl std::fmt::Debug for SandboxEgress {
     }
 }
 
+/// The repository a deployment's sessions work in, valid by construction.
+///
+/// Held as the URL a session's row carries, not as the [`RepoSlug`] it was
+/// read as: the row is what the egress proxy re-reads to decide which
+/// repository a sandbox's git traffic may reach, so the URL is the value
+/// that has to survive. Parsing is what makes it a repository rather than a
+/// string - a URL that names no repository could only fail later, at a clone
+/// nobody is watching - and the parse is the proxy's own.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionRepository(String);
+
+impl SessionRepository {
+    /// Read a configured GitHub URL as the repository it names.
+    ///
+    /// [`None`] for a URL that names no repository. That is a deployment
+    /// misconfiguration, and the composition root is where it should be
+    /// refused: every session this deployment would go on to open carries it.
+    #[must_use]
+    pub fn parse(repository_url: &str) -> Option<Self> {
+        RepoSlug::parse_github_url(repository_url)?;
+        Some(Self(repository_url.to_owned()))
+    }
+
+    /// The URL, as a session's row carries it.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 /// Session-row values that remain deployment configuration for now.
 #[derive(Debug, Clone)]
 pub struct SessionDefaults {
@@ -474,8 +543,16 @@ pub struct SessionDefaults {
     pub model: String,
     /// Harness slug, e.g. `opencode`.
     pub harness: String,
-    /// Repository sessions run against.
-    pub repo_url: String,
+    /// Repository this bot's sessions open against, or [`None`] for a bot
+    /// whose sessions do not learn one until they run.
+    ///
+    /// A Codex cloud session is the latter: it works in whatever repository
+    /// its cloud environment holds, which is not known until the environment
+    /// resolves, and the row is written then (see
+    /// `CodexRuntime::resolve_target`). Seeding the row with a deployment
+    /// default would make it briefly claim a repository the session will
+    /// never touch.
+    pub repo_url: Option<SessionRepository>,
 }
 
 /// Session defaults for every bot a deployment answers for.
@@ -540,5 +617,28 @@ impl HarnessDefaults {
 impl From<SessionDefaults> for HarnessDefaults {
     fn from(default: SessionDefaults) -> Self {
         Self::new(default)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::SessionRepository;
+
+    /// The URL survives verbatim - it is what a session's row carries, and
+    /// what the egress proxy re-reads - and one that names no repository is
+    /// refused rather than repaired. The shapes themselves are the parser's
+    /// own tests, in `agent_egress`.
+    #[test]
+    fn a_session_repository_keeps_the_url_it_was_read_from() {
+        let repository =
+            SessionRepository::parse("https://github.com/macro-inc/macro.git").expect("a repo");
+        assert_eq!(
+            repository.as_str(),
+            "https://github.com/macro-inc/macro.git"
+        );
+
+        for url in ["", "https://github.com/macro-inc", "not a url"] {
+            assert_eq!(SessionRepository::parse(url), None, "accepted {url}");
+        }
     }
 }

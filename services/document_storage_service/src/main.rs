@@ -84,9 +84,14 @@ use foreign_entity::{
 };
 use frecency::{domain::services::FrecencyQueryServiceImpl, outbound::postgres::FrecencyPgStorage};
 use github::domain::service::{GithubSyncConfig, GithubSyncServiceImpl};
+use github::outbound::connection_gateway_realtime::ConnectionGatewayGithubRealtime;
 use github::outbound::github_sync_client::GithubSyncClientImpl;
 use github::outbound::pg_github_sync_repo::PgGithubSyncRepo;
 use harnesses::outbound::pg_harness_repo::PgHarnessRepo;
+use initiative::{
+    domain::service::InitiativeServiceImpl, inbound::axum_router::InitiativeRouterState,
+    outbound::PgInitiativeRepo,
+};
 use lexical_client::LexicalClient;
 use macro_auth::middleware::decode_jwt::JwtValidationArgs;
 use macro_authorization::{
@@ -555,6 +560,7 @@ async fn run() -> anyhow::Result<()> {
         (*notification_ingress_service).clone(),
         PgGithubSyncRepo::new(db.clone()),
         GithubSyncClientImpl::default(),
+        ConnectionGatewayGithubRealtime::new(conn_gateway_client.clone()),
     );
 
     let foreign_entity_state = ForeignEntityRouterState::new(
@@ -1068,6 +1074,9 @@ async fn run() -> anyhow::Result<()> {
     // Held by value here and behind an `Arc` in the router state: the impl is a
     // pool handle, so cloning is cheap and `SoupImpl` needs an owned service.
     let reminders_service = RemindersServiceImpl::new(PgRemindersRepo::new(db.clone()));
+    let initiative_service = Arc::new(InitiativeServiceImpl::new(PgInitiativeRepo::new(
+        db.clone(),
+    )));
 
     let collab_surface_service = CollabSurfaceServiceImpl::new(
         Arc::new(PgCollabSurfaceRepo::new(db.clone())),
@@ -1348,6 +1357,11 @@ async fn run() -> anyhow::Result<()> {
             entity_access_service.clone(),
             authorization_state.clone(),
         ),
+        initiative_state: InitiativeRouterState::new(
+            initiative_service,
+            entity_access_service.clone(),
+            authorization_state.clone(),
+        ),
         collab_surface_state: CollabSurfaceRouterState::new(
             Arc::new(collab_surface_service),
             entity_access_service.clone(),
@@ -1405,6 +1419,10 @@ async fn run() -> anyhow::Result<()> {
                 document_service,
                 markdown_initializer,
                 documents_hex::outbound::document_bytes_upload::ReqwestDocumentBytesUploader::default(),
+                documents_hex::outbound::mention_tracker::LexicalCommsMentionTracker::new(
+                    db.clone(),
+                    lexical_client.clone(),
+                ),
             ),
             document_permission_jwt_secret: config.document_permission_jwt.as_ref().to_string(),
         },

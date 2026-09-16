@@ -1,4 +1,4 @@
-//! Compose channel-originated agent prompts through the lexical service.
+//! Compose channel context for every harness.
 
 use lexical_client::LexicalClient;
 use lexical_client::parse_markdown::AgentContextMessage;
@@ -41,3 +41,6 @@ impl AgentPromptComposer for LexicalAgentPromptComposer {
             .map_err(|error| HarnessError::PromptComposition(rootcause::report!(error).into()))
     }
 }
+
+#[cfg(test)]
+mod test;

@@ -347,7 +347,7 @@ export function createEmailComposeContext(
       },
       async blockingNotice({ title, body }) {
         await confirmDialog(
-          { title, body, confirmLabel: 'OK', hideCancel: true },
+          { title, body, confirmLabel: 'OK' },
           { owner: dialogOwner }
         );
       },

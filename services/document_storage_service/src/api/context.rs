@@ -63,6 +63,10 @@ use user_api_key::{
     outbound::pg_user_api_keys_repo::PgUserApiKeysRepo,
 };
 
+use agent_session::{
+    domain::search::{AgentSessionSearchMetadataService, AgentSessionSearchMetadataServiceImpl},
+    outbound::postgres::PgAgentSessionRepo,
+};
 use collab_surface::{
     domain::service::CollabSurfaceServiceImpl, inbound::axum_router::CollabSurfaceRouterState,
     outbound::pg_collab_surface_repo::PgCollabSurfaceRepo,
@@ -74,8 +78,13 @@ use foreign_entity::{
 };
 use frecency::{domain::services::FrecencyQueryServiceImpl, outbound::postgres::FrecencyPgStorage};
 use github::domain::service::GithubSyncServiceImpl;
+use github::outbound::connection_gateway_realtime::ConnectionGatewayGithubRealtime;
 use github::outbound::github_sync_client::GithubSyncClientImpl;
 use github::outbound::pg_github_sync_repo::PgGithubSyncRepo;
+use initiative::{
+    domain::service::InitiativeServiceImpl, inbound::axum_router::InitiativeRouterState,
+    outbound::PgInitiativeRepo,
+};
 use macro_auth::middleware::decode_jwt::JwtValidationArgs;
 use macro_authorization::{
     MacroAuthJwtValidator, MacroAuthorizationServiceImpl, MacroAuthorizationState,
@@ -470,6 +479,13 @@ pub(crate) type RemindersServiceType = RemindersServiceImpl<PgRemindersRepo>;
 pub(crate) type DssRemindersState =
     RemindersRouterState<RemindersServiceType, EntityAccessService, AuthorizationService>;
 
+/// Type alias for the initiative service.
+pub(crate) type InitiativeServiceType = InitiativeServiceImpl<PgInitiativeRepo>;
+
+/// Type alias for the initiative router state.
+pub(crate) type DssInitiativeState =
+    InitiativeRouterState<InitiativeServiceType, EntityAccessService, AuthorizationService>;
+
 /// Type alias for the collab-surface service.
 pub(crate) type CollabSurfaceServiceType =
     CollabSurfaceServiceImpl<PgCollabSurfaceRepo, LexicalSyncSurfaceInitializer>;
@@ -492,6 +508,7 @@ pub(crate) type GithubSyncServiceType = GithubSyncServiceImpl<
     GithubSyncClientImpl,
     ForeignEntityServiceType,
     NotificationIngressType,
+    ConnectionGatewayGithubRealtime,
 >;
 
 /// Type alias for the cal.com webhook service.
@@ -539,6 +556,7 @@ pub(crate) struct ApiContext {
     pub favorites_mutation_service: Arc<FavoritesMutationServiceType>,
     pub user_api_key_state: DssUserApiKeyState,
     pub reminders_state: DssRemindersState,
+    pub initiative_state: DssInitiativeState,
     pub collab_surface_state: DssCollabSurfaceState,
     pub foreign_entity_state: DssForeignEntityState,
     pub macro_event_broker: DssEventBroker,
@@ -610,6 +628,10 @@ impl From<&ApiContext> for SearchHandlerState {
             opensearch_client: ctx.opensearch_client.clone(),
             entity_access_service: ctx.entity_access_service.clone(),
             authorization_state: ctx.authorization_state.clone(),
+            agent_session_search_metadata: Arc::new(AgentSessionSearchMetadataServiceImpl::new(
+                PgAgentSessionRepo::new(ctx.db.clone()),
+            ))
+                as Arc<dyn AgentSessionSearchMetadataService>,
             calendar_search_enabled: ctx.config.calendar_search_enabled,
         }
     }

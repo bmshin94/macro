@@ -6,10 +6,12 @@ use crate::domain::model::{
     CursorAgentId, CursorModel, CursorRunId, McpServer, ModelChoice, RepoUrl, RunListing,
     RunOutcome,
 };
-use crate::domain::ports::{CursorAgents, RepoResolver, RunStream, SessionNotifier};
+use crate::domain::ports::{
+    ConnectedStream, CursorAgents, RepositoryChooser, RunStream, SessionIntent, SessionNotifier,
+    StreamConnectError,
+};
 use agent_client_protocol::schema::v1::{SessionId, SessionUpdate};
 use futures::Stream;
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
@@ -82,9 +84,10 @@ pub fn raw_record(event: CursorEvent) -> NativeRecord {
             status,
             text,
             duration_ms,
+            git,
         } => (
             "result".into(),
-            json!({"runId": run_id, "status": status, "text": text, "durationMs": duration_ms}),
+            json!({"runId": run_id, "status": status, "text": text, "durationMs": duration_ms, "git": git}),
         ),
         CursorEvent::Heartbeat => ("heartbeat".into(), json!({})),
         CursorEvent::Error { code, message } => {
@@ -113,13 +116,40 @@ impl ScriptSender {
     pub fn send(&self, event: CursorEvent) -> Result<(), mpsc::error::SendError<NativeRecord>> {
         self.0.send(raw_record(event))
     }
+
+    /// Enqueue an already-built native record, ids and all.
+    pub fn send_record(
+        &self,
+        record: NativeRecord,
+    ) -> Result<(), mpsc::error::SendError<NativeRecord>> {
+        self.0.send(record)
+    }
+
+    /// Enqueue an event carrying a provider event id, the way Cursor stamps
+    /// the records a resume position can point at.
+    pub fn send_with_id(
+        &self,
+        event: CursorEvent,
+        id: &str,
+    ) -> Result<(), mpsc::error::SendError<NativeRecord>> {
+        self.0.send(NativeRecord {
+            id: Some(id.to_owned()),
+            ..raw_record(event)
+        })
+    }
 }
 
 /// What a [`FakeCursor`] was asked to do.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CursorCall {
-    /// `create_agent(prompt, repo, mcp_servers, model)`.
-    CreateAgent(String, Option<RepoUrl>, Vec<McpServer>, Option<ModelChoice>),
+    /// `create_agent(prompt, repo, open_pull_request, mcp_servers, model)`.
+    CreateAgent(
+        String,
+        Option<RepoUrl>,
+        bool,
+        Vec<McpServer>,
+        Option<ModelChoice>,
+    ),
     /// `create_run(agent, prompt, model)`.
     CreateRun(CursorAgentId, String, Option<ModelChoice>),
     /// `cancel_run(agent, run)`.
@@ -140,8 +170,12 @@ pub struct FakeCursor {
 struct FakeCursorState {
     calls: Vec<CursorCall>,
     next_run: u64,
-    /// The receiver the next `raw_stream()` call will drain.
-    streams: Vec<mpsc::UnboundedReceiver<NativeRecord>>,
+    /// What the next `raw_stream()` calls answer with, consumed in order.
+    streams: Vec<ScriptedStream>,
+    /// The resume position every `raw_stream()` call received, in order.
+    resume_positions: Vec<Option<String>>,
+    /// The retention window every connected stream reports.
+    retention_seconds: Option<u64>,
     /// Answers for `run_result`, consumed in order.
     run_results: Vec<RunOutcome>,
     /// The answer every `list_runs` call gets.
@@ -154,6 +188,7 @@ struct FakeCursorState {
     models: Vec<CursorModel>,
     model_gate: Option<tokio::sync::oneshot::Receiver<()>>,
     reject_create: bool,
+    reject_create_for_repository: bool,
 }
 
 impl FakeCursor {
@@ -173,12 +208,49 @@ impl FakeCursor {
 
     /// Queue original native records, including recorded wire fixtures.
     pub fn script_raw_stream(&self) -> mpsc::UnboundedSender<NativeRecord> {
+        self.queue_stream(None)
+    }
+
+    /// Queue a stream that dies with `failure` once its sender is dropped —
+    /// the mid-run transport break, after whatever records were sent first.
+    pub fn script_stream_failing_with(&self, failure: &str) -> ScriptSender {
+        ScriptSender(self.queue_stream(Some(failure.to_owned())))
+    }
+
+    /// Queue a connect that fails instead of producing a stream.
+    pub fn script_stream_connect_error(&self, error: StreamConnectError) {
+        self.inner
+            .lock()
+            .expect("fake cursor poisoned")
+            .streams
+            .push(ScriptedStream::ConnectError(error));
+    }
+
+    /// Report `seconds` as the retention window on every connected stream.
+    pub fn script_stream_retention(&self, seconds: u64) {
+        self.inner
+            .lock()
+            .expect("fake cursor poisoned")
+            .retention_seconds = Some(seconds);
+    }
+
+    /// The resume position each `raw_stream()` call was given, in order.
+    #[must_use]
+    pub fn resume_positions(&self) -> Vec<Option<String>> {
+        self.inner
+            .lock()
+            .expect("fake cursor poisoned")
+            .resume_positions
+            .clone()
+    }
+
+    fn queue_stream(&self, failure: Option<String>) -> mpsc::UnboundedSender<NativeRecord> {
         let (sender, receiver) = mpsc::unbounded_channel();
         self.inner
             .lock()
             .expect("fake cursor poisoned")
             .streams
-            .push(receiver);
+            .push(ScriptedStream::Records { receiver, failure });
         sender
     }
 
@@ -223,6 +295,12 @@ impl FakeCursor {
     /// Reject the next create with a definite provider rejection.
     pub fn script_rejection(&self) {
         self.inner.lock().unwrap().reject_create = true;
+    }
+
+    /// Reject the next `create_agent` the way Cursor rejects a repository the
+    /// account has never connected.
+    pub fn script_repository_rejection(&self) {
+        self.inner.lock().unwrap().reject_create_for_repository = true;
     }
 
     /// Set the models `list_models` answers with.
@@ -296,17 +374,31 @@ impl CursorAgents for FakeCursor {
         &self,
         prompt: &str,
         repo: Option<&RepoUrl>,
+        open_pull_request: bool,
         mcp_servers: &[McpServer],
         model: Option<&ModelChoice>,
     ) -> Result<(CursorAgentId, CursorRunId), rootcause::Report> {
         self.record(CursorCall::CreateAgent(
             prompt.to_owned(),
             repo.cloned(),
+            open_pull_request,
             mcp_servers.to_vec(),
             model.cloned(),
         ));
         self.await_create_gate().await;
         let mut state = self.inner.lock().expect("fake cursor poisoned");
+        if std::mem::take(&mut state.reject_create_for_repository)
+            && let Some(repo) = repo
+        {
+            return Err(rootcause::report!(
+                crate::domain::error::RepositoryUnavailable {
+                    repo: repo.clone(),
+                    detail: r#"{"error":{"code":"repository_access","message":"Repository not accessible"}}"#
+                        .into(),
+                }
+            )
+            .into_dynamic());
+        }
         if std::mem::take(&mut state.reject_create) {
             return Err(rootcause::report!(crate::domain::error::PromptRejected(
                 "rejected".into()
@@ -400,23 +492,59 @@ impl CursorAgents for FakeCursor {
     }
 }
 
+/// What one scripted `raw_stream()` call answers with.
+#[derive(Debug)]
+enum ScriptedStream {
+    /// Records the test pushes, optionally ending in a transport failure once
+    /// the sender is dropped.
+    Records {
+        receiver: mpsc::UnboundedReceiver<NativeRecord>,
+        failure: Option<String>,
+    },
+    /// A connect that never produces a stream.
+    ConnectError(StreamConnectError),
+}
+
 impl RunStream for FakeCursor {
     async fn raw_stream(
         &self,
         _agent: &CursorAgentId,
         _run: &CursorRunId,
-    ) -> Result<impl Stream<Item = Result<NativeRecord, rootcause::Report>> + Send, rootcause::Report>
-    {
-        let receiver = {
+        resume_from: Option<&str>,
+    ) -> Result<
+        ConnectedStream<impl Stream<Item = Result<NativeRecord, rootcause::Report>> + Send>,
+        StreamConnectError,
+    > {
+        let (receiver, failure, retention_seconds) = {
             let mut state = self.inner.lock().expect("fake cursor poisoned");
+            state.resume_positions.push(resume_from.map(str::to_owned));
             if state.streams.is_empty() {
-                return Err(rootcause::report!("no scripted stream queued"));
+                return Err(StreamConnectError::Other(rootcause::report!(
+                    "no scripted stream queued"
+                )));
             }
-            state.streams.remove(0)
+            let retention_seconds = state.retention_seconds;
+            match state.streams.remove(0) {
+                ScriptedStream::ConnectError(error) => return Err(error),
+                ScriptedStream::Records { receiver, failure } => {
+                    (receiver, failure, retention_seconds)
+                }
+            }
         };
-        Ok(futures::stream::unfold(receiver, |mut receiver| async {
-            receiver.recv().await.map(|event| (Ok(event), receiver))
-        }))
+        let records =
+            futures::stream::unfold((receiver, failure), |(mut receiver, failure)| async move {
+                match receiver.recv().await {
+                    Some(event) => Some((Ok(event), (receiver, failure))),
+                    // The channel closing is the connection closing: a
+                    // scripted failure is what the transport says as it goes.
+                    None => failure
+                        .map(|failure| (Err(rootcause::report!("{failure}")), (receiver, None))),
+                }
+            });
+        Ok(ConnectedStream {
+            records,
+            retention_seconds,
+        })
     }
 }
 
@@ -428,6 +556,7 @@ type RecordedUpdates = Vec<(SessionId, SessionUpdate)>;
 pub struct RecordingNotifier {
     updates: Arc<Mutex<RecordedUpdates>>,
     reloads: Arc<Mutex<Vec<SessionId>>>,
+    pull_requests: Arc<Mutex<Vec<String>>>,
     delivered: Arc<tokio::sync::Notify>,
 }
 
@@ -442,6 +571,14 @@ impl RecordingNotifier {
     #[must_use]
     pub fn updates(&self) -> Vec<(SessionId, SessionUpdate)> {
         self.updates.lock().expect("notifier poisoned").clone()
+    }
+
+    /// PRs handed to the host operation.
+    pub fn pull_requests(&self) -> Vec<String> {
+        self.pull_requests
+            .lock()
+            .expect("notifier poisoned")
+            .clone()
     }
 
     /// Sessions whose recovered history needs a client load.
@@ -469,6 +606,18 @@ impl RecordingNotifier {
 }
 
 impl SessionNotifier for RecordingNotifier {
+    async fn set_pull_request(
+        &self,
+        _session: &SessionId,
+        url: &str,
+    ) -> Result<(), rootcause::Report> {
+        self.pull_requests
+            .lock()
+            .expect("notifier poisoned")
+            .push(url.to_owned());
+        Ok(())
+    }
+
     async fn notify(
         &self,
         session: &SessionId,
@@ -507,13 +656,21 @@ impl SessionNotifier for RecordingNotifier {
     }
 }
 
-/// Resolves every session to the same repository — or none.
+/// Answers every prompt with the same repository — or none — and the same
+/// pull-request decision.
 #[derive(Debug, Clone, Default)]
-pub struct FixedRepos(pub Option<RepoUrl>);
+pub struct FixedChooser(pub Option<RepoUrl>, pub bool);
 
-impl RepoResolver for FixedRepos {
-    fn resolve(&self, _cwd: &Path) -> Option<RepoUrl> {
-        self.0.clone()
+impl RepositoryChooser for FixedChooser {
+    async fn choose(
+        &self,
+        _prompt: &str,
+        _cwd: &std::path::Path,
+    ) -> Result<SessionIntent, rootcause::Report> {
+        Ok(SessionIntent {
+            repository: self.0.clone(),
+            open_pull_request: self.1,
+        })
     }
 }
 
@@ -535,6 +692,7 @@ pub fn script_legacy_history(cursor: &FakeCursor) {
         status: RunStatus::Finished,
         text: None,
         duration_ms: None,
+        git: None,
     })
     .unwrap();
     tx.send(CursorEvent::Done).unwrap();

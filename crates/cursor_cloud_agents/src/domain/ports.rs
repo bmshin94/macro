@@ -3,8 +3,9 @@
 //! [`CursorAgents`] and [`RunStream`] are implemented by the Cursor API
 //! client ([`crate::api`]); [`SessionNotifier`] by whatever transport the
 //! session's updates travel over (the ACP stdio connection today, anything
-//! that can carry a `session/update` tomorrow); [`RepoResolver`] by the git
-//! adapter in [`crate::outbound`]. Native records and polling bodies cross these
+//! that can carry a `session/update` tomorrow); [`RepositoryChooser`] by
+//! a classifier for hosted Macro sessions or [`NoRepositoryChooser`] standalone.
+//! Native records and polling bodies cross these
 //! contracts for capture before decoding; HTTP I/O, SSE framing, JSON-RPC, and
 //! subprocesses remain outside the service.
 
@@ -13,7 +14,6 @@ use crate::domain::model::{
 };
 use agent_client_protocol::schema::v1::{SessionId, SessionUpdate};
 use futures::Stream;
-use std::path::Path;
 
 /// Create and control Cursor cloud agents.
 pub trait CursorAgents: Sync {
@@ -37,10 +37,15 @@ pub trait CursorAgents: Sync {
     /// `model` absent means "whatever the user's own Cursor settings resolve
     /// to" — Cursor falls back user default, then team, then system — which is
     /// a better default than any id this crate could pick.
+    ///
+    /// `open_pull_request` asks Cursor to push its work to a generated branch
+    /// and open a pull request against the starting ref. It is a caller's
+    /// decision and has no effect without a repository.
     fn create_agent(
         &self,
         prompt: &str,
         repo: Option<&RepoUrl>,
+        open_pull_request: bool,
         mcp_servers: &[McpServer],
         model: Option<&ModelChoice>,
     ) -> impl Future<Output = Result<(CursorAgentId, CursorRunId), rootcause::Report>> + Send;
@@ -87,6 +92,51 @@ pub trait CursorAgents: Sync {
     ) -> impl Future<Output = Result<Vec<RunListing>, rootcause::Report>> + Send;
 }
 
+/// One connected run stream, with what the provider said about resuming it.
+pub struct ConnectedStream<Records> {
+    /// Complete native records, captured before decoding or translation.
+    pub records: Records,
+    /// The provider's `X-Cursor-Stream-Retention-Seconds`, when it sent one.
+    ///
+    /// How long a dropped stream stays resumable. Not enforced here — the
+    /// provider answers an expired resume with
+    /// [`StreamConnectError::Expired`] — but worth logging, because a run
+    /// whose tool call outlives the window can never be resumed and the
+    /// number is the only warning of that.
+    pub retention_seconds: Option<u64>,
+}
+
+/// Why one connect did not produce a stream.
+///
+/// The domain acts differently on each: an unavailable stream is retried, an
+/// invalid resume position is retried without one, and an expired stream is
+/// gone for good and leaves polling as the only way to learn the outcome.
+#[derive(Debug)]
+pub enum StreamConnectError {
+    /// `stream_unavailable`: the stream is not there (yet). Carries the
+    /// provider's message.
+    Unavailable(String),
+    /// `invalid_last_event_id`: the resume position is not this run's.
+    InvalidResumePosition(String),
+    /// `stream_expired`: the retention window closed behind us.
+    Expired(String),
+    /// Every other failure.
+    Other(rootcause::Report),
+}
+
+impl std::fmt::Display for StreamConnectError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unavailable(message) => write!(formatter, "Cursor stream unavailable: {message}"),
+            Self::InvalidResumePosition(message) => {
+                write!(formatter, "Cursor rejected the resume position: {message}")
+            }
+            Self::Expired(message) => write!(formatter, "Cursor stream expired: {message}"),
+            Self::Other(report) => write!(formatter, "{report}"),
+        }
+    }
+}
+
 /// Observe a run as a stream of native SSE records.
 ///
 /// The stream ends when the server closes it — normally just after a
@@ -94,21 +144,36 @@ pub trait CursorAgents: Sync {
 /// [`CursorEvent::Result`](super::event::CursorEvent::Result) must treat the run's outcome as unknown rather
 /// than successful.
 pub trait RunStream: Sync {
-    /// Complete native records, captured before decoding or translation.
+    /// Connect a run's stream, optionally resuming after an event id.
+    ///
+    /// `resume_from` is an id observed on an earlier record of this same run,
+    /// passed back verbatim: the provider's ids are opaque and a consumer that
+    /// parses or invents one gets [`StreamConnectError::InvalidResumePosition`].
+    /// `None` connects from the beginning of what the provider still retains.
     fn raw_stream(
         &self,
         agent: &CursorAgentId,
         run: &CursorRunId,
+        resume_from: Option<&str>,
     ) -> impl Future<
         Output = Result<
-            impl Stream<Item = Result<super::journal::NativeRecord, rootcause::Report>> + Send,
-            rootcause::Report,
+            ConnectedStream<
+                impl Stream<Item = Result<super::journal::NativeRecord, rootcause::Report>> + Send,
+            >,
+            StreamConnectError,
         >,
     > + Send;
 }
 
 /// Deliver one translated update to the session's client.
 pub trait SessionNotifier {
+    /// Report the provider's PR to the host's shared session operation.
+    fn set_pull_request(
+        &self,
+        session: &SessionId,
+        url: &str,
+    ) -> impl Future<Output = Result<(), rootcause::Report>> + Send;
+
     /// Send a `session/update` for the given session.
     fn notify(
         &self,
@@ -136,13 +201,54 @@ pub trait SessionNotifier {
     ) -> impl Future<Output = Result<(), rootcause::Report>> + Send;
 }
 
-/// Resolve the repository a new session should attach to.
+/// What a session's first prompt asks for, decided before the agent is minted.
+///
+/// The two answers travel together because they are one decision: Cursor can
+/// only open a pull request against a repository, so `open_pull_request` is
+/// meaningless without `repository` and the chooser is the only place that
+/// knows both.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SessionIntent {
+    /// The repository the work belongs to, when one clearly does.
+    pub repository: Option<RepoUrl>,
+    /// Whether the work should ship as a pull request.
+    pub open_pull_request: bool,
+}
+
+/// Decide which repository a prompt's work belongs to.
+///
+/// Asked once per session, at the first prompt, because the prompt is the only
+/// evidence there is: a session opened from a chat message names no checkout,
+/// and the repository has to be right before the agent is minted - Cursor fixes
+/// an agent's repository at creation.
 ///
 /// Sessions without a repository still run, but the Cursor dashboard files
 /// sessions under repositories, so a repo-less session never appears in the
 /// user's sessions list. Whether that is acceptable is the service's call;
-/// finding the repository is this port's.
-pub trait RepoResolver {
-    /// The repository for a session opened at `cwd`, if one can be resolved.
-    fn resolve(&self, cwd: &Path) -> Option<RepoUrl>;
+/// deciding is this port's.
+pub trait RepositoryChooser: Send + Sync {
+    /// The repository this prompt's work belongs to, if any, and whether it
+    /// wants a pull request. Hosted adapters choose from the prompt; standalone
+    /// sessions leave the repository unset.
+    ///
+    /// An error is a failed prompt, not a reason to guess: a session pointed at
+    /// the wrong repository is worse than a session that says it could not tell.
+    fn choose(
+        &self,
+        prompt: &str,
+        cwd: &std::path::Path,
+    ) -> impl Future<Output = Result<SessionIntent, rootcause::Report>> + Send;
+}
+
+/// Leaves repository selection to Cursor in standalone sessions.
+pub struct NoRepositoryChooser;
+
+impl RepositoryChooser for NoRepositoryChooser {
+    async fn choose(
+        &self,
+        _prompt: &str,
+        _cwd: &std::path::Path,
+    ) -> Result<SessionIntent, rootcause::Report> {
+        Ok(SessionIntent::default())
+    }
 }

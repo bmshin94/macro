@@ -1,5 +1,9 @@
 import { itemToSafeName } from '@core/constant/allBlocks';
-
+import {
+  enableGraphqlSoup,
+  isFeatureEnabled,
+} from '@core/constant/featureFlags';
+import { DEFAULT_THREAD_MESSAGES_LIMIT } from '@core/constant/pagination';
 import { cognitionApiServiceClient } from '@service-cognition/client';
 import { emailClient } from '@service-email/client';
 import type { ApiThread } from '@service-email/generated/schemas';
@@ -7,11 +11,36 @@ import { storageServiceClient } from '@service-storage/client';
 import type { FileType } from '@service-storage/generated/schemas/fileType';
 import { formatDocumentName } from '@service-storage/util/filename';
 import type { InfiniteData } from '@tanstack/solid-query';
+import { fetchAgentSessionMentionPreviews } from '../agent-session/mention-fetchers';
 import { normalizeMessageSender } from '../channel/message-sender';
 import { queryClient } from '../client';
 import { emailKeys } from '../email/keys';
 import { threadQueryOptions } from '../email/thread';
+import { representativeThreadMessage } from '../email/thread-subject';
 import type { ItemEntity, MessageContext, PreviewItem } from './types';
+
+async function fetchSessionPreviews(ids: string[]): Promise<PreviewItem[]> {
+  const previews = await fetchAgentSessionMentionPreviews(
+    ids,
+    isFeatureEnabled(enableGraphqlSoup)
+  );
+  return [...previews].map(([id, preview]): PreviewItem => {
+    const base = {
+      id,
+      type: 'agent_session' as const,
+      loading: false as const,
+    };
+    if (preview.access !== 'access') return { ...base, access: preview.access };
+    return {
+      ...base,
+      access: 'access',
+      name: preview.data.name,
+      rawName: preview.data.name,
+      owner: preview.data.ownerId,
+      updatedAt: preview.data.updatedAt,
+    };
+  });
+}
 
 async function fetchChannelPreviews(
   channelIds: string[]
@@ -324,7 +353,11 @@ async function fetchEmailPreviews(threadIds: string[]): Promise<PreviewItem[]> {
         const result = await emailClient.getThread({
           thread_id: threadId,
           offset: 0,
-          limit: 1,
+          // Fetch a page rather than a single message: the newest message can
+          // be a subjectless draft (or, for a non-owner, be filtered out
+          // entirely), so a limit-1 fetch would resolve the thread as "No
+          // Subject" even though a real message in it has one.
+          limit: DEFAULT_THREAD_MESSAGES_LIMIT,
         });
 
         if (result.isErr()) {
@@ -337,10 +370,10 @@ async function fetchEmailPreviews(threadIds: string[]): Promise<PreviewItem[]> {
         thread = result.value.thread;
       }
 
-      const firstMessage = thread.messages[0];
-      const subject = firstMessage?.subject ?? 'No Subject';
+      const representative = representativeThreadMessage(thread.messages);
+      const subject = representative?.subject ?? 'No Subject';
       const sender =
-        firstMessage?.from?.email ?? firstMessage?.from?.name ?? undefined;
+        representative?.from?.email ?? representative?.from?.name ?? undefined;
 
       return {
         ...base,
@@ -420,6 +453,7 @@ export async function fetchRestPreviewBatch(
   items: ItemEntity[]
 ): Promise<Map<string, PreviewItem>> {
   const results = await Promise.all([
+    doFetch(fetchSessionPreviews, filterMapToId(items, 'agent_session')),
     doFetch(fetchChatPreviews, filterMapToId(items, 'chat')),
     doFetch(fetchCallPreviews, filterMapToId(items, 'call')),
     doFetch(fetchChannelPreviews, filterMapToId(items, 'channel')),

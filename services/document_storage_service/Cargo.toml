@@ -27,6 +27,7 @@ local_auth = ["macro_authorization/local_auth"]
 location_check = []
 
 [dependencies]
+agent_session = { path = "../../crates/agent_session", features = ["outbound"] }
 activity = { path = "../../crates/activity" }
 ai_tools = { path = "../../crates/ai_tools" }
 ai_usage = { path = "../../crates/ai_usage" }
@@ -114,6 +115,7 @@ graphql_soup = { path = "../../crates/graphql_soup" }
 harnesses = { path = "../../crates/harnesses" }
 hex = { workspace = true }
 http-body-util = { workspace = true }
+initiative = { path = "../../crates/initiative", features = ["inbound", "postgres"] }
 jsonwebtoken = { workspace = true }
 last_online_tracker = { path = "../../crates/last_online_tracker" }
 lazy_static = { workspace = true }
