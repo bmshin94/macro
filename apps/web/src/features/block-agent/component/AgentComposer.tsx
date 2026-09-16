@@ -123,6 +123,12 @@ export function AgentComposer(props: {
         autofocus={props.autofocus}
         busy={busy()}
         hasQueuedMessages={queuedItems().length > 0}
+        // The fold's own answer to "a stop is already working on this turn",
+        // which holds from the moment the stop is folded until the turn
+        // actually ends. `pending` alone clears as soon as the log confirms
+        // the cancel, which is well before the runtime winds the turn down -
+        // and every Enter in that gap posted another cancel.
+        stopPending={turn() === 'stopping'}
         // Prompts go straight to the service, so sending needs a session to
         // post to — a block whose create is still on the wire can be typed
         // into, but not sent from, until the id lands.

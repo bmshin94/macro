@@ -129,15 +129,34 @@ export function createAgentSession(
       }
     });
 
-  // A rebase or a load can reuse turn/author and tool ids for different part
-  // kinds. Replace row identities atomically so mounted parts cannot keep
-  // reading a union variant that reconcile removed.
+  /** A row's identity in the transcript, and the transcript's render key. */
+  const keyOf = (message: FoldedMessage) =>
+    `${message.turn}:${message.author.kind}`;
+
+  // A whole new view of the conversation: what a load reports, and what every
+  // rebase reports while something is speculated.
+  //
+  // Merged row by row rather than spliced wholesale. A splice hands the store
+  // a fresh object for every index, so Solid remounts every row - the
+  // transcript re-measures, entrance motions replay, and a streaming turn
+  // visibly jumps. A rebase happens on *every* confirmed frame while an
+  // action is pending, so that jump was the whole turn flickering. Reconciling
+  // each row against the one already there keeps identity for everything that
+  // did not actually change.
   const replace = (messages: FoldedMessage[]) =>
-    setList(
-      produce((current: FoldedMessage[]) =>
-        current.splice(0, current.length, ...messages)
-      )
-    );
+    batch(() => {
+      const wanted = new Set(messages.map(keyOf));
+      // Tail first, so the indices ahead of each removal still hold.
+      for (let index = list.length - 1; index >= 0; index--) {
+        if (wanted.has(keyOf(list[index]!))) continue;
+        setList(
+          produce((current: FoldedMessage[]) => {
+            current.splice(index, 1);
+          })
+        );
+      }
+      upsert(messages);
+    });
 
   const applyEvents = (events: FoldedStreamEvent[]) =>
     batch(() => {

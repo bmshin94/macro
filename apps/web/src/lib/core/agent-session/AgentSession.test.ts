@@ -78,6 +78,15 @@ function deferred<T>() {
 beforeEach(() => {
   vi.clearAllMocks();
   socket.listeners.clear();
+  // Instances are shared and refcounted, so a test that fails before its
+  // `release()` would hand the next one a session that is already loaded.
+  for (
+    let leaked = AgentSession.get(SESSION);
+    leaked;
+    leaked = AgentSession.get(SESSION)
+  ) {
+    leaked.release();
+  }
   fold.pushSession.mockResolvedValue([]);
   fold.readSession.mockResolvedValue({ messages: [], metadata: {} });
   harness.get.mockResolvedValue(ok(session));
@@ -297,6 +306,93 @@ describe('AgentSession', () => {
     expect(inputs().at(-1)).toEqual({
       kind: 'snapshot',
       rows: [row(1), row(2)],
+    });
+    live.release();
+  });
+
+  /** A fold whose turn state is `state` from the moment it loads. */
+  const loadedWith = async (state: string) => {
+    fold.readSession.mockResolvedValue({
+      messages: [],
+      metadata: { turn: state },
+    });
+    const live = AgentSession.acquire(SESSION);
+    await live.load();
+    return live;
+  };
+
+  const speculations = () =>
+    inputs().filter((input) => input.kind === 'speculated');
+
+  it.each(['starting', 'running', 'stopping', 'blocked'])(
+    'does not speculate a prompt while a turn is %s: the server queues it',
+    async (state) => {
+      const live = await loadedWith(state);
+
+      const result = await live.issue({ type: 'prompt', prompt: 'later' });
+
+      expect(speculations()).toEqual([]);
+      // Still posted - the queue row is what shows it, not a bubble.
+      expect(harness.control).toHaveBeenCalledOnce();
+      expect(result.isOk()).toBe(true);
+      live.release();
+    }
+  );
+
+  it.each(['idle', 'disconnected'])(
+    'speculates a prompt while the session is %s',
+    async (state) => {
+      const live = await loadedWith(state);
+
+      await live.issue({ type: 'prompt', prompt: 'now' });
+
+      expect(speculations()).toHaveLength(1);
+      live.release();
+    }
+  );
+
+  it('speculates a stop and a model change even mid-turn: both ride alongside', async () => {
+    const live = await loadedWith('running');
+
+    await live.issue({ type: 'stop' });
+    await live.issue({ type: 'setModel', model: 'sonnet' });
+    await settle();
+
+    expect(speculations().map((input) => input.action.type)).toEqual([
+      'stop',
+      'setModel',
+    ]);
+    live.release();
+  });
+
+  it('follows the turn state through fold events, not just the load', async () => {
+    const live = await loadedWith('idle');
+    // The agent starts working: the next prompt belongs in the queue.
+    fold.pushSession.mockResolvedValueOnce([
+      { kind: 'metadata', metadata: { turn: 'running' } },
+    ]);
+    AgentSession.ingest({ agentSessionId: SESSION, ...row(2) });
+    await settle();
+
+    await live.issue({ type: 'prompt', prompt: 'later' });
+
+    expect(speculations()).toEqual([]);
+    live.release();
+  });
+
+  it('retracts a speculation the server queued after all', async () => {
+    harness.control.mockResolvedValue(
+      ok({ actionId: 'server-id', status: 'queued' })
+    );
+    const live = await loadedWith('idle');
+
+    await live.issue({ type: 'prompt', prompt: 'raced' });
+    await settle();
+
+    const [speculation] = speculations();
+    expect(inputs().at(-1)).toEqual({
+      kind: 'retracted',
+      actionId: (speculation as { actionId: string }).actionId,
     });
     live.release();
   });

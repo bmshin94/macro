@@ -25,7 +25,10 @@ import {
   type AgentSessionLogEvent,
   entryOf,
 } from '@queries/agent-session/realtime-protocol';
-import type { FoldedStreamEvent } from '@service-agent-fold/generated/types';
+import type {
+  FoldedStreamEvent,
+  TurnState,
+} from '@service-agent-fold/generated/types';
 import { agentHarnessServiceClient } from '@service-agent-harness/client';
 import type {
   AgentAction,
@@ -95,6 +98,12 @@ export class AgentSession {
   private chain: Promise<void> = Promise.resolve();
   private loading: Promise<AgentSessionRecord>;
   private loadFailed = false;
+  /**
+   * The fold's turn state, tracked off the same events listeners see. What
+   * {@link issue} reads to know whether an action will reach the runtime or
+   * wait in the server's queue.
+   */
+  private turn: TurnState = 'idle';
 
   private constructor(id: string) {
     this.id = id;
@@ -125,8 +134,11 @@ export class AgentSession {
    * a stop as a pending Stopped line, a model change as a pending control.
    * The harness's answer settles it: accepted under the same id, the
    * confirmed row promotes it in place; accepted under another id, the
-   * speculation is reissued under that one; refused, it is retracted; only
-   * queued, it is retracted too, because nothing has happened yet.
+   * speculation is reissued under that one; refused, it is retracted.
+   *
+   * An action the server will queue rather than run is not speculated at all
+   * - see {@link reaches} - so a waiting prompt shows in the queue and
+   * nowhere else.
    *
    * `userId` is the caller, so the pending bubble is attributed exactly as
    * the confirmed row will be.
@@ -136,26 +148,29 @@ export class AgentSession {
     options: { userId?: string } = {}
   ): Promise<IssueResult> {
     const actionId = uuidv7();
-    void this.enqueue({
-      kind: 'speculated',
-      actionId,
-      action,
-      userId: options.userId,
-    });
+    const speculated = this.reaches(action);
+    if (speculated) {
+      void this.enqueue({
+        kind: 'speculated',
+        actionId,
+        action,
+        userId: options.userId,
+      });
+    }
 
     // The harness adopts the id the client speculated under; the response
     // names the id it was accepted under and `issue` reconciles the two.
     const request: ControlRequest = { ...action, actionId };
     const result = await agentHarnessServiceClient.control(this.id, request);
 
+    if (!speculated) return result;
     if (result.isErr()) {
       void this.enqueue({ kind: 'retracted', actionId });
       return result;
     }
-    // Queued, not sent: the harness logs the row only when the queue
-    // dispatches it, so holding the speculation would show an open turn for
-    // the whole wait. The queue's own republish carries the action until
-    // then, and the dispatch folds it for real.
+    // Queued after all: the turn opened between the check and the POST. The
+    // harness logs the row only when the queue dispatches it, so holding the
+    // speculation would show an open turn for the whole wait.
     if (result.value.status === 'queued') {
       void this.enqueue({ kind: 'retracted', actionId });
       return result;
@@ -175,6 +190,30 @@ export class AgentSession {
       ]);
     }
     return result;
+  }
+
+  /**
+   * Whether this action reaches the runtime now, rather than waiting in the
+   * server's queue.
+   *
+   * ACP runs one prompt at a time, so the harness queues a prompt or a
+   * compact issued while a turn is open and logs nothing until it dispatches.
+   * Speculating one anyway would show it twice - a sent-looking bubble in the
+   * transcript *and* the queue row that says it is waiting - and then take
+   * the bubble away again. Everything else (a stop, a model change, an
+   * answer) rides alongside the running turn and is folded at once.
+   *
+   * A disconnected runtime is not an open turn: the prompt wakes the sandbox,
+   * which is exactly the wait worth showing.
+   */
+  private reaches(action: AgentAction): boolean {
+    if (action.type !== 'prompt' && action.type !== 'compact') return true;
+    return (
+      this.turn !== 'starting' &&
+      this.turn !== 'running' &&
+      this.turn !== 'stopping' &&
+      this.turn !== 'blocked'
+    );
   }
 
   /** Fold events, in order. The only way anything about the fold is observed. */
@@ -235,6 +274,7 @@ export class AgentSession {
       await this.apply(inputs);
     }
     this.ready = true;
+    this.turn = (await readSession(this.id)).metadata.turn;
     return { session: session.value, bot: log.value.bot };
   }
 
@@ -263,6 +303,8 @@ export class AgentSession {
       if (this.closed) return;
       const events = await pushSession(this.id, inputs);
       if (this.closed || events.length === 0) return;
+      const metadata = events.findLast((event) => event.kind === 'metadata');
+      if (metadata) this.turn = metadata.metadata.turn;
       for (const listener of this.listeners) listener(events);
     });
     // A failed push must not poison the chain for every input after it.

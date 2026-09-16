@@ -36,6 +36,11 @@ export interface AgentInputProps {
    * input is empty, Enter and the matching button do exactly that.
    */
   hasQueuedMessages?: boolean;
+  /**
+   * A stop is already on its way. The queue advances when the turn it ends
+   * actually ends, so a second stop does nothing but post again.
+   */
+  stopPending?: boolean;
   disabled?: boolean;
   autofocus?: boolean;
   /**
@@ -94,10 +99,15 @@ export function AgentInput(props: AgentInputProps) {
     props.onSend(content);
   };
 
+  // Deliberately not gated on `busy`. A speculated stop reads as done
+  // everywhere else, so `busy` is already false while the runtime is still
+  // winding the turn down - and that is exactly when a waiting message is
+  // most worth advancing. What does gate it is a stop already in flight:
+  // repeating it just posts another cancel for the same turn.
   const canSendNext = () =>
     markdown().trim().length === 0 &&
-    props.busy &&
-    props.hasQueuedMessages &&
+    props.hasQueuedMessages === true &&
+    !props.stopPending &&
     !props.disabled &&
     props.onStop !== undefined;
 
@@ -220,19 +230,19 @@ export function AgentInput(props: AgentInputProps) {
             </Show>
             <div class="ml-auto shrink-0">
               <Show
-                when={props.busy && props.onStop}
+                when={canSendNext()}
                 fallback={
-                  <SendButton
-                    appearance="composer"
-                    tooltip="Send"
-                    disabled={!canSend()}
-                    onClick={send}
-                  />
-                }
-              >
-                <Show
-                  when={canSendNext()}
-                  fallback={
+                  <Show
+                    when={props.busy && props.onStop}
+                    fallback={
+                      <SendButton
+                        appearance="composer"
+                        tooltip="Send"
+                        disabled={!canSend()}
+                        onClick={send}
+                      />
+                    }
+                  >
                     <Button
                       variant={isTouchDevice() ? 'ghost' : 'strong'}
                       size="icon-composer"
@@ -246,18 +256,18 @@ export function AgentInput(props: AgentInputProps) {
                     >
                       <div class="size-3.5 not-touch:size-[13.125px] rounded-sm bg-current" />
                     </Button>
-                  }
+                  </Show>
+                }
+              >
+                <SendButton
+                  appearance="composer"
+                  aria-label="Send next queued message"
+                  tooltip="Send next queued message"
+                  shortcut="Enter"
+                  onClick={sendNext}
                 >
-                  <SendButton
-                    appearance="composer"
-                    aria-label="Send next queued message"
-                    tooltip="Send next queued message"
-                    shortcut="Enter"
-                    onClick={sendNext}
-                  >
-                    <EnterIcon />
-                  </SendButton>
-                </Show>
+                  <EnterIcon />
+                </SendButton>
               </Show>
             </div>
           </div>
