@@ -33,6 +33,9 @@ vi.mock('@service-storage/client', () => ({
 vi.mock('@components/app/split-layout/layout', () => ({
   useSplitLayout: () => ({ openWithSplit: mocks.openWithSplit }),
 }));
+vi.mock('@core/mobile/isTouchDevice', () => ({
+  isTouchDevice: () => false,
+}));
 vi.mock('@core/util/url', () => ({ openExternalUrl: mocks.openExternalUrl }));
 vi.mock('@core/component/HoverCard', () => ({
   HoverCard: (props: { trigger: JSX.Element; content: JSX.Element }) => (
@@ -143,10 +146,17 @@ it('shows GitHub state and checks for a synced PR and opens its entity', async (
     { type: 'pr', id: entity.id },
     { preferNewSplit: true }
   );
+});
 
-  // fireEvent's click init does not keep `shiftKey` through Button / Solid.
-  link.open(new MouseEvent('click', { shiftKey: true }));
-  expect(mocks.openWithSplit).toHaveBeenLastCalledWith(
+it('stays in the current split on shift or when opened from a menu', async () => {
+  lookup.mockResolvedValue(ok(entity) as Awaited<Lookup>);
+  mount(URL);
+  await flush();
+
+  // jsdom MouseEvent / fireEvent click init leaves shiftKey false; pass the
+  // field `open` actually reads.
+  link.open({ shiftKey: true } as unknown as MouseEvent);
+  expect(mocks.openWithSplit).toHaveBeenCalledWith(
     { type: 'pr', id: entity.id },
     { preferNewSplit: false }
   );
