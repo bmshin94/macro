@@ -10,6 +10,7 @@
  * and keeps rows reconciled so a streaming turn updates in place.
  */
 
+import { markMessageSent } from '@core/util/message-send-motion';
 import type { AgentSessionRenamedEvent } from '@queries/agent-session/realtime-protocol';
 import { acquireAgentSessionFold } from '@queries/agent-session/session-fold';
 import { subscribeAgentSessionRenamed } from '@queries/agent-session/session-metadata-sync';
@@ -31,6 +32,10 @@ import {
 } from 'solid-js';
 import { createStore, produce, reconcile } from 'solid-js/store';
 import { lastTurnMessage } from '../state/control-message';
+import {
+  messagesWithOptimistic,
+  type OptimisticPrompt,
+} from '../state/optimistic-prompts';
 
 export type AgentSessionFeed = {
   /** Session metadata, absent until the load resolves. */
@@ -46,6 +51,15 @@ export type AgentSessionFeed = {
   retry: () => void;
   /** The newest turn has no stop reason yet — the agent is working. */
   working: Accessor<boolean>;
+  /**
+   * Show a user prompt immediately. Retires itself when the fold reports
+   * the same prompt, or when {@link dropEcho} is called (a failed POST).
+   */
+  echoPrompt: (text: string) => string;
+  /** Stamp the control action id onto an echo so the fold can claim it. */
+  adoptEcho: (clientId: string, requestId: string) => void;
+  /** Drop an echo that will never land — the POST failed. */
+  dropEcho: (clientId: string) => void;
   /**
    * Adopt a newer snapshot of this session (the bounded external-url poll).
    * No-op when the payload is for a different session or the feed has closed.
@@ -91,8 +105,13 @@ export function createAgentSessionFeed(
   const openedPending = sessionId() === undefined;
 
   const [list, setList] = createStore<FoldedMessage[]>([]);
+  const [echoes, setEchoes] = createSignal<OptimisticPrompt[]>([]);
   const [bot, setBot] = createSignal<SessionBot>();
   const [metadata, setMetadata] = createSignal<SessionMetadata>();
+  // The last session this feed actually fetched. Acquiring an id
+  // (`undefined → id`) must keep echoes — that is the boot the user is
+  // staring at. Switching to a different session drops them.
+  let fetchedSessionId: string | undefined;
 
   const upsert = (messages: FoldedMessage[]) =>
     batch(() => {
@@ -142,6 +161,10 @@ export function createAgentSessionFeed(
       release?.();
       release = undefined;
       batch(() => {
+        if (fetchedSessionId !== undefined && fetchedSessionId !== id) {
+          setEchoes([]);
+        }
+        fetchedSessionId = id;
         setList(reconcile([]));
         setBot(undefined);
         setMetadata(undefined);
@@ -209,14 +232,34 @@ export function createAgentSessionFeed(
     })
   );
 
-  const messages = () => list;
+  const echoPrompt = (text: string) => {
+    const clientId = crypto.randomUUID();
+    setEchoes((current) => [...current, { clientId, text }]);
+    markMessageSent(`agent:${sessionId() ?? 'pending'}:${clientId}`);
+    return clientId;
+  };
+  const adoptEcho = (clientId: string, requestId: string) => {
+    setEchoes((current) =>
+      current.map((prompt) =>
+        prompt.clientId === clientId ? { ...prompt, requestId } : prompt
+      )
+    );
+  };
+  const dropEcho = (clientId: string) => {
+    setEchoes((current) =>
+      current.filter((prompt) => prompt.clientId !== clientId)
+    );
+  };
+
+  const messages = () =>
+    messagesWithOptimistic(list, echoes(), sessionId() ?? 'pending');
   // A user-authored tail means a prompt is awaiting its reply — except when
   // it is a control, which is user-authored, never gets a stop reason, and
   // starts no turn. Counting one would latch this signal true forever, and
   // the composer's drain holds every prompt behind it: changing the model
   // would silently stop the session from accepting anything again.
   const working = () => {
-    const last = lastTurnMessage(list);
+    const last = lastTurnMessage(messages());
     if (!last) return false;
     return last.author.kind === 'user' || last.stop == null;
   };
@@ -238,6 +281,9 @@ export function createAgentSessionFeed(
     loadFailed: () => resource.error !== undefined,
     retry: () => void refetch(),
     working,
+    echoPrompt,
+    adoptEcho,
+    dropEcho,
     applySnapshot,
   };
 }

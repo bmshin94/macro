@@ -28,7 +28,9 @@ vi.mock('@service-agent-harness/client', () => ({
   },
 }));
 
-const { startPendingSession } = await import('./pending-session');
+const { pendingSession, startPendingSession } = await import(
+  './pending-session'
+);
 const { resolveSessionId } = await import('./resolve-session-id');
 
 /** Let the mocked create's `.then` run. */
@@ -47,6 +49,11 @@ describe('a block id that is already a session', () => {
 });
 
 describe('a placeholder', () => {
+  it('keeps the first prompt on the pending session for the transcript echo', () => {
+    const placeholder = startPendingSession({ prompt: '  boot me  ' });
+    expect(pendingSession(placeholder)?.prompt).toBe('boot me');
+  });
+
   it('has no session until the create lands, then has that one', async () => {
     const placeholder = startPendingSession();
     await createRoot(async (dispose) => {

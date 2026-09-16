@@ -57,6 +57,13 @@ export function createComposerController(options: {
    * refused switch would shimmer forever.
    */
   controlOutcome?: (requestId: string) => ControlOutcome | undefined;
+  /**
+   * Show a prompt in the transcript immediately when this send starts a
+   * turn. Mid-turn sends stay in the server queue and must not echo here.
+   */
+  echoPrompt?: (text: string) => string;
+  adoptEcho?: (clientId: string, requestId: string) => void;
+  dropEcho?: (clientId: string) => void;
 }): ComposerController {
   const [state, setState] = createStore<{
     /** Prompt POSTs on the wire. A count, not a flag: sends can overlap. */
@@ -82,7 +89,11 @@ export function createComposerController(options: {
     stopping: false,
   });
 
-  const postPrompt = async (sessionId: string, markdown: string) => {
+  const postPrompt = async (
+    sessionId: string,
+    markdown: string,
+    echoId?: string
+  ) => {
     setState('inflightPrompts', (count) => count + 1);
     const result = await agentHarnessServiceClient
       .control(sessionId, { type: 'prompt', prompt: markdown })
@@ -91,7 +102,10 @@ export function createComposerController(options: {
     // out, and its settle must not drive the new session's count negative.
     setState('inflightPrompts', (count) => Math.max(0, count - 1));
     if (result === undefined || result.isErr()) {
+      if (echoId) options.dropEcho?.(echoId);
       toast.failure('Message could not be sent');
+    } else if (echoId) {
+      options.adoptEcho?.(echoId, result.value.actionId);
     } else {
       markMessageSent(`agent:${sessionId}:${result.value.actionId}`);
     }
@@ -210,7 +224,12 @@ export function createComposerController(options: {
     send: (markdown) => {
       const sessionId = options.sessionId();
       if (!sessionId) return;
-      void postPrompt(sessionId, markdown);
+      // Only the prompt that starts a turn belongs in the transcript now.
+      // A send while a turn is already running is the server's queue.
+      const echoId = options.working()
+        ? undefined
+        : options.echoPrompt?.(markdown);
+      void postPrompt(sessionId, markdown, echoId);
     },
     stop: () => {
       const sessionId = options.sessionId();

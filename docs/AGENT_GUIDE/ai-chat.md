@@ -346,6 +346,14 @@ must stay hidden; subsequent live messages must still appear.
 
 ### Sending and queueing
 
+- A prompt that starts a turn appears in the transcript immediately as a sent
+  user bubble, with the working line under it. That includes the first prompt
+  on a session that is still provisioning (`pending-…` URL, Cursor/Codex boot,
+  or a control POST that has not reached the log yet). The echo is replaced
+  by the folded row when the session log reports it; a failed send removes it
+  and toasts. Mid-turn sends stay in the queue list and do not echo. A model
+  switch that is still waiting (including while the sandbox boots) pulses the
+  model pill and keeps `aria-busy` until the fold shows the new model.
 - Sending is never blocked by a running turn. A prompt sent mid-turn is queued
   **server-side** and dispatches automatically when the current turn ends, one per turn.
   The queue holds at most 50 entries; past that a send is refused with an error rather

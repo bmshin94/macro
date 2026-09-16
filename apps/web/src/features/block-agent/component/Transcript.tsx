@@ -18,11 +18,14 @@ import {
 } from 'solid-js';
 import { useAgentSession } from '../context/AgentSessionContext';
 import type { AgentMessageTarget } from '../core/search-location';
+import { isControlMessage } from '../state/control-message';
+import { WorkingLine } from '../ui';
 import { Message } from './AgentMessage';
 import { ReplyToSelection } from './ReplyToSelection';
 
 export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
-  const { messages, quoteSelection, sessionId } = useAgentSession();
+  const { messages, quoteSelection, sessionId, working, composer } =
+    useAgentSession();
   const initialTarget = props.searchTarget;
   const initialSessionId = sessionId();
   const splitPanel = useSplitPanel();
@@ -42,6 +45,21 @@ export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
       )
   );
   const keys = createMemo(() => [...messageById().keys()]);
+  // A user prompt that has not yet produced an agent row still needs the
+  // working line — boot, a hanging control POST, the gap before the first
+  // agent frame. Agent messages already draw it themselves.
+  const showWorkingAfter = (id: string) => {
+    if (keys().at(-1) !== id) return false;
+    const message = messageById().get(id);
+    if (
+      !message ||
+      message.author.kind !== 'user' ||
+      isControlMessage(message)
+    ) {
+      return false;
+    }
+    return working() || composer.sending();
+  };
   let positionedTarget: AgentMessageTarget | undefined;
   // Navigation is an external effect. Wait for both log hydration and the
   // virtual list's layout; subsequent live folds must not repeat the jump.
@@ -115,6 +133,9 @@ export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
                 data-search-target={highlightedId() === id ? 'true' : undefined}
               >
                 <Message message={message()} />
+                <Show when={showWorkingAfter(id)}>
+                  <WorkingLine />
+                </Show>
               </div>
             )}
           </Show>

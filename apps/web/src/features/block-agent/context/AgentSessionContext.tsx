@@ -48,6 +48,7 @@ import {
   isDisconnected,
   type SessionStatus,
 } from './create-session-status-controller';
+import { pendingSession } from './pending-session';
 import { resolveSessionId } from './resolve-session-id';
 
 export type AgentSessionState = {
@@ -137,6 +138,8 @@ export function AgentSessionProvider(
   });
 
   const feed = createAgentSessionFeed(sessionId);
+  const firstPrompt = pendingSession(props.blockId)?.prompt;
+  if (firstPrompt) feed.echoPrompt(firstPrompt);
   const status = createSessionStatusController({
     sessionId,
     seed: () => feed.session()?.status,
@@ -154,6 +157,9 @@ export function AgentSessionProvider(
     working,
     model: () => feed.metadata()?.model,
     controlOutcome: (requestId) => controlOutcome(feed.messages(), requestId),
+    echoPrompt: feed.echoPrompt,
+    adoptEcho: feed.adoptEcho,
+    dropEcho: feed.dropEcho,
   });
   const pendingElicitation = () =>
     isDisconnected(status.status())

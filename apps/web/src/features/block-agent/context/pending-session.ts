@@ -32,6 +32,12 @@ export type PendingSession = {
   sessionId: Accessor<string | undefined>;
   /** The create failed — this block has nothing to become. */
   failed: Accessor<boolean>;
+  /**
+   * The first prompt, when one was submitted with the create. Shown in the
+   * transcript for the whole provision so the chat is not empty while the
+   * sandbox boots.
+   */
+  prompt?: string;
 };
 
 const pending = new Map<string, PendingSession>();
@@ -63,7 +69,8 @@ export function startPendingSession(
   const placeholder = `${PLACEHOLDER_PREFIX}${crypto.randomUUID()}`;
   const [sessionId, setSessionId] = createSignal<string>();
   const [failed, setFailed] = createSignal(false);
-  pending.set(placeholder, { sessionId, failed });
+  const prompt = options.prompt?.trim() || undefined;
+  pending.set(placeholder, { sessionId, failed, prompt });
 
   void agentHarnessServiceClient
     .create({

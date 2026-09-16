@@ -532,4 +532,76 @@ describe('createAgentSessionFeed live updates', () => {
     expect(feed.session()?.id).toBe('session');
     dispose();
   });
+
+  it('echoes a prompt immediately and keeps it while the session is still pending', async () => {
+    const { createAgentSessionFeed } = await import(
+      './create-agent-session-feed'
+    );
+    const { feed, dispose } = createRoot((dispose) => ({
+      feed: createAgentSessionFeed(() => undefined),
+      dispose,
+    }));
+    feed.echoPrompt('boot me');
+    expect(feed.messages()).toMatchObject([
+      {
+        agentSessionId: 'pending',
+        turn: 0,
+        author: { kind: 'user' },
+        parts: [{ kind: 'text', text: 'boot me' }],
+      },
+    ]);
+    expect(feed.working()).toBe(true);
+    dispose();
+  });
+
+  it('keeps the echo across session acquire and drops it when the fold reports it', async () => {
+    const { createAgentSessionFeed } = await import(
+      './create-agent-session-feed'
+    );
+    let setSessionId!: (id: string | undefined) => void;
+    let dispose!: () => void;
+    const feed = createRoot((cleanup) => {
+      dispose = cleanup;
+      const [sessionId, setId] = createSignal<string | undefined>(undefined);
+      setSessionId = setId;
+      return createAgentSessionFeed(sessionId);
+    });
+    const clientId = feed.echoPrompt('hello');
+    expect(feed.messages()[0]?.parts[0]).toMatchObject({ text: 'hello' });
+    expect(feed.working()).toBe(true);
+
+    setSessionId('session');
+    await flush();
+    await flush();
+    expect(feed.messages().map((message) => message.parts[0])).toEqual([
+      { kind: 'text', text: 'hello' },
+    ]);
+
+    feed.adoptEcho(clientId, 'action-1');
+    worker.messages = [message(0, 'user', 'hello')];
+    worker.messages[0] = { ...worker.messages[0]!, requestId: 'action-1' };
+    const { handleAgentSessionLog } = await import(
+      '@queries/agent-session/session-fold'
+    );
+    worker.pushed = [
+      {
+        kind: 'new',
+        message: { ...message(0, 'user', 'hello'), requestId: 'action-1' },
+      },
+    ];
+    handleAgentSessionLog({
+      agentSessionId: 'session',
+      direction: 'to_server',
+      content: { type: 'acp' },
+    } as never);
+    await flush();
+    await flush();
+
+    const users = feed
+      .messages()
+      .filter((message) => message.author.kind === 'user');
+    expect(users).toHaveLength(1);
+    expect(users[0]?.requestId).toBe('action-1');
+    dispose();
+  });
 });

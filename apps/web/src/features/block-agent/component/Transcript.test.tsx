@@ -9,6 +9,8 @@ import { Transcript } from './Transcript';
 const session = vi.hoisted(() => ({
   sessionId: () => 'session',
   messages: () => [] as FoldedMessage[],
+  working: () => false,
+  composer: { sending: () => false },
   quoteSelection: vi.fn(),
   touch: false,
   top: () => 40,
@@ -33,6 +35,9 @@ vi.mock('./AgentMessage', () => ({
       {JSON.stringify(props.message.parts)}
     </span>
   ),
+}));
+vi.mock('../ui', () => ({
+  WorkingLine: () => <div data-testid="working" />,
 }));
 vi.mock('./ReplyToSelection', () => ({
   ReplyToSelection: (props: {
@@ -91,6 +96,8 @@ beforeEach(() => {
   rowHeight = 96;
   session.touch = false;
   session.bottom = () => 80;
+  session.working = () => false;
+  session.composer = { sending: () => false };
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -465,5 +472,21 @@ describe('Transcript with the shared TanStack ThreadList', () => {
     view.setMessages((list) => [...list, message(50)]);
     await settle();
     expect(view.scroller.scrollTop).toBe(view.scroller.scrollHeight - viewport);
+  });
+
+  it('shows working after a sent user prompt that has no agent row yet', async () => {
+    session.working = () => true;
+    const view = mount([
+      {
+        ...message(0, 'fix the tests'),
+        author: { kind: 'user', userId: 'owner' },
+        requestId: 'echo-1',
+      } as FoldedMessage,
+    ]);
+    await settle();
+    expect(view.getByTestId('working')).toBeTruthy();
+    expect(
+      view.container.querySelector('[data-message="0:user"]')
+    ).not.toBeNull();
   });
 });

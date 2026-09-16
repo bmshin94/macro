@@ -51,6 +51,11 @@ function setup(options?: {
   working?: boolean;
   sessionId?: string;
   model?: string | null;
+  echo?: {
+    echoPrompt: (text: string) => string;
+    adoptEcho: (clientId: string, requestId: string) => void;
+    dropEcho: (clientId: string) => void;
+  };
 }) {
   const [working, setWorking] = createSignal(options?.working ?? false);
   const [sessionId, setSessionId] = createSignal<string | undefined>(
@@ -69,6 +74,9 @@ function setup(options?: {
       working,
       model,
       controlOutcome: (requestId) => outcomes()[requestId],
+      echoPrompt: options?.echo?.echoPrompt,
+      adoptEcho: options?.echo?.adoptEcho,
+      dropEcho: options?.echo?.dropEcho,
     }),
     dispose,
   }));
@@ -140,6 +148,49 @@ describe('sending', () => {
 
     expect(toast.failure).toHaveBeenCalledWith('Message could not be sent');
     expect(controller.sending()).toBe(false);
+    dispose();
+  });
+
+  it('echoes a prompt that starts a turn, then adopts the action id', async () => {
+    const echo = {
+      echoPrompt: vi.fn(() => 'echo-1'),
+      adoptEcho: vi.fn(),
+      dropEcho: vi.fn(),
+    };
+    const { controller, dispose } = setup({ echo });
+    controller.send('hello');
+    expect(echo.echoPrompt).toHaveBeenCalledWith('hello');
+    await flush();
+    expect(echo.adoptEcho).toHaveBeenCalledWith('echo-1', 'action-0');
+    expect(echo.dropEcho).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('does not echo a prompt sent while a turn is already running', async () => {
+    const echo = {
+      echoPrompt: vi.fn(() => 'echo-1'),
+      adoptEcho: vi.fn(),
+      dropEcho: vi.fn(),
+    };
+    const { controller, dispose } = setup({ working: true, echo });
+    controller.send('queued');
+    await flush();
+    expect(echo.echoPrompt).not.toHaveBeenCalled();
+    expect(echo.adoptEcho).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('drops the echo when the POST fails', async () => {
+    const echo = {
+      echoPrompt: vi.fn(() => 'echo-1'),
+      adoptEcho: vi.fn(),
+      dropEcho: vi.fn(),
+    };
+    const { controller, dispose } = setup({ echo });
+    control.outcome = 'err';
+    controller.send('doomed');
+    await flush();
+    expect(echo.dropEcho).toHaveBeenCalledWith('echo-1');
     dispose();
   });
 });
