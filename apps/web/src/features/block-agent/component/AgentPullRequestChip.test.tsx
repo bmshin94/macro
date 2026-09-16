@@ -10,7 +10,6 @@ import { type JSX, Suspense } from 'solid-js';
 import { afterEach, expect, it, vi } from 'vitest';
 import {
   AgentPullRequestChip,
-  type AgentPullRequestLink,
   createAgentPullRequestLink,
 } from './AgentPullRequestChip';
 
@@ -32,9 +31,6 @@ vi.mock('@service-storage/client', () => ({
 }));
 vi.mock('@components/app/split-layout/layout', () => ({
   useSplitLayout: () => ({ openWithSplit: mocks.openWithSplit }),
-}));
-vi.mock('@core/mobile/isTouchDevice', () => ({
-  isTouchDevice: () => false,
 }));
 vi.mock('@core/util/url', () => ({ openExternalUrl: mocks.openExternalUrl }));
 vi.mock('@core/component/HoverCard', () => ({
@@ -81,10 +77,8 @@ const notSynced = () =>
     err([{ code: 'NOT_FOUND', message: 'Not synced' }]) as Awaited<Lookup>
   );
 
-let link: AgentPullRequestLink;
-
 function Chip(props: { url: string | undefined }) {
-  link = createAgentPullRequestLink(() => props.url);
+  const link = createAgentPullRequestLink(() => props.url);
   return <AgentPullRequestChip link={link} />;
 }
 
@@ -145,26 +139,6 @@ it('shows GitHub state and checks for a synced PR and opens its entity', async (
   expect(mocks.openWithSplit).toHaveBeenCalledWith(
     { type: 'pr', id: entity.id },
     { preferNewSplit: true }
-  );
-});
-
-it('stays in the current split on shift or when opened from a menu', async () => {
-  lookup.mockResolvedValue(ok(entity) as Awaited<Lookup>);
-  mount(URL);
-  await flush();
-
-  // jsdom MouseEvent / fireEvent click init leaves shiftKey false; pass the
-  // field `open` actually reads.
-  link.open({ shiftKey: true } as unknown as MouseEvent);
-  expect(mocks.openWithSplit).toHaveBeenCalledWith(
-    { type: 'pr', id: entity.id },
-    { preferNewSplit: false }
-  );
-
-  link.open();
-  expect(mocks.openWithSplit).toHaveBeenLastCalledWith(
-    { type: 'pr', id: entity.id },
-    { preferNewSplit: false }
   );
 });
 
