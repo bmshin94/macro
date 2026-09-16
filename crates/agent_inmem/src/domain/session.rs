@@ -7,7 +7,7 @@
 
 use agent::types::{AssistantMessagePart, ChatMessage, ChatMessageContent, Role};
 use agent_client_protocol::schema::v1::{ContentBlock, PromptRequest, SessionId};
-use agent_runtime_protocol::domain::action::PromptAttachment;
+use agent_runtime_protocol::domain::action::{COMPACT_COMMAND, PromptAttachment};
 use agent_session::domain::model::AgentSessionId;
 use attachment::image::ImageData;
 use attachment::{AttachmentContent, AttachmentPart, Attachments};
@@ -66,6 +66,19 @@ impl UserPrompt {
     #[must_use]
     pub fn from_request(request: &PromptRequest) -> Self {
         Self::from_blocks(&request.prompt)
+    }
+
+    /// Whether this is the compaction control rather than a message.
+    ///
+    /// The command word and nothing else. A `/compact` that also carries
+    /// files is a real prompt about those files, and compacting would throw
+    /// them away unseen - so serving a turn and replaying one must agree on
+    /// this, or a cold attach would drop a conversation the live session
+    /// kept. The harness applies the same rule where it reads a control off
+    /// the wire (`AgentAction::control_from_runtime`).
+    #[must_use]
+    pub fn is_compact_command(&self) -> bool {
+        self.text.trim() == COMPACT_COMMAND && self.attachments.is_empty()
     }
 
     /// The model-facing form of the attached files, `None` without any.

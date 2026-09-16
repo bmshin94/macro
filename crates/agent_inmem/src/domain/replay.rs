@@ -20,7 +20,6 @@ use agent_client_protocol::schema::v1::{
     ContentBlock, PromptRequest, SessionNotification, SessionUpdate, ToolCallStatus,
 };
 use agent_client_protocol::{JsonRpcMessage, RawJsonRpcMessage, RawJsonRpcParams};
-use agent_runtime_protocol::domain::action::COMPACT_COMMAND;
 use agent_runtime_protocol::domain::schema::v0::{ToRuntimeMessage, ToServerMessage};
 use agent_session::domain::model::Message;
 use futures::future::BoxFuture;
@@ -50,7 +49,8 @@ pub trait FrameSource: Send + Sync + 'static {
 /// User prompts open turns and `session/update` notifications fill them in,
 /// mirroring what the live agent pushed into its history as the turn ran. A
 /// `/compact` prompt drops everything recorded before it, exactly as the live
-/// agent's compact handling cleared its history.
+/// agent's compact handling cleared its history - and, by the same rule, a
+/// `/compact` that carried files is a turn like any other.
 #[must_use]
 pub fn replay_history(frames: impl IntoIterator<Item = Message>) -> Vec<HistoryEntry> {
     let mut history = Vec::new();
@@ -71,7 +71,7 @@ pub fn replay_history(frames: impl IntoIterator<Item = Message>) -> Vec<HistoryE
                 };
                 let prompt = UserPrompt::from_blocks(&prompt.prompt);
                 close_turn(&mut history, &mut open);
-                if prompt.text.trim() == COMPACT_COMMAND {
+                if prompt.is_compact_command() {
                     // Compaction dropped everything before it from the
                     // model's context; replaying it back would undo that.
                     history.clear();
