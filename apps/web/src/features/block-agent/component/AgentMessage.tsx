@@ -9,6 +9,7 @@ import { messageSendMotion } from '@core/util/message-send-motion';
 import type {
   FoldedMessage,
   MessagePart,
+  TurnState,
 } from '@service-agent-fold/generated/types';
 import { UserMessageBubble } from '@ui';
 import { For, Index, type JSX, Show } from 'solid-js';
@@ -131,6 +132,24 @@ function showsWorkingLine(message: FoldedMessage): boolean {
 }
 
 /**
+ * What the working row says. A stop request wins over whatever the agent was
+ * doing; otherwise the last part names the work — a tool call or a plan —
+ * and a bare turn is just working.
+ */
+function workingLabel(
+  message: FoldedMessage,
+  turn: TurnState | undefined
+): string {
+  if (turn === 'stopping') return 'Stopping';
+  const last = message.parts.at(-1);
+  if (last === undefined) return 'Working';
+  return match(last)
+    .with({ kind: 'tool_use' }, () => 'Running tools')
+    .with({ kind: 'plan' }, () => 'Planning')
+    .otherwise(() => 'Working');
+}
+
+/**
  * A prompt, in the chat block's user-bubble treatment
  * (`@core/component/AI/component/message/UserMessage.tsx`): right-aligned,
  * rounded, filled surface shared with production chat.
@@ -167,7 +186,11 @@ function UserMessage(props: { message: FoldedMessage }) {
   );
 }
 
-export function Message(props: { message: FoldedMessage }) {
+export function Message(props: {
+  message: FoldedMessage;
+  /** The session's turn state, when the caller has it: `stopping` relabels the working row. */
+  turn?: TurnState;
+}) {
   const inFlight = () =>
     props.message.author.kind === 'agent' && props.message.stop == null;
   const failure = () =>
@@ -211,10 +234,10 @@ export function Message(props: { message: FoldedMessage }) {
               </Show>
             )}
           </Index>
-          {/* The turn is open with nothing to read yet — a dot and a rotating
-              verb, so the wait reads as work rather than as a stall. */}
+          {/* The turn is open with nothing to read yet — a ripple and a label
+              naming the work, so the wait reads as work rather than a stall. */}
           <Show when={inFlight() && showsWorkingLine(props.message)}>
-            <WorkingLine />
+            <WorkingLine label={workingLabel(props.message, props.turn)} />
           </Show>
           {/* A turn the runtime errored is something that happened to the
               session, like a model change or a stop — so it reads as one,

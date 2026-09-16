@@ -16,6 +16,7 @@ import {
   onCleanup,
   Show,
 } from 'solid-js';
+import { match } from 'ts-pattern';
 import { useAgentSession } from '../context/AgentSessionContext';
 import type { AgentMessageTarget } from '../core/search-location';
 import { WorkingLine } from '../ui/WorkingLine';
@@ -53,6 +54,12 @@ export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
     const last = messages().at(-1);
     return last?.author.kind === 'user';
   });
+  // What the wait is: the prompt still on the wire, or the agent at work.
+  const workingLabel = () =>
+    match(turn())
+      .with('starting', () => 'Sending')
+      .with('stopping', () => 'Stopping')
+      .otherwise(() => 'Working');
   const keys = createMemo(() => [
     ...messageById().keys(),
     ...(showsWorking() ? [workingKey()] : []),
@@ -126,7 +133,7 @@ export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
             when={id !== workingKey()}
             fallback={
               <div class="macro-message-width mx-auto px-4 pb-4 min-w-0">
-                <WorkingLine />
+                <WorkingLine label={workingLabel()} />
               </div>
             }
           >
@@ -139,7 +146,7 @@ export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
                     highlightedId() === id ? 'true' : undefined
                   }
                 >
-                  <Message message={message()} />
+                  <Message message={message()} turn={turn()} />
                 </div>
               )}
             </Show>

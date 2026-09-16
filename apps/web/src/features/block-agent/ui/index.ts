@@ -58,4 +58,3 @@ export {
   type ToolStatus,
 } from './types';
 export { WorkingLine } from './WorkingLine';
-export { createVerbDraw, WORKING_LABEL } from './working-verbs';
