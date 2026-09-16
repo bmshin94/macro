@@ -28,6 +28,7 @@
 #[cfg(test)]
 mod test;
 
+use crate::domain::error::SessionError;
 use crate::domain::model::{McpHeader, McpServer, McpTransport};
 use crate::domain::model_options::{MODEL_CONFIG_ID, cursor_model_config_options};
 use crate::domain::ports::{CursorAgents, RepositoryChooser, RunStream, SessionNotifier};
@@ -440,6 +441,21 @@ where
                     let guard = match service.replay_session(&session).await {
                         Ok(guard) => guard,
                         Err(error) => {
+                            // Fail-closed for replacement: answer with an ACP
+                            // error so the host keeps its prior window. For a
+                            // history that cannot be projected, still mark the
+                            // session promptable — otherwise an idle reconnect
+                            // bricks every later prompt behind the same load.
+                            if matches!(error, SessionError::HistoryIncomplete(_)) {
+                                if let Err(continue_error) =
+                                    service.continue_without_replacement(&session)
+                                {
+                                    tracing::error!(
+                                        error = %continue_error,
+                                        "could not continue without replacement after a refused load"
+                                    );
+                                }
+                            }
                             return responder
                                 .respond_with_error(AcpError::new(-32603, error.to_string()));
                         }

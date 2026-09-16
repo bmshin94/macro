@@ -18,6 +18,13 @@ pub enum SessionError {
     /// Native capture or replay processing failed; never masked by cancellation.
     #[error("Cursor native journal failed: {0}")]
     Journal(rootcause::Report),
+    /// The journal cannot produce a safe replacement history (missing original
+    /// prompts, expired streams, unavailable provider history). Fail-closed for
+    /// replacement: publish nothing. Callers may still
+    /// [`continue_without_replacement`](crate::domain::service::CursorSessionService::continue_without_replacement)
+    /// so the session stays promptable on its prior host view.
+    #[error("Cursor history cannot replace the session view: {0}")]
+    HistoryIncomplete(rootcause::Report),
     /// The Cursor API or its stream failed.
     #[error("{0}")]
     Cursor(rootcause::Report),

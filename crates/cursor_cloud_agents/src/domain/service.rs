@@ -1393,10 +1393,9 @@ where
         }
         if terminal.is_none() {
             if strict {
-                return Err(rootcause::report!(
+                return Err(SessionError::HistoryIncomplete(rootcause::report!(
                     "Cursor cannot fully hydrate run {run}: complete native stream unavailable"
-                )
-                .into());
+                )));
             }
             for attempt in 0..POLL_ATTEMPTS {
                 if attempt > 0 && cancel.is_cancelled() {
@@ -1452,10 +1451,9 @@ where
                 .machine
                 .complete(run)
         {
-            return Err(rootcause::report!(
+            return Err(SessionError::HistoryIncomplete(rootcause::report!(
                 "Cursor cannot hydrate the original prompt for run {run}"
-            )
-            .into());
+            )));
         }
         // A disconnected cancel did not get here: reconciliation is only
         // marked after a real provider terminal fact, never on ACP delivery.
@@ -1968,10 +1966,9 @@ where
             if let Some(agent) = &agent {
                 let listings = self.cursor.list_runs(agent, None).await?;
                 if listings.is_empty() {
-                    return Err(rootcause::report!(
+                    return Err(SessionError::HistoryIncomplete(rootcause::report!(
                         "Cursor history unavailable for restored session"
-                    )
-                    .into());
+                    )));
                 }
                 for listing in listings.into_iter().rev() {
                     let captured = {
@@ -2098,6 +2095,26 @@ where
             .cloned()
             .ok_or_else(|| SessionError::UnknownSession(id.clone()))
     }
+
+    /// Keep the session promptable after a load that refused to replace history.
+    ///
+    /// Fail-closed means "publish no replacement frames", not "brick the
+    /// session". Call this after [`Self::replay_session`] returns
+    /// [`SessionError::HistoryIncomplete`] so prompts may proceed on the
+    /// host's prior view. Requires the journal to have been read
+    /// (`journal_loaded`); a hard journal failure must stay refused.
+    pub fn continue_without_replacement(&self, id: &SessionId) -> Result<(), SessionError> {
+        let session = self.session(id)?;
+        let mut state = session.state.lock().expect("session state poisoned");
+        if !state.journal_loaded {
+            return Err(SessionError::Journal(rootcause::report!(
+                "cannot continue without replacement before the journal has been read"
+            )));
+        }
+        state.ready_for_sync = true;
+        state.reload_pending = false;
+        Ok(())
+    }
 }
 
 /// Holds the session writer gate through queuing the ACP load response.
@@ -2183,7 +2200,9 @@ fn history_projection(
                 matches!(e.input, JournalInput::PromptAccepted(n) | JournalInput::PromptAborted(n) if n == entry.sequence)
             })
         {
-            return Err(rootcause::report!("Cursor prompt acceptance is unknown; refusing incomplete replacement history").into());
+            return Err(SessionError::HistoryIncomplete(rootcause::report!(
+                "Cursor prompt acceptance is unknown; refusing incomplete replacement history"
+            )));
         }
     }
     let mut machine = ReplayMachine::default();
@@ -2196,7 +2215,8 @@ fn history_projection(
             .run
             .as_ref()
             .and_then(|run| machine.terminal_status(run));
-        let projected = project_entry(&mut machine, entry, entries)?;
+        let projected =
+            project_entry(&mut machine, entry, entries).map_err(SessionError::HistoryIncomplete)?;
         let terminal = entry
             .run
             .as_ref()
@@ -2224,7 +2244,12 @@ fn history_projection(
                 .any(|other| other != run && machine.has_prompt(other) && !machine.complete(other))
         {
             updates.push((
-                machine.push(Some(run), &replay_input(entry, entries)?)?,
+                machine
+                    .push(
+                        Some(run),
+                        &replay_input(entry, entries).map_err(SessionError::HistoryIncomplete)?,
+                    )
+                    .map_err(SessionError::HistoryIncomplete)?,
                 None,
             ));
         }
@@ -2235,10 +2260,9 @@ fn history_projection(
             .filter(|e| e.run.as_ref() == Some(run))
             .all(|e| matches!(e.input, JournalInput::PromptAccepted(_)));
         if !machine.has_prompt(run) && !accepted_only {
-            return Err(rootcause::report!(
+            return Err(SessionError::HistoryIncomplete(rootcause::report!(
                 "Cursor original prompt unavailable for {run}; preserving existing history"
-            )
-            .into());
+            )));
         }
     }
     Ok((machine, updates))

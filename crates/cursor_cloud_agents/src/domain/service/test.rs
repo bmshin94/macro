@@ -1554,6 +1554,10 @@ async fn an_expired_foreign_stream_falls_back_to_the_run_record() {
         .err()
         .expect("a run without its original prompt cannot replace history");
     assert!(
+        matches!(error, SessionError::HistoryIncomplete(_)),
+        "{error}"
+    );
+    assert!(
         error.to_string().contains("original prompt unavailable"),
         "{error}"
     );
@@ -1564,13 +1568,25 @@ async fn an_expired_foreign_stream_falls_back_to_the_run_record() {
     );
     assert!(
         !ready_for_sync(&service, &session),
-        "nothing syncs or prompts until a load succeeds"
+        "a failed replay alone does not enable sync"
     );
     assert_eq!(
         service.journal.read(&session).await.expect("journal"),
         entries,
         "the failed load discards nothing captured"
     );
+
+    service
+        .continue_without_replacement(&session)
+        .expect("a read journal may continue without replacement");
+    assert!(ready_for_sync(&service, &session));
+    let continuation = cursor.script_stream();
+    continuation.send(finished("run-fake-3")).unwrap();
+    continuation.send(CursorEvent::Done).unwrap();
+    service
+        .prompt(&session, "continue after refused replacement")
+        .await
+        .expect("prompting works without a successful replacement");
 }
 
 /// A run that is still executing cannot become the watermark when its stream
@@ -1883,11 +1899,28 @@ async fn restored_agent_without_provider_history_cannot_commit_empty_replacement
     service.restore_session(id.clone(), Some(CursorAgentId::new("agent")), None, None);
     cursor.script_run_listings(vec![]);
 
-    assert!(service.replay_session(&id).await.is_err());
+    let error = service
+        .replay_session(&id)
+        .await
+        .err()
+        .expect("no empty replacement");
+    assert!(matches!(error, SessionError::HistoryIncomplete(_)));
     assert!(notifier.updates().is_empty());
     assert!(service.journal.read(&id).await.unwrap().is_empty());
+    assert!(!ready_for_sync(&service, &id));
     assert!(service.prompt(&id, "must not execute").await.is_err());
-    assert!(cursor.calls().is_empty());
+
+    service
+        .continue_without_replacement(&id)
+        .expect("an empty but read journal may continue");
+    assert!(ready_for_sync(&service, &id));
+    let tx = cursor.script_stream();
+    tx.send(finished("run-fresh")).unwrap();
+    tx.send(CursorEvent::Done).unwrap();
+    service
+        .prompt(&id, "prompt after refused empty replacement")
+        .await
+        .expect("soft-continue unbricks prompting");
 }
 
 #[tokio::test]
@@ -1907,7 +1940,12 @@ async fn incomplete_legacy_hydration_emits_nothing_and_cannot_enable_sync() {
     tx.send(finished("run-old")).unwrap();
     tx.send(CursorEvent::Done).unwrap();
     drop(tx);
-    assert!(service.replay_session(&id).await.is_err());
+    let error = service
+        .replay_session(&id)
+        .await
+        .err()
+        .expect("no incomplete replacement");
+    assert!(matches!(error, SessionError::HistoryIncomplete(_)));
     assert!(notifier.updates().is_empty());
     assert!(!ready_for_sync(&service, &id));
     assert!(
@@ -1920,7 +1958,28 @@ async fn incomplete_legacy_hydration_emits_nothing_and_cannot_enable_sync() {
             .any(|e| e.input == JournalInput::HistoryComplete)
     );
     assert!(service.prompt(&id, "must not execute").await.is_err());
-    assert!(cursor.calls().is_empty());
+
+    service
+        .continue_without_replacement(&id)
+        .expect("soft-continue after incomplete hydrate");
+    assert!(ready_for_sync(&service, &id));
+    let next = cursor.script_stream();
+    next.send(finished("run-next")).unwrap();
+    next.send(CursorEvent::Done).unwrap();
+    service
+        .prompt(&id, "prompt after incomplete hydrate")
+        .await
+        .expect("soft-continue unbricks prompting without inventing history");
+    assert!(
+        !service
+            .journal
+            .read(&id)
+            .await
+            .unwrap()
+            .iter()
+            .any(|e| e.input == JournalInput::HistoryComplete),
+        "soft-continue must not stamp HistoryComplete over an incomplete hydrate"
+    );
 }
 
 #[tokio::test]
