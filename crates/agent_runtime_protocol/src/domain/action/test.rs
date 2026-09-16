@@ -421,9 +421,7 @@ fn a_compact_command_with_attachments_is_still_a_plain_prompt() {
     )
     .to_runtime(&session_id, RequestId::Str("p".to_owned()))
     .unwrap();
-    // The text is what is matched; a link alongside does not change that.
-    assert_eq!(
-        AgentAction::control_from_runtime(&message),
-        Some(AgentAction::Compact)
-    );
+    // A resource link alongside the text is what makes it a real prompt: the
+    // control carries text and nothing else.
+    assert_eq!(AgentAction::control_from_runtime(&message), None);
 }

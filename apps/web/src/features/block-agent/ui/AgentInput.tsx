@@ -140,8 +140,12 @@ export function AgentInput(props: AgentInputProps) {
     props.onSend(content, attached);
   };
 
+  // Empty means nothing to send at all: attached files count. Otherwise Enter
+  // follows `canSend` and posts the files while the button next to it follows
+  // this and stops the agent, leaving the files in the composer.
   const canSendNext = () =>
     markdown().trim().length === 0 &&
+    attachments().length === 0 &&
     props.busy &&
     props.hasQueuedMessages &&
     !props.disabled &&

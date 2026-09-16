@@ -381,6 +381,48 @@ async fn compact_clears_history_without_running_a_turn() {
 }
 
 #[tokio::test]
+async fn compact_with_a_file_attached_is_a_prompt_about_the_file() {
+    // The command word alone is the control. With a file alongside, the user
+    // is asking about that file, and compacting would drop it unseen.
+    let engine = Arc::new(ScriptedEngine::new(vec![StreamPart::Content("ok".into())]));
+    let notes = "https://static.example/file/33333333-3333-4333-8333-333333333333";
+
+    with_agent(Arc::clone(&engine), async |connection, session| {
+        connection
+            .send_request(text_prompt(&session, "remember this"))
+            .block_task()
+            .await
+            .expect("the prompt should complete");
+        connection
+            .send_request(PromptRequest::new(
+                session.clone(),
+                vec![
+                    ContentBlock::Text(TextContent::new("/compact")),
+                    ContentBlock::ResourceLink(
+                        ResourceLink::new("notes.txt", notes).mime_type("text/plain".to_owned()),
+                    ),
+                ],
+            ))
+            .block_task()
+            .await
+            .expect("the prompt should complete");
+    })
+    .await;
+
+    let requests = engine.requests();
+    assert_eq!(requests.len(), 2, "the attached prompt runs a turn");
+    assert_eq!(
+        requests[1].messages,
+        vec![
+            "remember this".to_owned(),
+            "ok".to_owned(),
+            "/compact".to_owned()
+        ],
+        "the conversation is kept, not compacted"
+    );
+}
+
+#[tokio::test]
 async fn cancel_stops_the_turn_with_the_cancelled_stop_reason() {
     let engine = Arc::new(HangingEngine);
 

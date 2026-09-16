@@ -417,15 +417,14 @@ impl AgentAction {
             {
                 let params = request.params.clone()?.into_value();
                 let request: PromptRequest = serde_json::from_value(params).ok()?;
-                let text = request
-                    .prompt
-                    .into_iter()
-                    .filter_map(|content| match content {
-                        ContentBlock::Text(text) => Some(text.text),
-                        _ => None,
-                    })
-                    .collect::<String>();
-                (text.trim() == COMPACT_COMMAND).then_some(Self::Compact)
+                // The compaction control travels as text and nothing else.
+                // A prompt that also carries a resource link is a real prompt
+                // with a file attached, and reading it as the control would
+                // drop that file on the way to the agent.
+                let [ContentBlock::Text(text)] = request.prompt.as_slice() else {
+                    return None;
+                };
+                (text.text.trim() == COMPACT_COMMAND).then_some(Self::Compact)
             }
             RawJsonRpcMessage::Notification(notification)
                 if CancelNotification::matches_method(&notification.method) =>

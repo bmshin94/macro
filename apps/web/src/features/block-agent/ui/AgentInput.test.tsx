@@ -130,6 +130,41 @@ describe('queued message advancement', () => {
     expect(editor.clear).toHaveBeenCalledOnce();
   });
 
+  it('sends attached files instead of advancing past them', () => {
+    const onSend = vi.fn();
+    const onStop = vi.fn();
+    const uploaded = {
+      id: 'file-1',
+      name: 'screenshot.png',
+      kind: 'image' as const,
+      mimeType: 'image/png',
+      size: 2048,
+    };
+
+    render(() => (
+      <AgentInput
+        busy
+        hasQueuedMessages
+        onSend={onSend}
+        onStop={onStop}
+        attachments={[uploaded]}
+        onAttachFiles={vi.fn()}
+      />
+    ));
+
+    // Attached files are a draft, so this is the typed-text case: Enter sends
+    // them, and the control is Stop rather than the send-next Enter action,
+    // which would have stopped the agent and left the files behind.
+    expect(
+      screen.queryByRole('button', { name: 'Send next queued message' })
+    ).toBeNull();
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy();
+
+    editor.enter?.();
+    expect(onSend).toHaveBeenCalledWith('', [uploaded]);
+    expect(onStop).not.toHaveBeenCalled();
+  });
+
   it('keeps Enter inert when there is no queued message or draft', () => {
     const onStop = vi.fn();
 

@@ -69,6 +69,18 @@ describe('attachmentMedium', () => {
       'file'
     );
   });
+
+  it('falls back to the file name when the sender knew no media type', () => {
+    // A browser that reports an empty `type` must not turn the thumbnail the
+    // composer showed into a chip once the prompt is sent.
+    expect(attachmentMedium({ mimeType: null, name: 'shot.png' })).toBe(
+      'image'
+    );
+    expect(attachmentMedium({ mimeType: null, name: 'clip.mov' })).toBe(
+      'video'
+    );
+    expect(attachmentMedium({ mimeType: null, name: 'README' })).toBe('file');
+  });
 });
 
 describe('AttachmentPart', () => {

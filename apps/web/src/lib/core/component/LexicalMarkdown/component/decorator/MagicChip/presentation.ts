@@ -161,12 +161,6 @@ function partActivity(part: MessagePart): MagicChipActivity {
         detail: name,
         busy: false,
       }))
-      // A user's part, never an agent's; here only so the match stays total.
-      .with({ kind: 'attachment' }, ({ name }) => ({
-        label: 'File attached',
-        detail: name,
-        busy: false,
-      }))
       .with({ kind: 'thought' }, ({ text }) => ({
         label: 'Thinking',
         detail: text.trim() || undefined,

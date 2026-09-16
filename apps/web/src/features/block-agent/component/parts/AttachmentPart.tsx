@@ -5,6 +5,7 @@
  * fetch from the static file service.
  */
 
+import { getAttachmentKindFromFile } from '@channel/Input/utils/file-helpers';
 import { MediaImage } from '@channel/Media/MediaImage';
 import { MediaVideo } from '@channel/Media/MediaVideo';
 import { EntityIcon } from '@core/component/EntityIcon';
@@ -15,15 +16,22 @@ import { Match, Switch } from 'solid-js';
 
 type AttachmentPartData = Extract<MessagePart, { kind: 'attachment' }>;
 
-/** `image`, `video`, or `file`, from the media type and then the name. */
+/**
+ * `image`, `video`, or `file`, from the media type and then the name.
+ *
+ * The same classifier the composer's chips use, so a file renders the same
+ * way before and after it is sent - a browser that reported no media type
+ * for `shot.png` must not turn a thumbnail into a chip.
+ */
 export function attachmentMedium(part: {
   mimeType: string | null;
   name: string;
 }): 'image' | 'video' | 'file' {
-  const mime = part.mimeType ?? '';
-  if (mime.startsWith('image/')) return 'image';
-  if (mime.startsWith('video/')) return 'video';
-  return 'file';
+  const kind = getAttachmentKindFromFile({
+    name: part.name,
+    mimeType: part.mimeType ?? undefined,
+  });
+  return kind === 'document' ? 'file' : kind;
 }
 
 function fileExtension(name: string): string | undefined {

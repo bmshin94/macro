@@ -563,7 +563,10 @@ pub async fn serve(state: Arc<AgentState>, acp: AcpChannel) -> Result<(), AcpErr
                     );
                     genai_telemetry::propagation::set_parent(&span, request.meta.as_ref());
                     let prompt = UserPrompt::from_request(&request);
-                    if prompt.text.trim() == COMPACT_COMMAND {
+                    // Text and nothing else: a `/compact` that also carries
+                    // files is a real prompt about them, and compacting would
+                    // throw them away unseen.
+                    if prompt.text.trim() == COMPACT_COMMAND && prompt.attachments.is_empty() {
                         state.clear_history();
                         let _ = connection.send_notification(SessionNotification::new(
                             request.session_id,
