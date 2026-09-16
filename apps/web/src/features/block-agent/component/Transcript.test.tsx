@@ -9,7 +9,7 @@ import { Transcript } from './Transcript';
 const session = vi.hoisted(() => ({
   sessionId: () => 'session',
   messages: () => [] as FoldedMessage[],
-  working: () => false,
+  working: (): boolean => false,
   composer: { sending: () => false },
   quoteSelection: vi.fn(),
   touch: false,
