@@ -1,0 +1,16 @@
+---
+title: GetTeamAvailability
+description: "Find out when the user's teammates are busy and when they are all free between two instants. Use it for questions like \"when is my team free this week?\", \"is Alex available Thursday afternoon?\", or to pick a meeting time before CreateCalendarEvent. Each teammate controls what the team sees: `all` shares event titles, `busy_only` shares only the time, and `none` shares nothing — say so rather than guessing when a teammate shares nothing or has no calendar connected. `freeWindows` spans the whole window, so restrict suggestions to working hours yourself. Keep the window narrow — a day or a week — and no wider than 370 days, within one year past to two years future. Pass `userIds` (from ListTeamMembers) to ask about specific people; omit it for the whole team."
+---
+
+# GetTeamAvailability
+
+Find out when the user's teammates are busy and when they are all free between two instants. Use it for questions like "when is my team free this week?", "is Alex available Thursday afternoon?", or to pick a meeting time before CreateCalendarEvent. Each teammate controls what the team sees: `all` shares event titles, `busy_only` shares only the time, and `none` shares nothing — say so rather than guessing when a teammate shares nothing or has no calendar connected. `freeWindows` spans the whole window, so restrict suggestions to working hours yourself. Keep the window narrow — a day or a week — and no wider than 370 days, within one year past to two years future. Pass `userIds` (from ListTeamMembers) to ask about specific people; omit it for the whole team.
+
+## Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `start` | string | Yes | Inclusive window start, RFC 3339 UTC (e.g. 2026-08-20T00:00:00Z). |
+| `end` | string | Yes | Exclusive window end, RFC 3339 UTC. Must be after start. |
+| `userIds` | string[] | No | Macro user ids of the teammates to consider, as returned by ListTeamMembers. Omit to consider the whole team. |
