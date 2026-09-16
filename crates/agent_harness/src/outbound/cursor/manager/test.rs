@@ -397,6 +397,10 @@ impl CursorApiKeys for StubKeys {
             default_model_id: self.model.map(str::to_owned),
         })
     }
+
+    async fn registered(&self, _owner: &MacroUserIdStr<'_>) -> Result<bool> {
+        Ok(self.key.is_some())
+    }
 }
 
 /// A user who reaches no repository through the GitHub App: the chooser

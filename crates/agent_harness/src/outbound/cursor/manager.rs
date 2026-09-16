@@ -38,11 +38,12 @@ use super::keys::CursorApiKeys;
 use super::pipe::PipeTransport;
 use super::repository_chooser::HaikuRepositoryChooser;
 use crate::domain::error::{HarnessError, Result};
-use crate::domain::model::SpawnContainer;
+use crate::domain::model::{AgentKind, SessionBlocker, SpawnContainer};
 use crate::domain::pending::PendingCommands;
 use crate::domain::ports::{ContainerManager, ReachableRepositories};
 use crate::domain::sandbox::SandboxResizeEffect;
 use agent_session::domain::model::SandboxSize;
+use macro_user_id::user_id::MacroUserIdStr;
 
 #[cfg(test)]
 mod test;
@@ -466,14 +467,25 @@ where
 {
     type Transport = PipeTransport;
 
+    /// A `@cursor` session runs on its owner's key, so an owner without one
+    /// is told so before any session exists for them. The kind is not
+    /// consulted: the router only asks this manager about Cursor sessions.
+    async fn preflight(
+        &self,
+        _kind: AgentKind,
+        owner: &MacroUserIdStr<'_>,
+    ) -> Result<Option<SessionBlocker>> {
+        Ok((!self.keys.registered(owner).await?).then_some(SessionBlocker::CursorNotConnected))
+    }
+
     async fn spawn(
         &self,
         command: SpawnContainer,
     ) -> Result<agent_session::domain::connection::RuntimeAttachment<PipeTransport>> {
-        // The session row is read for its owner alone: spawning is the first
-        // moment we can tell whether the person who mentioned @cursor has
-        // connected an account, and refusing here is what turns "the bot
-        // ignored me" into a sentence they can act on.
+        // The session row is read for its owner alone. The mention path has
+        // already asked [`Self::preflight`] about the owner's key; sessions
+        // opened from the create menu and older rows still reach the refusal
+        // here, so "the bot ignored me" stays a sentence they can act on.
         let session = AgentSessionRepo::get(&self.sessions, command.session_id).await?;
         let (client, default_model_id) = self.client_for(&session).await?;
         // No MCP servers pass through here: they ride the ACP protocol

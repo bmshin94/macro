@@ -7,15 +7,19 @@
 //! `ChannelService` implementation (and side-effect stack) this wraps.
 //!
 //! The announcement places a structured reply target above the session's
-//! magic chip. The content is composed by the lexical service — the one place
-//! that builds message markdown from real Lexical nodes — so this adapter
-//! never formats markdown itself.
+//! magic chip. That content is composed by the lexical service — the one
+//! place that builds message markdown from real Lexical nodes — so this
+//! adapter never assembles a node tree itself. A declined mention is the
+//! exception that proves the rule: one sentence and one inline chip tag, the
+//! same `<m-connect-app>` string the egress proxy hands agents to echo, so it
+//! is written here as text.
 
 #[cfg(test)]
 mod test;
 
 use std::sync::Arc;
 
+use agent_egress::domain::model::CONNECT_APP_TAG;
 use channel_sender::ChannelSender;
 use channels::domain::models::{PostMessageNotificationPolicy, PostMessageRequest};
 use channels::domain::ports::ChannelService;
@@ -23,9 +27,36 @@ use lexical_client::LexicalClient;
 use lexical_client::parse_markdown::{AgentAnnouncementChip, AgentAnnouncementReplyTarget};
 
 use crate::domain::error::{HarnessError, Result};
-use crate::domain::model::{AnnouncedMessage, SessionAnnouncement};
+use crate::domain::model::{
+    AnnouncedMessage, DeclinedMention, SessionAnnouncement, SessionBlocker,
+};
 use crate::domain::ports::SessionAnnouncer;
 use macro_uuid::Uuid;
+
+/// The message a declined mention becomes: what to connect, and the chip
+/// that opens the settings page to do it.
+///
+/// The chip targets the Harness settings page rather than Connections, and
+/// names the harness by slug — the frontend reads the reader's own Cursor
+/// key status off that, so once they have connected, the same message reads
+/// as connected instead of nagging them again.
+fn decline_markdown(blocker: SessionBlocker) -> String {
+    match blocker {
+        SessionBlocker::CursorNotConnected => {
+            let chip = serde_json::json!({
+                "appSlug": "cursor",
+                "name": "Cursor",
+                "target": "harness",
+            });
+            format!(
+                "`@cursor` runs on your own Cursor account, and yours is not connected yet. \
+                 Add your Cursor API key, then mention me again. \
+                 <{tag}>{chip}</{tag}>",
+                tag = CONNECT_APP_TAG,
+            )
+        }
+    }
+}
 
 fn announcement_chip(announcement: &SessionAnnouncement) -> AgentAnnouncementChip {
     AgentAnnouncementChip {
@@ -110,5 +141,28 @@ where
             )
         })?;
         Ok(AnnouncedMessage { message_id })
+    }
+
+    async fn decline(&self, declined: DeclinedMention) -> Result<()> {
+        self.channels
+            .post_message(
+                ChannelSender::new_from_bot(declined.bot_id),
+                declined.origin.channel_id,
+                PostMessageRequest {
+                    content: decline_markdown(declined.blocker),
+                    mentions: Vec::new(),
+                    thread_id: Some(declined.origin.thread_id),
+                    attachments: Vec::new(),
+                    nonce: None,
+                    // Unlike a session chip, this is the whole answer: the
+                    // person who asked should hear it even if they have
+                    // already looked away from the thread.
+                    notification_policy: PostMessageNotificationPolicy::Default,
+                    triggered_by: Some(declined.triggered_by.as_ref().to_owned()),
+                },
+            )
+            .await
+            .map_err(|error| HarnessError::Announce(rootcause::report!(error).into()))?;
+        Ok(())
     }
 }

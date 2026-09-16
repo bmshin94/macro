@@ -56,6 +56,15 @@ impl TaggedManager {
 impl ContainerManager for TaggedManager {
     type Transport = TaggedTransport;
 
+    async fn preflight(
+        &self,
+        _kind: AgentKind,
+        _owner: &MacroUserIdStr<'_>,
+    ) -> Result<Option<SessionBlocker>> {
+        self.record("preflight");
+        Ok(None)
+    }
+
     async fn spawn(
         &self,
         _command: SpawnContainer,
@@ -260,6 +269,33 @@ async fn the_cursor_bot_routes_to_cursor_and_everything_else_to_the_sandbox() {
     spawned.map_transport(|transport| assert!(matches!(transport, RoutedTransport::Sandbox(_))));
     assert_eq!(cursor.calls(), ["cursor:spawn"]);
     assert_eq!(sandbox.calls(), ["sandbox:spawn"]);
+}
+
+/// Preflight has no session row yet, so it routes on the kind the trigger
+/// resolved, like spawn.
+#[tokio::test]
+async fn preflight_routes_by_kind_before_any_session_exists() {
+    let sandbox = TaggedManager::new("sandbox");
+    let cursor = TaggedManager::new("cursor");
+    let router = RoutedContainerManager::new(
+        sandbox.clone(),
+        cursor.clone(),
+        TaggedManager::new("codex"),
+        FixedBotSessions(bot_id::CURSOR_BOT_ID),
+    );
+    let owner = MacroUserIdStr::try_from_email("asker@example.com").expect("a valid user id");
+
+    assert_eq!(
+        router.preflight(AgentKind::Cursor, &owner).await.unwrap(),
+        None
+    );
+    assert_eq!(
+        router.preflight(AgentKind::InMemory, &owner).await.unwrap(),
+        None
+    );
+    assert!(router.preflight(AgentKind::External, &owner).await.is_err());
+    assert_eq!(cursor.calls(), ["cursor:preflight"]);
+    assert_eq!(sandbox.calls(), ["sandbox:preflight"]);
 }
 
 /// Resume and teardown route by the session row's bot — the repo says cursor

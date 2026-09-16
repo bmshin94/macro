@@ -36,6 +36,18 @@ fn chip_carries_the_announcement_identity() {
     );
 }
 
+/// The frontend parses the chip out of exactly this tag and payload; a
+/// drifted key or target falls back to an "unknown mention" chip.
+#[test]
+fn a_declined_cursor_mention_carries_a_harness_connect_chip() {
+    let markdown = decline_markdown(SessionBlocker::CursorNotConnected);
+
+    assert!(markdown.contains(
+        r#"<m-connect-app>{"appSlug":"cursor","name":"Cursor","target":"harness"}</m-connect-app>"#
+    ));
+    assert!(markdown.contains("Cursor API key"));
+}
+
 #[test]
 fn reply_target_carries_the_originating_channel_message() {
     assert_eq!(
