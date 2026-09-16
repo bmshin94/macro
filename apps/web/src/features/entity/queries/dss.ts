@@ -5,6 +5,10 @@ import {
   moveToFolder,
 } from '@core/component/FileList/itemOperations';
 import { toast } from '@core/component/Toast/Toast';
+import {
+  enableGraphqlSoup,
+  isFeatureEnabled,
+} from '@core/constant/featureFlags';
 import { throwOnErr } from '@core/util/result';
 import { scheduledActionKeys } from '@queries/agent-schedule/keys';
 import { deleteAgentSession } from '@queries/agent-session/entity-mutations';
@@ -21,6 +25,8 @@ import {
   removeSoupEntities,
   removeSoupEntitiesFromQueriesReferencing,
 } from '@queries/soup/cache';
+import { refreshActiveGraphqlSoupQueries } from '@queries/soup/graphql/active-queries';
+import { GRAPHQL_SOUP_DELETE_MUTATION_KEY } from '@queries/soup/graphql/optimistic-deletions';
 import { soupKeys } from '@queries/soup/keys';
 import { ownTouchStamp } from '@queries/soup/normalized-cache/own-touch';
 import { callServiceClient } from '@service-call/client';
@@ -43,6 +49,9 @@ export function createBulkDeleteDssItemsMutation() {
     );
   };
   return useMutation(() => ({
+    ...(isFeatureEnabled(enableGraphqlSoup)
+      ? { mutationKey: GRAPHQL_SOUP_DELETE_MUTATION_KEY }
+      : {}),
     mutationFn: async (entities: EntityData[]) => {
       const deletable = entities.filter(isDeletable);
       const results = await Promise.all(
@@ -106,8 +115,22 @@ export function createBulkDeleteDssItemsMutation() {
       const ids = new Set(deletable.map((e) => e.id));
       const soupSnapshot = removeSoupEntities(ids);
       const searchSnapshot = removeSearchEntities(ids);
-      return { soupSnapshot, searchSnapshot };
+      return {
+        soupSnapshot,
+        searchSnapshot,
+        ...(isFeatureEnabled(enableGraphqlSoup)
+          ? { graphqlDeletedIds: [...ids] }
+          : {}),
+      };
     },
+    onSettled: isFeatureEnabled(enableGraphqlSoup)
+      ? async (_results, _error, _entities, context) => {
+          if (!context?.graphqlDeletedIds?.length) return;
+          // Keep the overlay pending until server membership is refreshed,
+          // including partial failures (deleteItem can return false).
+          await refreshActiveGraphqlSoupQueries();
+        }
+      : undefined,
     onError: (error, entities, context) => {
       context?.soupSnapshot.rollback();
       context?.searchSnapshot.rollback();

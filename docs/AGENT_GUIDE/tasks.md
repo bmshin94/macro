@@ -46,6 +46,18 @@ filter sheets. Desktop uses the centered composer dialog.
 Tasks are documents under the hood (creation hits `POST /dss/documents/create_task`), so they
 also show up in Files/`All` and in AI-chat document listings.
 
+## Bulk delete
+
+Select task rows with their leading checkboxes, choose **Actions → Delete items**,
+then confirm **Delete**. With GraphQL Soup enabled, selected rows disappear while
+requests are pending, including rows loaded through grouped pagination. The
+confirmation waits for deletion and list refresh; failed deletes return after
+revalidation. The GraphQL-disabled path retains its existing behavior.
+
+For verification, use disposable tasks and delay only their DELETE requests:
+rows should disappear before those requests complete, remain absent on success,
+and return if the deletes fail.
+
 ## View and edit task properties
 
 An open task shows Status, Priority, and Assignees as property pills below its title. Task
