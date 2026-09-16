@@ -10,6 +10,7 @@ import { type JSX, Suspense } from 'solid-js';
 import { afterEach, expect, it, vi } from 'vitest';
 import {
   AgentPullRequestChip,
+  type AgentPullRequestLink,
   createAgentPullRequestLink,
 } from './AgentPullRequestChip';
 
@@ -77,8 +78,10 @@ const notSynced = () =>
     err([{ code: 'NOT_FOUND', message: 'Not synced' }]) as Awaited<Lookup>
   );
 
+let link: AgentPullRequestLink;
+
 function Chip(props: { url: string | undefined }) {
-  const link = createAgentPullRequestLink(() => props.url);
+  link = createAgentPullRequestLink(() => props.url);
   return <AgentPullRequestChip link={link} />;
 }
 
@@ -141,7 +144,14 @@ it('shows GitHub state and checks for a synced PR and opens its entity', async (
     { preferNewSplit: true }
   );
 
-  fireEvent.click(chip(), { shiftKey: true });
+  // fireEvent's click init does not keep `shiftKey` through Button / Solid.
+  link.open(new MouseEvent('click', { shiftKey: true }));
+  expect(mocks.openWithSplit).toHaveBeenLastCalledWith(
+    { type: 'pr', id: entity.id },
+    { preferNewSplit: false }
+  );
+
+  link.open();
   expect(mocks.openWithSplit).toHaveBeenLastCalledWith(
     { type: 'pr', id: entity.id },
     { preferNewSplit: false }
