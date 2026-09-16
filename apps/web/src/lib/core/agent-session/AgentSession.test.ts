@@ -153,7 +153,7 @@ describe('AgentSession', () => {
 
   it('reissues the speculation under the id the harness minted instead', async () => {
     harness.control.mockResolvedValue(
-      ok({ actionId: 'server-id', status: 'queued' })
+      ok({ actionId: 'server-id', status: 'sent' })
     );
     const live = AgentSession.acquire(SESSION);
     await live.load();
@@ -213,7 +213,7 @@ describe('AgentSession', () => {
     live.release();
   });
 
-  it('does not speculate an elicitation answer', async () => {
+  it('speculates an elicitation answer like any other action', async () => {
     const live = AgentSession.acquire(SESSION);
     await live.load();
 
@@ -223,8 +223,33 @@ describe('AgentSession', () => {
       action: 'decline',
     });
 
-    expect(inputs().filter((input) => input.kind === 'speculated')).toEqual([]);
-    expect(harness.control).toHaveBeenCalledOnce();
+    expect(
+      inputs().filter((input) => input.kind === 'speculated')
+    ).toMatchObject([{ action: { type: 'respondElicitation', requestId: 3 } }]);
+    expect(inputs().filter((input) => input.kind === 'retracted')).toEqual([]);
+    live.release();
+  });
+
+  it('retracts a prompt the server only queued', async () => {
+    // The harness logs a queued action's row at dispatch, so holding the
+    // speculation would show an open turn for the whole wait.
+    harness.control.mockImplementation(
+      async (_id: string, request: { actionId: string }) =>
+        ok({ actionId: request.actionId, status: 'queued' })
+    );
+    const live = AgentSession.acquire(SESSION);
+    await live.load();
+
+    await live.issue({ type: 'prompt', prompt: 'later' });
+    await settle();
+
+    const [speculation] = inputs().filter(
+      (input) => input.kind === 'speculated'
+    );
+    expect(inputs().at(-1)).toEqual({
+      kind: 'retracted',
+      actionId: (speculation as { actionId: string }).actionId,
+    });
     live.release();
   });
 

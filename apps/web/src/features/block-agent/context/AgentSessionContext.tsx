@@ -86,7 +86,7 @@ export type AgentSessionState = {
    * has no session to act on.
    */
   issue: (action: AgentAction) => Promise<IssueResult> | undefined;
-  /** The live question, and the one POST that answers it. */
+  /** The live question, and the action that answers it. */
   elicitation: ElicitationController;
   /**
    * The session's server-side action queue: prompts sent mid-turn wait
@@ -134,9 +134,9 @@ export function AgentSessionProvider(
       ? undefined
       : (live.metadata()?.pendingElicitation ?? undefined);
   const elicitation = createElicitationController({
-    sessionId,
     pending: pendingElicitation,
     canEdit: () => live.session()?.canEdit,
+    issue: live.issue,
   });
 
   // The transcript's "Reply to this" chip hands selected text to the

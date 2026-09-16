@@ -8,6 +8,7 @@ import type { FoldedMessage } from '@service-agent-fold/generated/types';
 import { describe, expect, it } from 'vitest';
 import {
   changingModel,
+  hasPendingStop,
   isControlMessage,
   lastTurnMessage,
 } from './control-message';
@@ -106,5 +107,28 @@ describe('changingModel', () => {
     ).toBeUndefined();
     expect(changingModel([modelChange(0, 'rejected')], 'old')).toBeUndefined();
     expect(changingModel([modelChange(0, 'accepted')], 'old')).toBeUndefined();
+  });
+});
+
+describe('hasPendingStop', () => {
+  const stop = (id: number, pending: boolean) => ({
+    ...message(id, 'user', [
+      {
+        kind: 'control',
+        control: { kind: 'stop' },
+        outcome: { kind: 'accepted' },
+      },
+    ]),
+    pending,
+  });
+
+  it('sees a stop the log has not confirmed', () => {
+    expect(hasPendingStop([prompt(1), stop(2, true)])).toBe(true);
+  });
+
+  it('ignores confirmed stops and other pending actions', () => {
+    expect(hasPendingStop([prompt(1), stop(2, false)])).toBe(false);
+    expect(hasPendingStop([{ ...prompt(1), pending: true }])).toBe(false);
+    expect(hasPendingStop([modelChange(1, 'pending', true)])).toBe(false);
   });
 });

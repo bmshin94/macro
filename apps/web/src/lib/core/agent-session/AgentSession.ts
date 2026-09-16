@@ -47,14 +47,6 @@ export type IssueResult = Awaited<
   ReturnType<typeof agentHarnessServiceClient.control>
 >;
 
-/**
- * The control body with the id the client speculated under. The harness
- * adopts the id when it accepts client-minted ids and ignores it otherwise;
- * either way the response names the id the action was accepted under, and
- * `issue` reconciles the two.
- */
-type ControlRequestWithId = ControlRequest & { actionId: string };
-
 export class AgentSession {
   private static readonly open = new Map<string, AgentSession>();
 
@@ -133,7 +125,8 @@ export class AgentSession {
    * a stop as a pending Stopped line, a model change as a pending control.
    * The harness's answer settles it: accepted under the same id, the
    * confirmed row promotes it in place; accepted under another id, the
-   * speculation is reissued under that one; refused, it is retracted.
+   * speculation is reissued under that one; refused, it is retracted; only
+   * queued, it is retracted too, because nothing has happened yet.
    *
    * `userId` is the caller, so the pending bubble is attributed exactly as
    * the confirmed row will be.
@@ -142,24 +135,28 @@ export class AgentSession {
     action: AgentAction,
     options: { userId?: string } = {}
   ): Promise<IssueResult> {
-    // An elicitation answer rides on the agent's own request id: nothing this
-    // client mints reaches the wire, so there is nothing to speculate.
-    const speculatable = action.type !== 'respondElicitation';
     const actionId = uuidv7();
-    if (speculatable) {
-      void this.enqueue({
-        kind: 'speculated',
-        actionId,
-        action,
-        userId: options.userId,
-      });
-    }
+    void this.enqueue({
+      kind: 'speculated',
+      actionId,
+      action,
+      userId: options.userId,
+    });
 
-    const request: ControlRequestWithId = { ...action, actionId };
+    // The harness adopts the id the client speculated under; the response
+    // names the id it was accepted under and `issue` reconciles the two.
+    const request: ControlRequest = { ...action, actionId };
     const result = await agentHarnessServiceClient.control(this.id, request);
 
-    if (!speculatable) return result;
     if (result.isErr()) {
+      void this.enqueue({ kind: 'retracted', actionId });
+      return result;
+    }
+    // Queued, not sent: the harness logs the row only when the queue
+    // dispatches it, so holding the speculation would show an open turn for
+    // the whole wait. The queue's own republish carries the action until
+    // then, and the dispatch folds it for real.
+    if (result.value.status === 'queued') {
       void this.enqueue({ kind: 'retracted', actionId });
       return result;
     }

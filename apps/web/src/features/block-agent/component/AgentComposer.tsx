@@ -11,7 +11,7 @@ import { idToDisplayName } from '@core/user/util';
 import type { AgentAction } from '@service-agent-harness/generated/schemas';
 import { Show } from 'solid-js';
 import { useAgentSession } from '../context/AgentSessionContext';
-import { changingModel } from '../state/control-message';
+import { changingModel, hasPendingStop } from '../state/control-message';
 import {
   AgentInput,
   AgentModelSelector,
@@ -54,14 +54,21 @@ export function AgentComposer(props: {
   // rest of the transcript, and the log confirms the end of the turn later.
   const busy = () => {
     const state = turn();
-    return state !== 'idle' && state !== 'disconnected' && state !== 'stopping';
+    return (
+      (state !== 'idle' && state !== 'disconnected' && state !== 'stopping') ||
+      resuming()
+    );
   };
   // The runtime is gone and the user has asked it for something anyway, so
   // the service is bringing its sandbox back before it can deliver. There is
   // no signal for this on the wire; it is the one honest inference from a
-  // disconnected runtime and a pending action of ours.
+  // disconnected runtime and a pending action of ours. The wake is a turn in
+  // all but name, so it can be stopped - and a pending stop ends it here as
+  // it does everywhere else, before the log says so.
   const resuming = () =>
-    turn() === 'disconnected' && messages().some((message) => message.pending);
+    turn() === 'disconnected' &&
+    messages().some((message) => message.pending) &&
+    !hasPendingStop(messages());
 
   // Focus plumbing between the input and the queue list above it: Up at the
   // start of the input lands on the bottom (next-to-dispatch) queue row, and

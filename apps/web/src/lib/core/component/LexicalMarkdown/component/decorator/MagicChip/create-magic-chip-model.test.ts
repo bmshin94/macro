@@ -21,13 +21,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const live = vi.hoisted(() => ({
   acquire: vi.fn(),
   release: vi.fn(),
+  issue: vi.fn(),
   snapshot: {
     messages: [] as unknown[],
     metadata: {} as unknown,
   },
   listeners: new Set<(events: unknown[]) => void>(),
 }));
-const serviceClient = vi.hoisted(() => ({ get: vi.fn(), control: vi.fn() }));
+const serviceClient = vi.hoisted(() => ({ get: vi.fn() }));
 
 vi.mock('@queries/client', async () => {
   const { QueryClient } = await import('@tanstack/solid-query');
@@ -50,7 +51,7 @@ vi.mock('@core/agent-session/AgentSession', () => ({
           return () => live.listeners.delete(listener);
         },
         release: live.release,
-        issue: vi.fn(),
+        issue: live.issue,
       };
     },
   },
@@ -161,7 +162,7 @@ describe('createMagicChipModel', () => {
         canEdit: true,
       },
     });
-    serviceClient.control.mockResolvedValue({ isErr: () => false });
+    live.issue.mockResolvedValue({ isErr: () => false });
   });
 
   it.each(['cursor', 'codex-cloud'])(
@@ -398,7 +399,8 @@ describe('createMagicChipModel', () => {
       asking: { question, canAnswer: true },
     });
     expect(await model.elicitation.respond({ action: 'decline' })).toBe(true);
-    expect(serviceClient.control).toHaveBeenCalledWith('session', {
+    // The answer rides the session's optimistic path, not a bare POST.
+    expect(live.issue).toHaveBeenCalledWith({
       type: 'respondElicitation',
       requestId: 9,
       action: 'decline',
@@ -435,7 +437,7 @@ describe('createMagicChipModel', () => {
       expect(presentation.asking.canAnswer).toBe(false);
     }
     expect(await model.elicitation.respond({ action: 'decline' })).toBe(false);
-    expect(serviceClient.control).not.toHaveBeenCalled();
+    expect(live.issue).not.toHaveBeenCalled();
 
     dispose();
   });

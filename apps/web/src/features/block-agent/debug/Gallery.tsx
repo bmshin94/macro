@@ -489,7 +489,6 @@ function MagicChipAskingDemo(props: {
       presentation={presentation}
       header={GALLERY_CHIP_HEADER}
       answer={{
-        answering: false,
         respond: async (answer) => {
           console.log('[gallery] elicitation answer', answer);
           return true;

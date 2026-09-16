@@ -153,9 +153,9 @@ export function createMagicChipModel(props: MagicChipData): {
     return question?.turn === turn() ? question : undefined;
   };
   const elicitation = createElicitationController({
-    sessionId: () => props.agentSessionId,
     pending: questionForTurn,
     canEdit,
+    issue: (action) => live.issue(action),
   });
   const asking = (): MagicChipQuestion | undefined => {
     const question = questionForTurn();

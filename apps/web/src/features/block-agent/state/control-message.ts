@@ -58,3 +58,18 @@ export function changingModel(
   }
   return undefined;
 }
+
+/**
+ * A stop this client issued that the log has not confirmed. While one is
+ * pending the session reads as stopped whatever the runtime is doing - a
+ * sandbox still waking included.
+ */
+export function hasPendingStop(messages: readonly FoldedMessage[]): boolean {
+  return messages.some(
+    (message) =>
+      message.pending &&
+      message.parts.length === 1 &&
+      message.parts[0]?.kind === 'control' &&
+      message.parts[0].control.kind === 'stop'
+  );
+}
