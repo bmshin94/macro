@@ -8,8 +8,7 @@ use std::collections::BTreeMap;
 use agent_client_protocol::schema::v1::{
     CancelNotification, ClientRequest, ContentBlock, CreateElicitationResponse,
     ElicitationAcceptAction, ElicitationAction, ElicitationContentValue as AcpContentValue,
-    PromptRequest, RequestId, ResourceLink,
-    SessionId, SetSessionConfigOptionRequest,
+    PromptRequest, RequestId, ResourceLink, SessionId, SetSessionConfigOptionRequest,
 };
 use agent_client_protocol::{JsonRpcMessage, RawJsonRpcMessage};
 use macro_uuid::Uuid;

@@ -116,7 +116,7 @@ export function createComposerController(options: {
     if (result === undefined) {
       toast.failure('Message could not be sent');
     } else {
-      markMessageSent(`agent:${sessionId}:${result.value.actionId}`);
+      markMessageSent(`agent:${sessionId}:${result.actionId}`);
     }
     // A 200 with status `queued` means the prompt waits in the session's
     // server-side queue; the gateway publishes the queue, so nothing more
