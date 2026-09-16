@@ -439,13 +439,42 @@ impl<Token> SessionMachine<Token> {
     }
 
     fn on_session_opened(&mut self, frame: &RawJsonRpcMessage, effects: &mut Vec<Effect<Token>>) {
-        let RawJsonRpcMessage::Response(Response::Result { result, .. }) = frame else {
-            self.die(StopReason::SessionRefused, effects);
-            return;
-        };
         let kind = match &self.phase {
             SessionPhase::Opening { kind, .. } => kind.clone(),
             _ => return,
+        };
+        let RawJsonRpcMessage::Response(Response::Result { result, .. }) = frame else {
+            // A refused `session/load` must not kill the session: fail-closed
+            // means "do not replace host history", not "refuse every later
+            // prompt". Stay Live on the restored ACP id, leave the history
+            // boundary unset, and flush so the queued prompt proceeds.
+            // `session/new` (and `session/resume`) still die — there is no
+            // prior window to keep prompting against.
+            match &kind {
+                SessionOpening::Load(session_id) => {
+                    if let Some(Effect::Log { boundary, .. }) = effects.first_mut() {
+                        *boundary = None;
+                    }
+                    self.phase = SessionPhase::Live {
+                        session_id: session_id.clone(),
+                        elicitation: None,
+                    };
+                    if self.reload_required {
+                        self.begin_reload(effects);
+                        return;
+                    }
+                    self.flush(session_id, effects);
+                }
+                SessionOpening::New | SessionOpening::Resume(_) => {
+                    self.die(
+                        StopReason::SessionRefused {
+                            method: kind.method_name(),
+                        },
+                        effects,
+                    );
+                }
+            }
+            return;
         };
         let (session_id, persist) = match kind {
             SessionOpening::New => {
@@ -453,7 +482,10 @@ impl<Token> SessionMachine<Token> {
                     Ok(response) => (response.session_id, true),
                     Err(error) => {
                         self.die(
-                            StopReason::SessionUnintelligible(error.to_string()),
+                            StopReason::SessionUnintelligible {
+                                method: "session/new",
+                                detail: error.to_string(),
+                            },
                             effects,
                         );
                         return;
@@ -464,7 +496,10 @@ impl<Token> SessionMachine<Token> {
                 if let Err(error) = serde_json::from_value::<ResumeSessionResponse>(result.clone())
                 {
                     self.die(
-                        StopReason::SessionUnintelligible(error.to_string()),
+                        StopReason::SessionUnintelligible {
+                            method: "session/resume",
+                            detail: error.to_string(),
+                        },
                         effects,
                     );
                     return;
@@ -474,7 +509,10 @@ impl<Token> SessionMachine<Token> {
             SessionOpening::Load(session_id) => {
                 if let Err(error) = serde_json::from_value::<LoadSessionResponse>(result.clone()) {
                     self.die(
-                        StopReason::SessionUnintelligible(error.to_string()),
+                        StopReason::SessionUnintelligible {
+                            method: "session/load",
+                            detail: error.to_string(),
+                        },
                         effects,
                     );
                     return;

@@ -478,11 +478,53 @@ fn a_refused_session_new_fails_the_queue_and_stops() {
                 result: Err(AgentSessionError::Disconnected(_))
             },
             Effect::Stop {
-                reason: StopReason::SessionRefused
+                reason: StopReason::SessionRefused {
+                    method: "session/new"
+                }
             },
         ]
     ));
     assert_eq!(machine.status(), RuntimeStatus::Dead);
+}
+
+#[test]
+fn a_refused_session_load_stays_live_and_flushes() {
+    let mut machine = SessionMachine::resume(
+        AgentSessionId::TEST_A,
+        "acp-42".into(),
+        "/workspace".to_owned(),
+        Vec::new(),
+    );
+    machine.handle(command("continue after refused load", 1));
+    machine.handle(acp_ready());
+    let initialized = InitializeResponse::new(PROTOCOL_VERSION)
+        .agent_capabilities(AgentCapabilities::new().load_session(true));
+    machine.handle(initialized_with(initialized));
+
+    let effects = machine.handle(session_refused());
+
+    assert!(matches!(
+        effects[..],
+        [
+            Effect::Log { boundary: None, .. },
+            Effect::Send { .. },
+            Effect::Complete {
+                token: 1,
+                result: Ok(())
+            }
+        ]
+    ));
+    assert_eq!(
+        machine.status().session_id().map(ToString::to_string),
+        Some("acp-42".to_owned())
+    );
+    assert_eq!(
+        StopReason::SessionRefused {
+            method: "session/load"
+        }
+        .to_string(),
+        "the agent refused session/load"
+    );
 }
 
 #[test]

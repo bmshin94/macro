@@ -57,6 +57,17 @@ pub(super) enum SessionOpening {
     Load(SessionId),
 }
 
+impl SessionOpening {
+    /// The ACP method this opening asked for — used in stop-reason wording.
+    pub(super) fn method_name(&self) -> &'static str {
+        match self {
+            Self::New => "session/new",
+            Self::Resume(_) => "session/resume",
+            Self::Load(_) => "session/load",
+        }
+    }
+}
+
 /// What the agent said it can do about a session it has seen before, distilled
 /// from the `initialize` response.
 ///
@@ -263,11 +274,21 @@ pub enum StopReason {
     InitializationUnintelligible(String),
     /// The agent cannot restore a previously opened ACP session.
     ResumeUnsupported,
-    /// The agent refused `session/new`.
-    SessionRefused,
-    /// The agent answered `session/new` with something unintelligible; the
-    /// detail is the parser's.
-    SessionUnintelligible(String),
+    /// The agent refused an opening method (`session/new`, `session/load`, or
+    /// `session/resume`). `method` is that method's name so a refused load is
+    /// not misread as a refused `session/new`.
+    SessionRefused {
+        /// The ACP method that was refused.
+        method: &'static str,
+    },
+    /// The agent answered an opening method with something unintelligible; the
+    /// detail is the parser's. `method` names which opening was answered.
+    SessionUnintelligible {
+        /// The ACP method whose response could not be parsed.
+        method: &'static str,
+        /// The parser's complaint.
+        detail: String,
+    },
 }
 
 impl std::fmt::Display for StopReason {
@@ -290,11 +311,13 @@ impl std::fmt::Display for StopReason {
             Self::ResumeUnsupported => {
                 formatter.write_str("the agent supports neither session/resume nor session/load")
             }
-            Self::SessionRefused => formatter.write_str("the agent refused session/new"),
-            Self::SessionUnintelligible(detail) => {
+            Self::SessionRefused { method } => {
+                write!(formatter, "the agent refused {method}")
+            }
+            Self::SessionUnintelligible { method, detail } => {
                 write!(
                     formatter,
-                    "the agent answered session/new unintelligibly: {detail}"
+                    "the agent answered {method} unintelligibly: {detail}"
                 )
             }
         }
