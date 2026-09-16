@@ -1,11 +1,13 @@
-//! Channel-message consumer that emits agent-session trigger events.
+//! Trigger consumer: channel messages and routine run requests in,
+//! agent-session trigger events out.
 
 use agent_session::outbound::postgres::PgAgentSessionRepo;
-use agent_trigger::domain::processing::process_channel_event;
+use agent_trigger::domain::processing::{process_channel_event, process_routine_event};
 use agent_trigger::domain::service::AgentTriggerService;
 use agent_trigger::outbound::{
     BotRepoAgentLookup, ChannelThreadHistory, FastModelTriggerJudge, LexicalExplicitReplyExtractor,
 };
+use ai_routines::AiRoutineMacroEvent;
 use bots::outbound::pg_bots_repo::PgBotsRepo;
 use channels::domain::broker_events::ChannelMacroEvent;
 use channels::outbound::pg_channels_repo::PgChannelsRepo;
@@ -28,19 +30,19 @@ impl GroupName for AgentTriggerConsumerGroup {
     const GROUP_NAME: &'static str = "agent-trigger-service";
 }
 
-macro_event_broker::declare_topics!(DeclaredChannelEvent: ChannelMacroEvent);
+macro_event_broker::declare_topics!(DeclaredTriggerEvent: ChannelMacroEvent, AiRoutineMacroEvent);
 
-type TriggerKafkaAdapter = KafkaConsumerAdapter<AgentTriggerConsumerGroup, DeclaredChannelEvent>;
-type TriggerConsumer = MacroEventConsumerService<DeclaredChannelEvent, TriggerKafkaAdapter>;
+type TriggerKafkaAdapter = KafkaConsumerAdapter<AgentTriggerConsumerGroup, DeclaredTriggerEvent>;
+type TriggerConsumer = MacroEventConsumerService<DeclaredTriggerEvent, TriggerKafkaAdapter>;
 
 fn commit_message(consumer: &TriggerConsumer, message: &BorrowedMessage<'_>) -> anyhow::Result<()> {
     consumer
         .inner()
         .commit_message(message, CommitMode::Sync)
-        .map_err(|error| anyhow::anyhow!("failed to commit channel event offset: {error:?}"))
+        .map_err(|error| anyhow::anyhow!("failed to commit agent trigger offset: {error:?}"))
 }
 
-/// Keeps the channel trigger consumer running across transient failures.
+/// Keeps the trigger consumer running across transient failures.
 pub async fn supervise(pool: PgPool, kafka_brokers: String, internal_api_key: String) {
     loop {
         if let Err(error) = run(
@@ -73,12 +75,14 @@ async fn run(pool: PgPool, kafka_brokers: String, internal_api_key: String) -> a
     );
     let consumer = KafkaEventConsumer::<AgentTriggerConsumerGroup>::from_env(&kafka_brokers)?;
     let consumer = KafkaConsumerAdapter::<AgentTriggerConsumerGroup, ()>::new(consumer)
-        .subscribe::<DeclaredChannelEvent>()
-        .map_err(|error| anyhow::anyhow!("failed to subscribe to channel events: {error:?}"))?;
+        .subscribe::<DeclaredTriggerEvent>()
+        .map_err(|error| {
+            anyhow::anyhow!("failed to subscribe to agent trigger topics: {error:?}")
+        })?;
     let consumer = TriggerConsumer::new(consumer);
 
     tracing::info!(
-        topics = ?DeclaredChannelEvent::topics(),
+        topics = ?DeclaredTriggerEvent::topics(),
         group = AgentTriggerConsumerGroup::GROUP_NAME,
         "agent trigger listening"
     );
@@ -87,7 +91,7 @@ async fn run(pool: PgPool, kafka_brokers: String, internal_api_key: String) -> a
         let message = match consumer.recv().await {
             Ok(message) => message,
             Err(error) => {
-                tracing::error!(error = ?error, "failed to receive channel event");
+                tracing::error!(error = ?error, "failed to receive agent trigger event");
                 sleep(Duration::from_secs(1)).await;
                 continue;
             }
@@ -95,26 +99,37 @@ async fn run(pool: PgPool, kafka_brokers: String, internal_api_key: String) -> a
         let span = consumer_span(message.inner(), AgentTriggerConsumerGroup::GROUP_NAME);
         let result = async {
             let kafka_message = message.inner();
-            let event = match message.decode_payload() {
-                Ok(DeclaredChannelEvent::ChannelMacroEvent(event)) => event,
+            let decoded = match message.decode_payload() {
+                Ok(decoded) => decoded,
                 Err(error) => {
                     record_span_error(&tracing::Span::current(), &error);
                     tracing::error!(
                         error = ?error,
                         partition = kafka_message.partition(),
                         offset = kafka_message.offset(),
-                        "dropping undecodable channel event"
+                        "dropping undecodable agent trigger event"
                     );
                     commit_message(&consumer, kafka_message)?;
                     return Ok::<(), anyhow::Error>(());
                 }
             };
-            tracing::Span::current().record(
-                "macro.event.id",
-                tracing::field::display(event.event().event_id),
-            );
 
-            process_channel_event(&trigger, &publisher, &event).await?;
+            match decoded {
+                DeclaredTriggerEvent::ChannelMacroEvent(event) => {
+                    tracing::Span::current().record(
+                        "macro.event.id",
+                        tracing::field::display(event.event().event_id),
+                    );
+                    process_channel_event(&trigger, &publisher, &event).await?;
+                }
+                DeclaredTriggerEvent::AiRoutineMacroEvent(event) => {
+                    tracing::Span::current().record(
+                        "macro.event.id",
+                        tracing::field::display(event.event().event_id),
+                    );
+                    process_routine_event(&publisher, &event).await?;
+                }
+            }
             commit_message(&consumer, kafka_message)?;
             Ok(())
         }

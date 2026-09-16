@@ -248,6 +248,7 @@ dependencies = [
  "agent_runtime_protocol",
  "agent_session",
  "agent_trigger",
+ "ai_routines",
  "ai_usage",
  "anyhow",
  "async-trait",
@@ -314,6 +315,7 @@ dependencies = [
  "agent_runtime_protocol",
  "agent_session",
  "agent_trigger",
+ "ai_routines",
  "ai_tools",
  "ai_toolset",
  "ai_usage",
@@ -510,6 +512,7 @@ version = "0.1.0"
 dependencies = [
  "agent",
  "agent_session",
+ "ai_routines",
  "ai_usage",
  "anyhow",
  "bot_id",
@@ -538,6 +541,7 @@ version = "0.1.0"
 dependencies = [
  "agent_session",
  "agent_trigger",
+ "ai_routines",
  "ai_usage",
  "anyhow",
  "bots",
@@ -642,6 +646,20 @@ dependencies = [
  "sqs_client",
  "tokio",
  "tracing",
+ "workspace-hack",
+]
+
+[[package]]
+name = "ai_routines"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "macro_event_broker",
+ "macro_event_topics",
+ "macro_user_id",
+ "macro_uuid",
+ "serde",
+ "serde_json",
  "workspace-hack",
 ]
 
@@ -14550,18 +14568,12 @@ dependencies = [
 name = "scheduled_action"
 version = "0.1.0"
 dependencies = [
- "agent",
- "ai_tools",
- "ai_toolset",
- "ai_usage",
+ "ai_routines",
  "anyhow",
  "aws-sdk-secretsmanager",
- "aws-sdk-sqs",
  "axum",
- "chat",
  "chrono",
  "chrono-tz",
- "connection_gateway_client",
  "cron",
  "database_env_vars",
  "doppler-config",
@@ -14571,24 +14583,16 @@ dependencies = [
  "macro_aws_config",
  "macro_config",
  "macro_cors",
- "macro_db_client",
  "macro_entrypoint",
  "macro_env",
  "macro_env_var",
- "macro_queues",
- "macro_service_urls",
+ "macro_event_broker",
  "macro_user_id",
  "macro_uuid",
- "memory",
  "model",
- "model-entity",
- "model_notifications",
- "models_permissions",
- "notification",
  "secretsmanager_client",
  "serde",
  "serde_json",
- "share_permission_db_utils",
  "sqlx",
  "tokio",
  "tokio-util",

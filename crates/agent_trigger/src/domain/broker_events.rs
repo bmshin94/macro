@@ -1,6 +1,7 @@
 //! Signals published to [`MacroAgentSessionsTopic`].
 
 use agent_session::domain::model::AgentSessionId;
+use ai_routines::AiRoutineRunRequested;
 use bot_id::BotId;
 use channels::domain::broker_events::ChannelMessagePostedMetadata;
 use macro_event_broker::{Event, MacroEvent, TopicEvent};
@@ -40,6 +41,9 @@ pub struct AgentBotMentionedEvent {
 pub enum NewAgentSessionEvent {
     /// Opened by a bot mention in a top-level channel message.
     TopLevelMentioned(AgentBotMentionedEvent),
+    /// Opened to run an AI routine. The request is carried verbatim; a
+    /// routine has no channel and, today, no bot of its own.
+    Routine(AiRoutineRunRequested),
 }
 
 /// A message for a session that already exists.
@@ -98,7 +102,8 @@ impl TopicEvent for AgentTriggerTopicEvent {
 /// Keyed by bot id: a session belongs to one bot, so one bot's partition
 /// carries every event of every one of its sessions, in order -- which is what
 /// lets the harness instance owning that partition keep the live sessions in
-/// memory.
+/// memory. A routine open names no bot and keys by routine id instead, so one
+/// routine's runs stay in order.
 #[derive(Debug, Clone)]
 pub struct AgentSessionMacroEvent {
     key: String,
@@ -106,13 +111,14 @@ pub struct AgentSessionMacroEvent {
 }
 
 impl AgentSessionMacroEvent {
-    /// Open a session for a bot.
+    /// Open a session.
     #[must_use]
     pub fn new_session(event: NewAgentSessionEvent) -> Self {
-        let bot_id = match &event {
-            NewAgentSessionEvent::TopLevelMentioned(mentioned) => mentioned.bot_id,
+        let key = match &event {
+            NewAgentSessionEvent::TopLevelMentioned(mentioned) => mentioned.bot_id.to_string(),
+            NewAgentSessionEvent::Routine(routine) => routine.routine_id.to_string(),
         };
-        Self::new(bot_id, AgentTriggerTopicEvent::New(event))
+        Self::with_event(key, Event::new(AgentTriggerTopicEvent::New(event)))
     }
 
     /// Feed one of a bot's existing sessions.

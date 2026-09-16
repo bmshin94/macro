@@ -1,11 +1,16 @@
-//! Shared channel-event processing for agent trigger consumers.
+//! Shared event processing for agent trigger consumers: channel messages
+//! and routine run requests, each turned into agent-session events.
+
+#[cfg(test)]
+mod test;
 
 use agent_session::domain::error::AgentSessionError;
 use agent_session::domain::ports::AgentSessionRepo;
+use ai_routines::{AiRoutineMacroEvent, AiRoutineTopicEvent};
 use channels::domain::broker_events::{ChannelMacroEvent, ChannelTopicEvent};
 use macro_event_broker::{EventBrokerError, MacroEvent as _, MacroEventBroker};
 
-use super::broker_events::AgentTriggerEventName;
+use super::broker_events::{AgentSessionMacroEvent, AgentTriggerEventName, NewAgentSessionEvent};
 use super::service::{
     AgentBotLookup, AgentTriggerService, ChannelParticipationLookup, ExplicitReplyExtractor,
     ImplicitTriggerJudge, TeamMembershipLookup, ThreadHistory,
@@ -70,6 +75,51 @@ where
             .await
             .map_err(ProcessChannelEventError::PublishTask)??;
     }
+
+    Ok(())
+}
+
+/// Failure while publishing the session open a routine run asks for.
+#[derive(Debug, thiserror::Error)]
+pub enum ProcessRoutineEventError {
+    /// The session event could not be queued for publication.
+    #[error(transparent)]
+    Publish(#[from] EventBrokerError),
+    /// The publication task stopped before reporting its result.
+    #[error("agent event publication task failed")]
+    PublishTask(#[source] tokio::task::JoinError),
+}
+
+/// Turn one routine run request into the agent-session event that opens its
+/// session, and publish it.
+///
+/// Nothing to evaluate: a routine is its owner's standing instruction to run,
+/// so every request yields exactly one open. As with channel events, the
+/// transport adapter keeps decode and offset commit.
+pub async fn process_routine_event<Broker>(
+    publisher: &Broker,
+    event: &AiRoutineMacroEvent,
+) -> Result<(), ProcessRoutineEventError>
+where
+    Broker: MacroEventBroker,
+{
+    let routine_event = &event.event().event;
+    tracing::Span::current().record("macro.event.type", routine_event.name());
+    let AiRoutineTopicEvent::RunRequested(request) = routine_event;
+
+    let yielded =
+        AgentSessionMacroEvent::new_session(NewAgentSessionEvent::Routine(request.clone()));
+    let event_type: &'static str = AgentTriggerEventName::from(&yielded.event().event).into();
+    tracing::info!(
+        routine_id = %request.routine_id,
+        macro.event.id = %yielded.event().event_id,
+        macro.event.type = event_type,
+        "agent trigger yielded event for a routine run"
+    );
+    publisher
+        .send_event(&yielded)?
+        .await
+        .map_err(ProcessRoutineEventError::PublishTask)??;
 
     Ok(())
 }
