@@ -17,7 +17,7 @@ use super::{
         CalendarCreationTarget, CalendarEvent, CalendarEventDraft, CalendarEventMutationTarget,
         CalendarEventPatch, CalendarEventUpsert, DisconnectedGoogleCalendar, EventReminders,
         EventTime, OccurrenceRange, REMINDER_METHOD_EMAIL, REMINDER_METHOD_POPUP,
-        REMINDER_MINUTES_MAX, REMINDER_OVERRIDES_MAX,
+        REMINDER_MINUTES_MAX, REMINDER_OVERRIDES_MAX, TeamCalendarSharing,
     },
     ports::{
         CalendarAccessTokenProvider, CalendarDeletionScope, CalendarEventChange,
@@ -537,6 +537,30 @@ where
             .calendar_changed(requester_id, email_link_id)
             .await;
         Ok(())
+    }
+
+    #[tracing::instrument(skip(self, requester_id), err)]
+    async fn team_calendar_sharing(
+        &self,
+        requester_id: &str,
+    ) -> Result<TeamCalendarSharing, CalendarMutationError> {
+        self.repository
+            .team_calendar_sharing(requester_id)
+            .await
+            .map_err(internal)
+    }
+
+    #[tracing::instrument(skip(self, requester_id), err)]
+    async fn set_team_calendar_sharing(
+        &self,
+        requester_id: &str,
+        sharing: TeamCalendarSharing,
+    ) -> Result<TeamCalendarSharing, CalendarMutationError> {
+        self.repository
+            .set_team_calendar_sharing(requester_id, sharing)
+            .await
+            .map_err(internal)?;
+        Ok(sharing)
     }
 }
 

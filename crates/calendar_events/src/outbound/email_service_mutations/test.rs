@@ -248,3 +248,16 @@ fn unrecognized_failures_are_classified_by_status() {
     );
     assert!(matches!(parsed, CalendarMutationError::Retryable(_)));
 }
+
+#[test]
+fn team_sharing_wire_matches_the_router_body() {
+    let wire = TeamSharingWire {
+        sharing: TeamCalendarSharing::BusyOnly,
+    };
+    let json = serde_json::to_value(&wire).unwrap();
+    assert_eq!(json, serde_json::json!({ "sharing": "busy_only" }));
+
+    let body: crate::inbound::mutation_router::TeamCalendarSharingBody =
+        serde_json::from_value(json).unwrap();
+    assert_eq!(body.sharing, TeamCalendarSharing::BusyOnly);
+}

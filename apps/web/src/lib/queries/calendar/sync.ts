@@ -2,18 +2,20 @@ import { queryClient } from '@queries/client';
 import { calendarKeys, RSVP_MUTATION_KEY } from './keys';
 import { invalidateCalendarEventPreviews } from './mention-preview';
 import { invalidateCalendarOccurrences } from './occurrences';
+import { invalidateTeamCalendar } from './team';
 import { invalidateTeamOutOfOffice } from './team-ooo';
 
 /**
  * Refetches everything the calendar UI reads: every mounted occurrence
  * viewport, the calendar list (which also carries per-calendar colors and
- * names), teammates' out-of-office overlays, and the cached previews behind
- * calendar mention chips.
+ * names), teammates' out-of-office and shared calendar overlays, and the
+ * cached previews behind calendar mention chips.
  */
 export function invalidateCalendarViews(): void {
   invalidateCalendarOccurrences();
   invalidateCalendarEventPreviews();
   invalidateTeamOutOfOffice();
+  void invalidateTeamCalendar();
   queryClient.invalidateQueries({
     queryKey: calendarKeys.visibleCalendars.queryKey,
   });

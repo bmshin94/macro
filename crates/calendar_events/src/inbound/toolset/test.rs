@@ -11,6 +11,7 @@ use crate::domain::models::{
     AttendeeResponseStatus, CalendarAttendee, CalendarEventDraft, CalendarEventPatch,
     CalendarOccurrence, CalendarSyncStatus, ConferenceChange, EventReminderOverride,
     EventReminders, EventStatus, EventTransparency, EventType, EventVisibility, OccurrenceRange,
+    TeamCalendarMember, TeamCalendarOccurrence, TeamCalendarOccurrenceDetails, TeamCalendarSharing,
     VisibleCalendar,
 };
 use crate::domain::ports::{
@@ -40,6 +41,10 @@ fn tool_input_schemas_satisfy_strict_mode() {
         (
             "DeleteCalendarEvent",
             generate_validated_input_schema::<DeleteCalendarEvent>().map(|schema| schema.name),
+        ),
+        (
+            "GetTeamAvailability",
+            generate_validated_input_schema::<GetTeamAvailability>().map(|schema| schema.name),
         ),
     ] {
         match result {
@@ -219,11 +224,28 @@ impl CalendarMutationService for MockMutations {
     ) -> Result<(), CalendarMutationError> {
         unreachable!("no calendar tool disconnects calendars")
     }
+
+    async fn team_calendar_sharing(
+        &self,
+        _requester_id: &str,
+    ) -> Result<crate::domain::models::TeamCalendarSharing, CalendarMutationError> {
+        unreachable!("no calendar tool reads the team sharing setting")
+    }
+
+    async fn set_team_calendar_sharing(
+        &self,
+        _requester_id: &str,
+        _sharing: crate::domain::models::TeamCalendarSharing,
+    ) -> Result<crate::domain::models::TeamCalendarSharing, CalendarMutationError> {
+        unreachable!("no calendar tool writes the team sharing setting")
+    }
 }
 
 struct MockOccurrences {
     rows: Mutex<Vec<(crate::domain::models::CalendarEvent, CalendarOccurrence)>>,
     status: CalendarSyncStatus,
+    team_members: Mutex<Vec<crate::domain::models::TeamCalendarMember>>,
+    team_rows: Mutex<Vec<crate::domain::models::TeamCalendarOccurrence>>,
 }
 
 impl CalendarOccurrenceService for MockOccurrences {
@@ -272,11 +294,38 @@ impl CalendarOccurrenceService for MockOccurrences {
         unreachable!("no calendar tool lists team out-of-office")
     }
 
+    async fn list_team_calendar_members(
+        &self,
+        _requester_id: &str,
+    ) -> Result<Vec<crate::domain::models::TeamCalendarMember>, rootcause::Report> {
+        Ok(self.team_members.lock().unwrap().clone())
+    }
+
+    async fn list_team_occurrences(
+        &self,
+        _requester_id: &str,
+        range: OccurrenceRange,
+        owner_ids: Option<&[String]>,
+        limit: u16,
+    ) -> Result<Vec<crate::domain::models::TeamCalendarOccurrence>, rootcause::Report> {
+        let mut rows: Vec<_> = self
+            .team_rows
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|row| row.time.overlaps(&range))
+            .filter(|row| owner_ids.is_none_or(|ids| ids.contains(&row.owner_id)))
+            .cloned()
+            .collect();
+        rows.truncate(usize::from(limit));
+        Ok(rows)
+    }
+
     async fn primary_time_zone(
         &self,
         _requester_id: &str,
     ) -> Result<Option<String>, rootcause::Report> {
-        unreachable!("no calendar tool resolves the primary time zone")
+        Ok(Some("America/New_York".to_string()))
     }
 }
 
@@ -300,6 +349,8 @@ fn empty_occurrences() -> MockOccurrences {
     MockOccurrences {
         rows: Mutex::new(Vec::new()),
         status: CalendarSyncStatus::Ready,
+        team_members: Mutex::new(Vec::new()),
+        team_rows: Mutex::new(Vec::new()),
     }
 }
 
@@ -891,6 +942,8 @@ async fn list_events_maps_occurrences_and_skips_cancelled_ones() {
             (recurring.clone(), occurrence_of(&recurring, "k-2", true)),
         ]),
         status: CalendarSyncStatus::Syncing,
+        team_members: Mutex::new(Vec::new()),
+        team_rows: Mutex::new(Vec::new()),
     };
     let (_, context) = context(MockMutations::default(), occurrences);
 
@@ -928,6 +981,8 @@ async fn list_events_reports_truncation() {
     let occurrences = MockOccurrences {
         rows: Mutex::new(rows),
         status: CalendarSyncStatus::Ready,
+        team_members: Mutex::new(Vec::new()),
+        team_rows: Mutex::new(Vec::new()),
     };
     let (_, context) = context(MockMutations::default(), occurrences);
 
@@ -963,6 +1018,8 @@ async fn cancelled_occurrences_do_not_count_toward_truncation() {
     let occurrences = MockOccurrences {
         rows: Mutex::new(rows),
         status: CalendarSyncStatus::Ready,
+        team_members: Mutex::new(Vec::new()),
+        team_rows: Mutex::new(Vec::new()),
     };
     let (_, context) = context(MockMutations::default(), occurrences);
 
@@ -1005,4 +1062,275 @@ async fn list_calendars_maps_visible_calendars() {
     assert!(calendar.is_primary);
     assert!(calendar.is_writable);
     assert_eq!(response.summary, "Found 1 calendar.");
+}
+
+fn team_member(
+    user_id: &str,
+    sharing: TeamCalendarSharing,
+    has_calendar: bool,
+) -> TeamCalendarMember {
+    TeamCalendarMember {
+        user_id: user_id.to_string(),
+        sharing,
+        has_calendar,
+    }
+}
+
+/// A teammate's occurrence as the domain service hands it to the tool:
+/// details already withheld unless they share them.
+fn team_occurrence(
+    owner_id: &str,
+    key: &str,
+    hour: u32,
+    minutes: i64,
+    sharing: TeamCalendarSharing,
+    title: &str,
+) -> TeamCalendarOccurrence {
+    let starts_at = Utc.with_ymd_and_hms(2026, 8, 20, hour, 0, 0).unwrap();
+    TeamCalendarOccurrence {
+        owner_id: owner_id.to_string(),
+        event_id: Uuid::now_v7(),
+        ical_uid: format!("{key}@example.com"),
+        occurrence_key: key.to_string(),
+        time: EventTime::Timed {
+            starts_at,
+            ends_at: starts_at + chrono::Duration::minutes(minutes),
+            time_zone: Some("UTC".to_string()),
+        },
+        status: EventStatus::Confirmed,
+        transparency: EventTransparency::Opaque,
+        event_type: EventType::Default,
+        visibility: EventVisibility::Default,
+        sharing,
+        details: sharing
+            .shares_details()
+            .then(|| TeamCalendarOccurrenceDetails {
+                title: title.to_string(),
+                description: None,
+                location: None,
+                conference_url: None,
+                organizer_email: None,
+                organizer_name: None,
+                attendees: Vec::new(),
+            }),
+    }
+}
+
+fn team_occurrences(
+    members: Vec<TeamCalendarMember>,
+    rows: Vec<TeamCalendarOccurrence>,
+) -> MockOccurrences {
+    MockOccurrences {
+        rows: Mutex::new(Vec::new()),
+        status: CalendarSyncStatus::Ready,
+        team_members: Mutex::new(members),
+        team_rows: Mutex::new(rows),
+    }
+}
+
+fn workday_window() -> (chrono::DateTime<Utc>, chrono::DateTime<Utc>) {
+    (
+        Utc.with_ymd_and_hms(2026, 8, 20, 9, 0, 0).unwrap(),
+        Utc.with_ymd_and_hms(2026, 8, 20, 17, 0, 0).unwrap(),
+    )
+}
+
+#[tokio::test]
+async fn team_availability_reports_busy_blocks_and_shared_free_windows() {
+    let alex = "macro|alex@example.com";
+    let blair = "macro|blair@example.com";
+    let casey = "macro|casey@example.com";
+    let devon = "macro|devon@example.com";
+    let mut free_meeting = team_occurrence(
+        blair,
+        "free",
+        9,
+        30,
+        TeamCalendarSharing::BusyOnly,
+        "not shown",
+    );
+    free_meeting.transparency = EventTransparency::Transparent;
+    let mut lunch = team_occurrence(alex, "ooo", 12, 60, TeamCalendarSharing::All, "Lunch");
+    lunch.event_type = EventType::OutOfOffice;
+    let occurrences = team_occurrences(
+        vec![
+            team_member(alex, TeamCalendarSharing::All, true),
+            team_member(blair, TeamCalendarSharing::BusyOnly, true),
+            team_member(casey, TeamCalendarSharing::None, true),
+            team_member(devon, TeamCalendarSharing::All, false),
+        ],
+        vec![
+            team_occurrence(alex, "standup", 10, 60, TeamCalendarSharing::All, "Standup"),
+            lunch,
+            team_occurrence(
+                blair,
+                "1:1",
+                14,
+                60,
+                TeamCalendarSharing::BusyOnly,
+                "not shown",
+            ),
+            free_meeting,
+        ],
+    );
+    let (_, context) = context(MockMutations::default(), occurrences);
+    let (start, end) = workday_window();
+
+    let response = GetTeamAvailability {
+        start,
+        end,
+        user_ids: None,
+    }
+    .call(context, request_context())
+    .await
+    .unwrap();
+
+    let by_user: std::collections::HashMap<_, _> = response
+        .members
+        .iter()
+        .map(|member| (member.user_id.as_str(), member))
+        .collect();
+    assert_eq!(response.members.len(), 4);
+    let alex_busy = &by_user[alex].busy;
+    assert_eq!(alex_busy.len(), 2);
+    assert_eq!(alex_busy[0].title.as_deref(), Some("Standup"));
+    assert_eq!(alex_busy[1].event_type.as_deref(), Some("out_of_office"));
+    let blair_member = by_user[blair];
+    assert_eq!(blair_member.sharing, "busy_only");
+    assert_eq!(
+        blair_member.busy.len(),
+        1,
+        "a transparent event never counts as busy"
+    );
+    assert!(blair_member.busy[0].title.is_none());
+    assert_eq!(by_user[casey].sharing, "none");
+    assert!(by_user[casey].busy.is_empty());
+    assert!(!by_user[devon].has_calendar);
+
+    let windows: Vec<(String, String)> = response
+        .free_windows
+        .iter()
+        .map(|window| (window.start.clone(), window.end.clone()))
+        .collect();
+    assert_eq!(
+        windows,
+        vec![
+            (
+                "2026-08-20T09:00:00+00:00".to_string(),
+                "2026-08-20T10:00:00+00:00".to_string()
+            ),
+            (
+                "2026-08-20T11:00:00+00:00".to_string(),
+                "2026-08-20T12:00:00+00:00".to_string()
+            ),
+            (
+                "2026-08-20T13:00:00+00:00".to_string(),
+                "2026-08-20T14:00:00+00:00".to_string()
+            ),
+            (
+                "2026-08-20T15:00:00+00:00".to_string(),
+                "2026-08-20T17:00:00+00:00".to_string()
+            ),
+        ]
+    );
+    assert!(!response.truncated);
+    assert_eq!(response.time_zone.as_deref(), Some("America/New_York"));
+    assert!(
+        response
+            .summary
+            .contains("Checked 4 teammates; 2 share a connected calendar.")
+    );
+    assert!(response.summary.contains("4 free windows"));
+    assert!(response.summary.contains("1 shares nothing"));
+    assert!(response.summary.contains("1 has no calendar connected"));
+}
+
+#[tokio::test]
+async fn team_availability_narrows_to_requested_teammates_and_flags_unknown_ids() {
+    let alex = "macro|alex@example.com";
+    let blair = "macro|blair@example.com";
+    let occurrences = team_occurrences(
+        vec![
+            team_member(alex, TeamCalendarSharing::All, true),
+            team_member(blair, TeamCalendarSharing::All, true),
+        ],
+        vec![
+            team_occurrence(alex, "a", 10, 60, TeamCalendarSharing::All, "Alex only"),
+            team_occurrence(blair, "b", 13, 60, TeamCalendarSharing::All, "Blair only"),
+        ],
+    );
+    let (_, context) = context(MockMutations::default(), occurrences);
+    let (start, end) = workday_window();
+
+    let response = GetTeamAvailability {
+        start,
+        end,
+        user_ids: Some(vec![
+            blair.to_string(),
+            "macro|stranger@example.com".to_string(),
+        ]),
+    }
+    .call(context, request_context())
+    .await
+    .unwrap();
+
+    assert_eq!(response.members.len(), 1);
+    assert_eq!(response.members[0].user_id, blair);
+    assert_eq!(response.members[0].busy.len(), 1);
+    assert_eq!(
+        response.unknown_user_ids,
+        vec!["macro|stranger@example.com".to_string()]
+    );
+    assert_eq!(
+        response.free_windows.len(),
+        2,
+        "only Blair's meeting splits the window"
+    );
+    assert!(response.summary.contains("not on the team"));
+}
+
+#[tokio::test]
+async fn team_availability_rejects_an_inverted_window() {
+    let (_, context) = context(
+        MockMutations::default(),
+        team_occurrences(Vec::new(), Vec::new()),
+    );
+    let (start, end) = workday_window();
+
+    let error = GetTeamAvailability {
+        start: end,
+        end: start,
+        user_ids: None,
+    }
+    .call(context, request_context())
+    .await
+    .unwrap_err();
+
+    assert!(error.description.contains("end must be after start"));
+}
+
+#[test]
+fn free_windows_merge_overlapping_and_touching_busy_spans() {
+    let (start, end) = workday_window();
+    let at = |hour: u32, minute: u32| Utc.with_ymd_and_hms(2026, 8, 20, hour, minute, 0).unwrap();
+    let busy = vec![
+        (at(10, 0), at(11, 0)),
+        (at(10, 30), at(11, 30)),
+        (at(11, 30), at(12, 0)),
+        (at(8, 0), at(9, 30)),
+        (at(16, 0), at(18, 0)),
+        (at(20, 0), at(21, 0)),
+    ];
+
+    let free = super::get_team_availability::free_windows(start, end, busy);
+
+    assert_eq!(
+        free,
+        vec![(at(9, 30), at(10, 0)), (at(12, 0), at(16, 0))],
+        "spans outside the window are clipped or dropped, adjacent spans merge"
+    );
+    assert_eq!(
+        super::get_team_availability::free_windows(start, end, Vec::new()),
+        vec![(start, end)]
+    );
 }

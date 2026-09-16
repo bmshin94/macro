@@ -26,6 +26,14 @@ export const calendarKeys = createQueryKeys('calendar', {
   ) => ({
     queryKey: [userId, range],
   }),
+  teamCalendar: (
+    userId: string,
+    range: CalendarOccurrenceQueryRange | undefined
+  ) => ({
+    queryKey: [userId, range],
+  }),
+  teamCalendarMembers: null,
+  teamSharing: null,
   mentionPreview: (eventId: string, occurrenceKey: string | undefined) => ({
     queryKey: [eventId, occurrenceKey],
   }),

@@ -154,6 +154,7 @@ use utoipa::OpenApi;
         calendar_events::inbound::axum_router::list_occurrences,
         calendar_events::inbound::axum_router::mention_previews,
         calendar_events::inbound::axum_router::list_team_out_of_office,
+        calendar_events::inbound::axum_router::list_team_occurrences,
 
         // annotations
         annotations::get::get_document_comments_handler,
@@ -487,6 +488,11 @@ use utoipa::OpenApi;
             calendar_events::inbound::axum_router::CalendarMentionPreviewKind,
             calendar_events::inbound::axum_router::TeamOutOfOfficeItem,
             calendar_events::inbound::axum_router::TeamOutOfOfficeResponse,
+            calendar_events::inbound::axum_router::TeamCalendarMemberItem,
+            calendar_events::inbound::axum_router::TeamCalendarEventDetails,
+            calendar_events::inbound::axum_router::TeamCalendarOccurrenceItem,
+            calendar_events::inbound::axum_router::TeamCalendarResponse,
+            calendar_events::domain::models::TeamCalendarSharing,
             calendar_events::domain::models::CalendarMentionEvent,
             calendar_events::domain::models::CalendarSyncStatus,
             SoupItemWithProperties,

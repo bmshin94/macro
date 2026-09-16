@@ -1015,6 +1015,88 @@
         }
       }
     },
+    "/calendar-events/team": {
+      "get": {
+        "tags": ["calendar_events"],
+        "summary": "Return teammates' calendar occurrences in the requested viewport, with\neach teammate's sharing policy applied.",
+        "operationId": "list_team_occurrences",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Inclusive UTC viewport start.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "Exclusive UTC viewport end.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "description": "Inclusive local date boundary for all-day events.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "description": "Exclusive local date boundary for all-day events.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of occurrences, from 1 through 2,000.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "maximum": 2000,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Teammates' calendar occurrences in the requested viewport",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamCalendarResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or unsupported calendar viewport"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Calendar query failed"
+          }
+        }
+      }
+    },
     "/calendar-events/team-out-of-office": {
       "get": {
         "tags": ["calendar_events"],
@@ -27783,6 +27865,153 @@
             "description": "Include tasks that are created by me, assigned to me, and not completed,\neven when they do not match other document filters."
           }
         }
+      },
+      "TeamCalendarEventDetails": {
+        "type": "object",
+        "description": "Details of a teammate's event, present only when they share them and\nthe event is not private.",
+        "required": ["title", "attendees"],
+        "properties": {
+          "attendees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CalendarAttendee"
+            },
+            "description": "Attendees of the teammate's copy of the event."
+          },
+          "conferenceUrl": {
+            "type": ["string", "null"],
+            "description": "Direct join URL when known."
+          },
+          "description": {
+            "type": ["string", "null"],
+            "description": "Optional event body."
+          },
+          "location": {
+            "type": ["string", "null"],
+            "description": "Optional location label."
+          },
+          "organizerEmail": {
+            "type": ["string", "null"],
+            "description": "Organizer email."
+          },
+          "organizerName": {
+            "type": ["string", "null"],
+            "description": "Organizer display name."
+          },
+          "title": {
+            "type": "string",
+            "description": "Display title."
+          }
+        }
+      },
+      "TeamCalendarMemberItem": {
+        "type": "object",
+        "description": "One teammate and what they share with the team.",
+        "required": ["userId", "sharing", "hasCalendar"],
+        "properties": {
+          "hasCalendar": {
+            "type": "boolean",
+            "description": "Whether the teammate has a connected, enabled calendar."
+          },
+          "sharing": {
+            "$ref": "#/components/schemas/TeamCalendarSharing",
+            "description": "The teammate's sharing policy."
+          },
+          "userId": {
+            "type": "string",
+            "description": "Macro user id of the teammate."
+          }
+        }
+      },
+      "TeamCalendarOccurrenceItem": {
+        "type": "object",
+        "description": "One occurrence from a teammate's primary calendar.",
+        "required": [
+          "ownerId",
+          "eventId",
+          "occurrenceKey",
+          "time",
+          "status",
+          "transparency",
+          "eventType",
+          "sharing"
+        ],
+        "properties": {
+          "details": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TeamCalendarEventDetails",
+                "description": "Event details, absent when the teammate shares busy time only or\nthe event's visibility withholds them."
+              }
+            ]
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The teammate's calendar event id."
+          },
+          "eventType": {
+            "$ref": "#/components/schemas/EventType",
+            "description": "Provider event type; `default` for regular events."
+          },
+          "occurrenceKey": {
+            "type": "string",
+            "description": "Stable occurrence key within the event."
+          },
+          "ownerId": {
+            "type": "string",
+            "description": "Macro user id of the teammate whose calendar the occurrence is on."
+          },
+          "sharing": {
+            "$ref": "#/components/schemas/TeamCalendarSharing",
+            "description": "The sharing policy applied to this occurrence."
+          },
+          "status": {
+            "$ref": "#/components/schemas/EventStatus",
+            "description": "Event status: confirmed or tentative."
+          },
+          "time": {
+            "$ref": "#/components/schemas/EventTime",
+            "description": "Occurrence time span."
+          },
+          "transparency": {
+            "$ref": "#/components/schemas/EventTransparency",
+            "description": "Whether the occurrence blocks the teammate's availability."
+          }
+        }
+      },
+      "TeamCalendarResponse": {
+        "type": "object",
+        "description": "Team calendar viewport response.",
+        "required": ["members", "items", "hasMore"],
+        "properties": {
+          "hasMore": {
+            "type": "boolean",
+            "description": "Whether the viewport held more occurrences than the limit."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamCalendarOccurrenceItem"
+            },
+            "description": "Teammates' occurrences in the viewport, soonest first."
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamCalendarMemberItem"
+            },
+            "description": "The requester's teammates and what each shares, whether or not they\nhave occurrences in the viewport."
+          }
+        }
+      },
+      "TeamCalendarSharing": {
+        "type": "string",
+        "description": "How much of a user's calendar their teammates may see.\n\nStored per user; absence of a stored value is [`Self::All`].",
+        "enum": ["all", "busy_only", "none"]
       },
       "TeamOutOfOfficeItem": {
         "type": "object",

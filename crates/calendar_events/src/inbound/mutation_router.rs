@@ -26,7 +26,7 @@ use crate::domain::{
     models::{
         AttendeeResponseStatus, CalendarAttendeeInput, CalendarEvent, CalendarEventDraft,
         CalendarEventPatch, ConferenceChange, EventReminders, EventTime, EventTransparency,
-        EventVisibility, OutOfOfficeProperties, VisibleCalendar,
+        EventVisibility, OutOfOfficeProperties, TeamCalendarSharing, VisibleCalendar,
     },
     ports::{
         CalendarDeletionScope, CalendarMutationError, CalendarMutationService, CalendarRsvpScope,
@@ -85,6 +85,10 @@ where
         .route(
             "/events/{event_id}/rsvp",
             put(rsvp_calendar_event::<S, Auth>),
+        )
+        .route(
+            "/team-sharing",
+            get(get_team_sharing::<S, Auth>).put(set_team_sharing::<S, Auth>),
         )
         .with_state(state)
 }
@@ -476,6 +480,71 @@ where
         .list_visible_calendars(user.authorization.user.macro_user_id.as_ref())
         .await?;
     Ok(Json(ListCalendarsResponse { calendars }))
+}
+
+/// The requester's team calendar sharing setting, read and written alike.
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamCalendarSharingBody {
+    /// How much of the requester's calendar their teammates may see.
+    pub sharing: TeamCalendarSharing,
+}
+
+/// Read how much of the requester's calendar their teammates may see.
+#[tracing::instrument(skip_all, err)]
+#[utoipa::path(
+    get,
+    path = "/calendar/team-sharing",
+    tag = "calendar_events",
+    responses(
+        (status = 200, description = "The requester's team calendar sharing setting", body = TeamCalendarSharingBody),
+        (status = 401, description = "Authentication required"),
+        (status = 503, description = "Transient failure", body = CalendarMutationApiError),
+    )
+)]
+pub async fn get_team_sharing<S, Auth>(
+    State(state): State<CalendarMutationRouterState<S, Auth>>,
+    user: MacroAuthorizationExtractor<Auth, UserOrInternal>,
+) -> Result<Json<TeamCalendarSharingBody>, CalendarMutationApiError>
+where
+    S: CalendarMutationService,
+    Auth: MacroAuthorizationService,
+{
+    let sharing = state
+        .service
+        .team_calendar_sharing(user.authorization.user.macro_user_id.as_ref())
+        .await?;
+    Ok(Json(TeamCalendarSharingBody { sharing }))
+}
+
+/// Set how much of the requester's calendar their teammates may see.
+#[tracing::instrument(skip_all, err)]
+#[utoipa::path(
+    put,
+    path = "/calendar/team-sharing",
+    tag = "calendar_events",
+    request_body = TeamCalendarSharingBody,
+    responses(
+        (status = 200, description = "The stored team calendar sharing setting", body = TeamCalendarSharingBody),
+        (status = 400, description = "Invalid sharing level"),
+        (status = 401, description = "Authentication required"),
+        (status = 503, description = "Transient failure", body = CalendarMutationApiError),
+    )
+)]
+pub async fn set_team_sharing<S, Auth>(
+    State(state): State<CalendarMutationRouterState<S, Auth>>,
+    user: MacroAuthorizationExtractor<Auth, UserOrInternal>,
+    Json(body): Json<TeamCalendarSharingBody>,
+) -> Result<Json<TeamCalendarSharingBody>, CalendarMutationApiError>
+where
+    S: CalendarMutationService,
+    Auth: MacroAuthorizationService,
+{
+    let sharing = state
+        .service
+        .set_team_calendar_sharing(user.authorization.user.macro_user_id.as_ref(), body.sharing)
+        .await?;
+    Ok(Json(TeamCalendarSharingBody { sharing }))
 }
 
 /// Resolve an update's scope from its transport pair. An omitted scope

@@ -1656,6 +1656,210 @@ export const mentionPreviewsResponse = zod
   .describe('Batch calendar mention preview response.');
 
 /**
+ * @summary Return teammates' calendar occurrences in the requested viewport, with
+each teammate's sharing policy applied.
+ */
+export const listTeamOccurrencesQueryLimitMax = 2000;
+
+export const listTeamOccurrencesQueryParams = zod.object({
+  start: zod.iso.datetime({}).describe('Inclusive UTC viewport start.'),
+  end: zod.iso.datetime({}).describe('Exclusive UTC viewport end.'),
+  startDate: zod.iso
+    .date()
+    .optional()
+    .describe('Inclusive local date boundary for all-day events.'),
+  endDate: zod.iso
+    .date()
+    .optional()
+    .describe('Exclusive local date boundary for all-day events.'),
+  limit: zod
+    .number()
+    .min(1)
+    .max(listTeamOccurrencesQueryLimitMax)
+    .optional()
+    .describe('Maximum number of occurrences, from 1 through 2,000.'),
+});
+
+export const listTeamOccurrencesResponse = zod
+  .object({
+    hasMore: zod
+      .boolean()
+      .describe('Whether the viewport held more occurrences than the limit.'),
+    items: zod
+      .array(
+        zod
+          .object({
+            details: zod
+              .union([
+                zod.null(),
+                zod
+                  .object({
+                    attendees: zod
+                      .array(
+                        zod
+                          .object({
+                            comment: zod
+                              .string()
+                              .nullish()
+                              .describe('Optional attendee comment.'),
+                            displayName: zod
+                              .string()
+                              .nullish()
+                              .describe('Provider display name.'),
+                            email: zod
+                              .string()
+                              .describe('Normalized email address.'),
+                            isOptional: zod
+                              .boolean()
+                              .describe('Whether attendance is optional.'),
+                            isOrganizer: zod
+                              .boolean()
+                              .describe(
+                                'Whether this attendee is the organizer.'
+                              ),
+                            isSelf: zod
+                              .boolean()
+                              .describe(
+                                "Whether this attendee is one of the viewing requester's inboxes."
+                              ),
+                            responseStatus: zod
+                              .enum([
+                                'needs_action',
+                                'accepted',
+                                'declined',
+                                'tentative',
+                              ])
+                              .describe('RSVP state for an attendee.'),
+                          })
+                          .describe('An attendee on a calendar event.')
+                      )
+                      .describe(
+                        "Attendees of the teammate's copy of the event."
+                      ),
+                    conferenceUrl: zod
+                      .string()
+                      .nullish()
+                      .describe('Direct join URL when known.'),
+                    description: zod
+                      .string()
+                      .nullish()
+                      .describe('Optional event body.'),
+                    location: zod
+                      .string()
+                      .nullish()
+                      .describe('Optional location label.'),
+                    organizerEmail: zod
+                      .string()
+                      .nullish()
+                      .describe('Organizer email.'),
+                    organizerName: zod
+                      .string()
+                      .nullish()
+                      .describe('Organizer display name.'),
+                    title: zod.string().describe('Display title.'),
+                  })
+                  .describe(
+                    "Details of a teammate's event, present only when they share them and\nthe event is not private."
+                  ),
+              ])
+              .optional(),
+            eventId: zod.uuid().describe("The teammate's calendar event id."),
+            eventType: zod
+              .enum([
+                'default',
+                'out_of_office',
+                'focus_time',
+                'working_location',
+                'birthday',
+                'from_gmail',
+              ])
+              .describe(
+                "Google's event type: ordinary meetings versus the status-style entries\n(working location, out of office, focus time, birthdays) Google renders\nand notifies differently. Immutable at the provider after creation."
+              ),
+            occurrenceKey: zod
+              .string()
+              .describe('Stable occurrence key within the event.'),
+            ownerId: zod
+              .string()
+              .describe(
+                'Macro user id of the teammate whose calendar the occurrence is on.'
+              ),
+            sharing: zod
+              .enum(['all', 'busy_only', 'none'])
+              .describe(
+                "How much of a user's calendar their teammates may see.\n\nStored per user; absence of a stored value is [`Self::All`]."
+              ),
+            status: zod
+              .enum(['confirmed', 'tentative', 'cancelled'])
+              .describe('Canonical event status.'),
+            time: zod
+              .union([
+                zod
+                  .object({
+                    endsAt: zod.iso
+                      .datetime({})
+                      .describe('Exclusive end instant.'),
+                    kind: zod.enum(['timed']),
+                    startsAt: zod.iso
+                      .datetime({})
+                      .describe('Inclusive start instant.'),
+                    timeZone: zod
+                      .string()
+                      .nullish()
+                      .describe(
+                        'Original IANA time-zone identifier, when supplied.'
+                      ),
+                  })
+                  .describe('An event with absolute instants.'),
+                zod
+                  .object({
+                    endDate: zod.iso
+                      .date()
+                      .describe('Exclusive local end date.'),
+                    kind: zod.enum(['allDay']),
+                    startDate: zod.iso
+                      .date()
+                      .describe('Inclusive local start date.'),
+                  })
+                  .describe(
+                    "An all-day event using RFC 5545's exclusive end date."
+                  ),
+              ])
+              .describe(
+                'The mutually exclusive time shape of a calendar event.\n\nFields are renamed per variant rather than with `rename_all_fields`\nbecause utoipa only honors variant-level serde renames when it\nderives the OpenAPI schema.'
+              ),
+            transparency: zod
+              .enum(['opaque', 'transparent'])
+              .describe('Whether an event blocks availability.'),
+          })
+          .describe("One occurrence from a teammate's primary calendar.")
+      )
+      .describe("Teammates' occurrences in the viewport, soonest first."),
+    members: zod
+      .array(
+        zod
+          .object({
+            hasCalendar: zod
+              .boolean()
+              .describe(
+                'Whether the teammate has a connected, enabled calendar.'
+              ),
+            sharing: zod
+              .enum(['all', 'busy_only', 'none'])
+              .describe(
+                "How much of a user's calendar their teammates may see.\n\nStored per user; absence of a stored value is [`Self::All`]."
+              ),
+            userId: zod.string().describe('Macro user id of the teammate.'),
+          })
+          .describe('One teammate and what they share with the team.')
+      )
+      .describe(
+        "The requester's teammates and what each shares, whether or not they\nhave occurrences in the viewport."
+      ),
+  })
+  .describe('Team calendar viewport response.');
+
+/**
  * @summary Return teammates' out-of-office occurrences in the requested viewport.
  */
 export const listTeamOutOfOfficeQueryLimitMax = 2000;

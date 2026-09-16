@@ -111,6 +111,8 @@ use utoipa::OpenApi;
         calendar_events::inbound::mutation_router::update_calendar_event,
         calendar_events::inbound::mutation_router::delete_calendar_event,
         calendar_events::inbound::mutation_router::rsvp_calendar_event,
+        calendar_events::inbound::mutation_router::get_team_sharing,
+        calendar_events::inbound::mutation_router::set_team_sharing,
     ),
     components(
         schemas(
@@ -204,6 +206,8 @@ use utoipa::OpenApi;
             calendar_events::inbound::mutation_router::CalendarMutationErrorCode,
             calendar_events::inbound::mutation_router::CalendarDeletionScopeParam,
             calendar_events::inbound::mutation_router::CalendarUpdateScopeParam,
+            calendar_events::inbound::mutation_router::TeamCalendarSharingBody,
+            calendar_events::domain::models::TeamCalendarSharing,
             calendar_events::domain::models::CalendarEvent,
             calendar_events::domain::models::CalendarAttendee,
             calendar_events::domain::models::AttendeeResponseStatus,

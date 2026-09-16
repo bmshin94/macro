@@ -32,7 +32,7 @@ async fn persist_complete_grant(pool: &PgPool, link_id: Uuid, grant_version: i64
     .unwrap();
 }
 
-async fn insert_link(pool: &PgPool, owner_id: &str) -> Uuid {
+pub(super) async fn insert_link(pool: &PgPool, owner_id: &str) -> Uuid {
     let id = Uuid::now_v7();
     let email_address = format!("calendar-{id}@example.com");
     sqlx::query!(
@@ -52,7 +52,7 @@ async fn insert_link(pool: &PgPool, owner_id: &str) -> Uuid {
     id
 }
 
-async fn insert_user(pool: &PgPool, id: &str) {
+pub(super) async fn insert_user(pool: &PgPool, id: &str) {
     let macro_user_id = Uuid::now_v7();
     let stripe_customer_id = format!("cus_{macro_user_id}");
     sqlx::query!(
@@ -84,7 +84,7 @@ async fn insert_user(pool: &PgPool, id: &str) {
 }
 
 /// Provision the account and calendar every event source now requires.
-async fn provider_ids(repo: &PgCalendarRepository, link_id: Uuid) -> (Uuid, Uuid) {
+pub(super) async fn provider_ids(repo: &PgCalendarRepository, link_id: Uuid) -> (Uuid, Uuid) {
     let account_id = repo.upsert_google_account(link_id).await.unwrap();
     let calendar_id = repo
         .upsert_calendar_fixture(
@@ -106,7 +106,7 @@ async fn provider_ids(repo: &PgCalendarRepository, link_id: Uuid) -> (Uuid, Uuid
     (account_id, calendar_id)
 }
 
-fn timed_upsert(
+pub(super) fn timed_upsert(
     owner_id: &str,
     link_id: Uuid,
     provider: (Uuid, Uuid),
@@ -4209,7 +4209,7 @@ async fn mention_preview_picks_the_requested_or_nearest_occurrence(pool: PgPool)
     assert_eq!(key.as_deref(), Some(first_start.to_rfc3339().as_str()));
 }
 
-async fn insert_team(pool: &PgPool, owner_id: &str, member_ids: &[&str]) -> Uuid {
+pub(super) async fn insert_team(pool: &PgPool, owner_id: &str, member_ids: &[&str]) -> Uuid {
     for member_id in member_ids {
         insert_user(pool, member_id).await;
     }
@@ -4235,7 +4235,7 @@ async fn insert_team(pool: &PgPool, owner_id: &str, member_ids: &[&str]) -> Uuid
     team_id
 }
 
-fn ooo_upsert(
+pub(super) fn ooo_upsert(
     owner_id: &str,
     link_id: Uuid,
     provider: (Uuid, Uuid),
@@ -4249,7 +4249,7 @@ fn ooo_upsert(
     upsert
 }
 
-fn july_2026_range() -> OccurrenceRange {
+pub(super) fn july_2026_range() -> OccurrenceRange {
     let starts_at = Utc.with_ymd_and_hms(2026, 7, 24, 0, 0, 0).unwrap();
     let ends_at = Utc.with_ymd_and_hms(2026, 7, 27, 0, 0, 0).unwrap();
     OccurrenceRange {

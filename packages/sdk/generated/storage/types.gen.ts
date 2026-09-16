@@ -9139,6 +9139,124 @@ export type TaskFilters = {
 };
 
 /**
+ * Details of a teammate's event, present only when they share them and
+ * the event is not private.
+ */
+export type TeamCalendarEventDetails = {
+    /**
+     * Attendees of the teammate's copy of the event.
+     */
+    attendees: Array<CalendarAttendee>;
+    /**
+     * Direct join URL when known.
+     */
+    conferenceUrl?: string | null;
+    /**
+     * Optional event body.
+     */
+    description?: string | null;
+    /**
+     * Optional location label.
+     */
+    location?: string | null;
+    /**
+     * Organizer email.
+     */
+    organizerEmail?: string | null;
+    /**
+     * Organizer display name.
+     */
+    organizerName?: string | null;
+    /**
+     * Display title.
+     */
+    title: string;
+};
+
+/**
+ * One teammate and what they share with the team.
+ */
+export type TeamCalendarMemberItem = {
+    /**
+     * Whether the teammate has a connected, enabled calendar.
+     */
+    hasCalendar: boolean;
+    /**
+     * The teammate's sharing policy.
+     */
+    sharing: TeamCalendarSharing;
+    /**
+     * Macro user id of the teammate.
+     */
+    userId: string;
+};
+
+/**
+ * One occurrence from a teammate's primary calendar.
+ */
+export type TeamCalendarOccurrenceItem = {
+    details?: null | TeamCalendarEventDetails;
+    /**
+     * The teammate's calendar event id.
+     */
+    eventId: string;
+    /**
+     * Provider event type; `default` for regular events.
+     */
+    eventType: EventType;
+    /**
+     * Stable occurrence key within the event.
+     */
+    occurrenceKey: string;
+    /**
+     * Macro user id of the teammate whose calendar the occurrence is on.
+     */
+    ownerId: string;
+    /**
+     * The sharing policy applied to this occurrence.
+     */
+    sharing: TeamCalendarSharing;
+    /**
+     * Event status: confirmed or tentative.
+     */
+    status: EventStatus;
+    /**
+     * Occurrence time span.
+     */
+    time: EventTime;
+    /**
+     * Whether the occurrence blocks the teammate's availability.
+     */
+    transparency: EventTransparency;
+};
+
+/**
+ * Team calendar viewport response.
+ */
+export type TeamCalendarResponse = {
+    /**
+     * Whether the viewport held more occurrences than the limit.
+     */
+    hasMore: boolean;
+    /**
+     * Teammates' occurrences in the viewport, soonest first.
+     */
+    items: Array<TeamCalendarOccurrenceItem>;
+    /**
+     * The requester's teammates and what each shares, whether or not they
+     * have occurrences in the viewport.
+     */
+    members: Array<TeamCalendarMemberItem>;
+};
+
+/**
+ * How much of a user's calendar their teammates may see.
+ *
+ * Stored per user; absence of a stored value is [`Self::All`].
+ */
+export type TeamCalendarSharing = 'all' | 'busy_only' | 'none';
+
+/**
  * One teammate's out-of-office occurrence.
  */
 export type TeamOutOfOfficeItem = {
@@ -10318,6 +10436,58 @@ export type MentionPreviewsResponses = {
 };
 
 export type MentionPreviewsResponse = MentionPreviewsResponses[keyof MentionPreviewsResponses];
+
+export type ListTeamOccurrencesData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Inclusive UTC viewport start.
+         */
+        start: string;
+        /**
+         * Exclusive UTC viewport end.
+         */
+        end: string;
+        /**
+         * Inclusive local date boundary for all-day events.
+         */
+        startDate?: string;
+        /**
+         * Exclusive local date boundary for all-day events.
+         */
+        endDate?: string;
+        /**
+         * Maximum number of occurrences, from 1 through 2,000.
+         */
+        limit?: number;
+    };
+    url: '/calendar-events/team';
+};
+
+export type ListTeamOccurrencesErrors = {
+    /**
+     * Invalid or unsupported calendar viewport
+     */
+    400: unknown;
+    /**
+     * Authentication required
+     */
+    401: unknown;
+    /**
+     * Calendar query failed
+     */
+    500: unknown;
+};
+
+export type ListTeamOccurrencesResponses = {
+    /**
+     * Teammates' calendar occurrences in the requested viewport
+     */
+    200: TeamCalendarResponse;
+};
+
+export type ListTeamOccurrencesResponse = ListTeamOccurrencesResponses[keyof ListTeamOccurrencesResponses];
 
 export type ListTeamOutOfOfficeData = {
     body?: never;

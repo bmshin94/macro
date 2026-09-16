@@ -17,7 +17,8 @@ use super::models::{
     CalendarSyncStatus, DisconnectedGoogleCalendar, DueCalendarReminder,
     GoogleCalendarSyncSnapshot, GoogleCalendarTarget, GoogleEventSyncBatch, GoogleScopeSet,
     GoogleSyncPlan, GoogleWatchChannel, GoogleWatchConfig, OccurrenceRange, ProviderCalendar,
-    StoredGoogleCalendar, TeamOutOfOffice, VisibleCalendar,
+    StoredGoogleCalendar, TeamCalendarMember, TeamCalendarOccurrence, TeamCalendarSharing,
+    TeamOutOfOffice, VisibleCalendar,
 };
 
 /// Classification supplied by provider adapters to backfill policy.
@@ -334,6 +335,26 @@ pub trait CalendarOccurrenceService: Send + Sync + 'static {
         limit: u16,
     ) -> impl Future<Output = Result<Vec<TeamOutOfOffice>, Report>> + Send;
 
+    /// The requester's teammates with the sharing policy each applies to
+    /// their calendar, whether or not they have a calendar connected.
+    fn list_team_calendar_members(
+        &self,
+        requester_id: &str,
+    ) -> impl Future<Output = Result<Vec<TeamCalendarMember>, Report>> + Send;
+
+    /// Occurrences from teammates' primary calendars overlapping the
+    /// viewport, soonest first, with each owner's sharing policy and each
+    /// event's visibility already applied to the returned details. Teammates
+    /// who share nothing contribute no rows. `owner_ids` restricts the result
+    /// to those teammates; it never widens it beyond the requester's team.
+    fn list_team_occurrences(
+        &self,
+        requester_id: &str,
+        range: OccurrenceRange,
+        owner_ids: Option<&[String]>,
+        limit: u16,
+    ) -> impl Future<Output = Result<Vec<TeamCalendarOccurrence>, Report>> + Send;
+
     /// The IANA time zone of the requester's primary calendar, resolved the
     /// same way event creation picks its default target. `None` when no
     /// calendar is connected or the provider reported no zone.
@@ -463,6 +484,44 @@ pub trait CalendarRepository: Send + Sync + 'static {
         range: OccurrenceRange,
         limit: u16,
     ) -> impl Future<Output = Result<Vec<TeamOutOfOffice>, Report>> + Send;
+
+    /// The sharing policy `user_id` applies to their calendar; the default
+    /// when none was stored.
+    fn team_calendar_sharing(
+        &self,
+        user_id: &str,
+    ) -> impl Future<Output = Result<TeamCalendarSharing, Report>> + Send;
+
+    /// Store `user_id`'s sharing policy, replacing any earlier value.
+    fn set_team_calendar_sharing(
+        &self,
+        user_id: &str,
+        sharing: TeamCalendarSharing,
+    ) -> impl Future<Output = Result<(), Report>> + Send;
+
+    /// The other members of the requester's team, each with their sharing
+    /// policy and whether an enabled calendar account backs it. Empty when
+    /// the requester is not on a team.
+    fn list_team_calendar_members(
+        &self,
+        requester_id: &str,
+    ) -> impl Future<Output = Result<Vec<TeamCalendarMember>, Report>> + Send;
+
+    /// Occurrences owned by the requester's teammates — optionally only the
+    /// `owner_ids` among them — overlapping the viewport, soonest first,
+    /// sourced from a primary calendar on an account that is not disabled,
+    /// excluding teammates whose sharing policy is
+    /// [`TeamCalendarSharing::None`]. Collapses duplicate inboxes before the
+    /// limit like [`list_team_out_of_office`](Self::list_team_out_of_office).
+    /// Details arrive unmasked with each owner's policy attached; the domain
+    /// service owns the masking.
+    fn list_team_occurrences(
+        &self,
+        requester_id: &str,
+        range: OccurrenceRange,
+        owner_ids: Option<&[String]>,
+        limit: u16,
+    ) -> impl Future<Output = Result<Vec<TeamCalendarOccurrence>, Report>> + Send;
 
     /// Upsert one provider calendar while holding the current backfill fence.
     fn upsert_google_calendar(
@@ -685,6 +744,19 @@ pub trait CalendarMutationService: Send + Sync + 'static {
         requester_id: &str,
         email_link_id: Uuid,
     ) -> impl Future<Output = Result<(), CalendarMutationError>> + Send;
+
+    /// How much of the requester's calendar their teammates may see.
+    fn team_calendar_sharing(
+        &self,
+        requester_id: &str,
+    ) -> impl Future<Output = Result<TeamCalendarSharing, CalendarMutationError>> + Send;
+
+    /// Set how much of the requester's calendar their teammates may see.
+    fn set_team_calendar_sharing(
+        &self,
+        requester_id: &str,
+        sharing: TeamCalendarSharing,
+    ) -> impl Future<Output = Result<TeamCalendarSharing, CalendarMutationError>> + Send;
 }
 
 /// Use-case failures surfaced by calendar mutations.

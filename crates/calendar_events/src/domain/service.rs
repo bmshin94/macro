@@ -132,12 +132,50 @@ where
         Ok(rows
             .into_iter()
             .map(|mut row| {
-                if matches!(
-                    row.visibility,
-                    super::models::EventVisibility::Private
-                        | super::models::EventVisibility::Confidential
-                ) {
+                if !team_details_visible(row.sharing, row.visibility) {
                     row.title = None;
+                }
+                row
+            })
+            .collect())
+    }
+
+    /// The requester's teammates and the sharing policy each applies.
+    #[tracing::instrument(skip(self, requester_id), err)]
+    pub async fn list_team_calendar_members(
+        &self,
+        requester_id: &str,
+    ) -> Result<Vec<super::models::TeamCalendarMember>, Report> {
+        self.repository
+            .list_team_calendar_members(requester_id)
+            .await
+    }
+
+    /// Query teammates' calendar occurrences in a bounded viewport.
+    ///
+    /// Each teammate decides how much the team sees: everything, only when
+    /// they are busy, or nothing at all. The repository already omits the
+    /// last group; here a busy-only teammate's events, and any event marked
+    /// private or confidential, lose their details so only the time span
+    /// remains — the same rule the out-of-office overlay applies to titles.
+    #[tracing::instrument(skip(self, requester_id, range, owner_ids), err)]
+    pub async fn list_team_occurrences(
+        &self,
+        requester_id: &str,
+        range: OccurrenceRange,
+        owner_ids: Option<&[String]>,
+        limit: u16,
+    ) -> Result<Vec<super::models::TeamCalendarOccurrence>, Report> {
+        validate_query(&range, limit)?;
+        let rows = self
+            .repository
+            .list_team_occurrences(requester_id, range, owner_ids, limit)
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(|mut row| {
+                if !team_details_visible(row.sharing, row.visibility) {
+                    row.details = None;
                 }
                 row
             })
@@ -245,6 +283,24 @@ where
         limit: u16,
     ) -> impl Future<Output = Result<Vec<super::models::TeamOutOfOffice>, Report>> + Send {
         CalendarService::list_team_out_of_office(self, requester_id, range, limit)
+    }
+
+    fn list_team_calendar_members(
+        &self,
+        requester_id: &str,
+    ) -> impl Future<Output = Result<Vec<super::models::TeamCalendarMember>, Report>> + Send {
+        CalendarService::list_team_calendar_members(self, requester_id)
+    }
+
+    fn list_team_occurrences(
+        &self,
+        requester_id: &str,
+        range: OccurrenceRange,
+        owner_ids: Option<&[String]>,
+        limit: u16,
+    ) -> impl Future<Output = Result<Vec<super::models::TeamCalendarOccurrence>, Report>> + Send
+    {
+        CalendarService::list_team_occurrences(self, requester_id, range, owner_ids, limit)
     }
 
     fn primary_time_zone(
@@ -880,6 +936,21 @@ fn validate_upsert(upsert: &CalendarEventUpsert) -> Result<(), Report> {
         return Err(rootcause::report!(CalendarValidationError::InvalidTime).into());
     }
     Ok(())
+}
+
+/// Whether a teammate's event details may be shown: the owner shares them
+/// and the event itself is not marked private or confidential. The stricter
+/// of the two policies wins, mirroring what Google shows viewers without
+/// full detail access.
+fn team_details_visible(
+    sharing: super::models::TeamCalendarSharing,
+    visibility: super::models::EventVisibility,
+) -> bool {
+    sharing.shares_details()
+        && !matches!(
+            visibility,
+            super::models::EventVisibility::Private | super::models::EventVisibility::Confidential
+        )
 }
 
 fn validate_query(range: &OccurrenceRange, limit: u16) -> Result<(), Report> {

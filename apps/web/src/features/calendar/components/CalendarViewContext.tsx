@@ -1,9 +1,8 @@
 import { createAssertedContextProvider } from '@core/context/createContext';
-import { isMobile } from '@core/mobile/isMobile';
-import { makePersisted } from '@solid-primitives/storage';
 import { batch, createMemo, createSignal } from 'solid-js';
-import { createStore } from 'solid-js/store';
+import { isTeamCalendarEvent } from '../hooks/team-calendar-source';
 import { useCalendarSources } from '../hooks/use-calendar-sources';
+import { useCalendarPreferences } from '../preferences';
 import {
   type CalendarEvent,
   type CalendarPeriodView,
@@ -11,26 +10,17 @@ import {
   type CalendarWeekStart,
   isCalendarEventVisible,
 } from '../types';
-import { getDefaultCalendarTimeFormat } from '../utils/time-format';
+
+export { CALENDAR_PREFERENCES_KEY } from '../preferences';
 
 interface CalendarDisplaySettings {
   readonly periodView: CalendarPeriodView;
   readonly showWeekends: boolean;
   readonly weekStartsOn: CalendarWeekStart;
   readonly timeFormat: CalendarTimeFormat;
+  /** Whether teammates' shared calendars overlay the grid. */
+  readonly showTeamCalendars: boolean;
 }
-
-interface CalendarPreferences {
-  periodView: CalendarPeriodView;
-  hiddenSourceIds: string[];
-  showWeekends: boolean;
-  weekStartsOn: CalendarWeekStart;
-  timeFormat: CalendarTimeFormat;
-}
-
-/** Storage key for calendar display preferences (also read at copy time by
- * the availability feature, which runs outside this context). */
-export const CALENDAR_PREFERENCES_KEY = 'macro:pref:calendar:settings';
 
 function createCalendarEventSelection() {
   const [event, setEvent] = createSignal<CalendarEvent>();
@@ -57,23 +47,8 @@ function createCalendarEventSelection() {
 
 export const [CalendarViewContextProvider, useCalendarView] =
   createAssertedContextProvider('CalendarViewContext', () => {
-    const defaultPreferences: CalendarPreferences = {
-      periodView: isMobile() ? 'timeGridDay' : 'timeGridWeek',
-      hiddenSourceIds: [],
-      showWeekends: true,
-      weekStartsOn: 0,
-      timeFormat: getDefaultCalendarTimeFormat(),
-    };
-    const [preferences, setPreferences] = makePersisted(
-      createStore<CalendarPreferences>(defaultPreferences),
-      {
-        name: CALENDAR_PREFERENCES_KEY,
-        deserialize: (value) => ({
-          ...defaultPreferences,
-          ...(JSON.parse(value) as Partial<CalendarPreferences>),
-        }),
-      }
-    );
+    const { preferences, setPreferences, ...preferenceSetters } =
+      useCalendarPreferences();
     const { sources, sourceById } = useCalendarSources();
     // Sources default to visible, so calendars discovered after a
     // preference was saved (or events whose calendar is still loading)
@@ -98,18 +73,15 @@ export const [CalendarViewContextProvider, useCalendarView] =
       get timeFormat() {
         return preferences.timeFormat;
       },
+      get showTeamCalendars() {
+        return preferences.showTeamCalendars;
+      },
     };
 
     const closeEventDetails = selection.close;
 
     const setSourceVisibility = (sourceId: string, visible: boolean) => {
-      setPreferences('hiddenSourceIds', (current) =>
-        visible
-          ? current.filter((id) => id !== sourceId)
-          : current.includes(sourceId)
-            ? current
-            : [...current, sourceId]
-      );
+      preferenceSetters.setSourceVisibility(sourceId, visible);
 
       const selected = selection.event();
       if (
@@ -137,6 +109,14 @@ export const [CalendarViewContextProvider, useCalendarView] =
         setPreferences('weekStartsOn', weekStartsOn),
       setTimeFormat: (timeFormat: CalendarTimeFormat) =>
         setPreferences('timeFormat', timeFormat),
+      setShowTeamCalendars: (showTeamCalendars: boolean) => {
+        setPreferences('showTeamCalendars', showTeamCalendars);
+        // Hiding the whole overlay hides a selected teammate event too.
+        if (!showTeamCalendars) {
+          const selected = selection.event();
+          if (selected && isTeamCalendarEvent(selected)) closeEventDetails();
+        }
+      },
       closeEventDetails,
       selectEvent: selection.select,
       refreshSelectedEvent: selection.refresh,

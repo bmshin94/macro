@@ -9,7 +9,8 @@ use crate::domain::{
         EventTransparency, EventType, EventVisibility, GOOGLE_CALENDAR_FULL_SCOPE,
         GOOGLE_CALENDAR_SCOPES, GoogleBackfillRunReport, GoogleCalendarSyncSnapshot,
         GoogleEventSource, GoogleEventSyncBatch, GoogleWatchChannel, GoogleWatchConfig,
-        ProviderCalendar, StoredGoogleCalendar,
+        ProviderCalendar, StoredGoogleCalendar, TeamCalendarMember, TeamCalendarOccurrence,
+        TeamCalendarOccurrenceDetails, TeamCalendarSharing, TeamOutOfOffice,
     },
     ports::{
         CalendarBackfillRepository, CalendarEventWrite, CalendarRepository, GoogleCalendarProvider,
@@ -29,6 +30,10 @@ struct FakeRepo {
     sync_retirements: Vec<RetiredCalendarEvent>,
     /// Provider calendars whose isolated sync failure was recorded, in order.
     recorded_sync_errors: Arc<Mutex<Vec<String>>>,
+    /// Teammate occurrences the repository hands back, details unmasked.
+    team_rows: Arc<Mutex<Vec<TeamCalendarOccurrence>>>,
+    /// Teammate out-of-office rows the repository hands back, titles unmasked.
+    team_out_of_office: Arc<Mutex<Vec<TeamOutOfOffice>>>,
 }
 
 impl CalendarRepository for FakeRepo {
@@ -99,8 +104,37 @@ impl CalendarRepository for FakeRepo {
         _requester_id: &str,
         _range: OccurrenceRange,
         _limit: u16,
-    ) -> Result<Vec<crate::domain::models::TeamOutOfOffice>, Report> {
-        Ok(Vec::new())
+    ) -> Result<Vec<TeamOutOfOffice>, Report> {
+        Ok(self.team_out_of_office.lock().unwrap().clone())
+    }
+
+    async fn team_calendar_sharing(&self, _user_id: &str) -> Result<TeamCalendarSharing, Report> {
+        unreachable!("team sharing is not exercised here")
+    }
+
+    async fn set_team_calendar_sharing(
+        &self,
+        _user_id: &str,
+        _sharing: TeamCalendarSharing,
+    ) -> Result<(), Report> {
+        unreachable!("team sharing is not exercised here")
+    }
+
+    async fn list_team_calendar_members(
+        &self,
+        _requester_id: &str,
+    ) -> Result<Vec<TeamCalendarMember>, Report> {
+        unreachable!("team sharing is not exercised here")
+    }
+
+    async fn list_team_occurrences(
+        &self,
+        _requester_id: &str,
+        _range: OccurrenceRange,
+        _owner_ids: Option<&[String]>,
+        _limit: u16,
+    ) -> Result<Vec<TeamCalendarOccurrence>, Report> {
+        Ok(self.team_rows.lock().unwrap().clone())
     }
 
     async fn get_event_mutation_target(
@@ -1334,4 +1368,166 @@ async fn google_coordinator_keeps_calendar_permission_health_separate_from_gmail
         lifecycle.failures.lock().unwrap().as_slice(),
         &[CalendarBackfillFailureDisposition::CalendarPermissionRequired]
     );
+}
+
+fn shared_occurrence(
+    owner_id: &str,
+    sharing: TeamCalendarSharing,
+    visibility: EventVisibility,
+) -> TeamCalendarOccurrence {
+    let starts_at = Utc.with_ymd_and_hms(2026, 8, 20, 10, 0, 0).unwrap();
+    TeamCalendarOccurrence {
+        owner_id: owner_id.to_string(),
+        event_id: Uuid::now_v7(),
+        ical_uid: format!("{owner_id}-uid"),
+        occurrence_key: starts_at.to_rfc3339(),
+        time: EventTime::Timed {
+            starts_at,
+            ends_at: starts_at + chrono::Duration::hours(1),
+            time_zone: None,
+        },
+        status: EventStatus::Confirmed,
+        transparency: EventTransparency::Opaque,
+        event_type: EventType::Default,
+        visibility,
+        sharing,
+        details: Some(TeamCalendarOccurrenceDetails {
+            title: "Budget review".to_string(),
+            description: Some("numbers".to_string()),
+            location: Some("Room 4".to_string()),
+            conference_url: None,
+            organizer_email: Some("cfo@example.com".to_string()),
+            organizer_name: None,
+            attendees: vec![CalendarAttendee {
+                email: "guest@example.com".to_string(),
+                display_name: None,
+                response_status: AttendeeResponseStatus::Accepted,
+                is_organizer: false,
+                is_optional: false,
+                is_self: false,
+                comment: None,
+            }],
+        }),
+    }
+}
+
+fn team_range() -> OccurrenceRange {
+    let starts_at = Utc.with_ymd_and_hms(2026, 8, 20, 0, 0, 0).unwrap();
+    let ends_at = Utc.with_ymd_and_hms(2026, 8, 21, 0, 0, 0).unwrap();
+    OccurrenceRange {
+        starts_at,
+        ends_at,
+        start_date: starts_at.date_naive(),
+        end_date: ends_at.date_naive(),
+    }
+}
+
+#[tokio::test]
+async fn team_occurrences_keep_details_only_for_shared_non_private_events() {
+    let repository = FakeRepo {
+        team_rows: Arc::new(Mutex::new(vec![
+            shared_occurrence(
+                "macro|open@example.com",
+                TeamCalendarSharing::All,
+                EventVisibility::Default,
+            ),
+            shared_occurrence(
+                "macro|open@example.com",
+                TeamCalendarSharing::All,
+                EventVisibility::Private,
+            ),
+            shared_occurrence(
+                "macro|open@example.com",
+                TeamCalendarSharing::All,
+                EventVisibility::Confidential,
+            ),
+            shared_occurrence(
+                "macro|busy@example.com",
+                TeamCalendarSharing::BusyOnly,
+                EventVisibility::Public,
+            ),
+        ])),
+        ..FakeRepo::default()
+    };
+    let service = CalendarService::new(repository);
+
+    let rows = service
+        .list_team_occurrences("macro|viewer@example.com", team_range(), None, 100)
+        .await
+        .unwrap();
+
+    let detailed: Vec<bool> = rows.iter().map(|row| row.details.is_some()).collect();
+    assert_eq!(
+        detailed,
+        vec![true, false, false, false],
+        "only a fully shared, non-private event keeps its details"
+    );
+    assert_eq!(rows[0].details.as_ref().unwrap().title, "Budget review");
+    assert_eq!(rows[3].sharing, TeamCalendarSharing::BusyOnly);
+    assert_eq!(rows[3].time, rows[0].time, "the busy span itself is kept");
+}
+
+#[tokio::test]
+async fn team_occurrences_still_validate_the_viewport() {
+    let service = CalendarService::new(FakeRepo::default());
+
+    let error = service
+        .list_team_occurrences("macro|viewer@example.com", team_range(), None, 0)
+        .await
+        .unwrap_err();
+
+    assert!(
+        error
+            .as_ref()
+            .downcast_current_context::<CalendarValidationError>()
+            .is_some()
+    );
+}
+
+#[tokio::test]
+async fn team_out_of_office_withholds_titles_from_busy_only_sharers() {
+    let starts_at = Utc.with_ymd_and_hms(2026, 8, 20, 0, 0, 0).unwrap();
+    let row = |owner: &str, sharing, visibility| TeamOutOfOffice {
+        owner_id: owner.to_string(),
+        event_id: Uuid::now_v7(),
+        ical_uid: format!("{owner}-ooo"),
+        occurrence_key: starts_at.to_rfc3339(),
+        title: Some("Vacation".to_string()),
+        visibility,
+        sharing,
+        time: EventTime::Timed {
+            starts_at,
+            ends_at: starts_at + chrono::Duration::hours(8),
+            time_zone: None,
+        },
+    };
+    let repository = FakeRepo {
+        team_out_of_office: Arc::new(Mutex::new(vec![
+            row(
+                "macro|open@example.com",
+                TeamCalendarSharing::All,
+                EventVisibility::Default,
+            ),
+            row(
+                "macro|open@example.com",
+                TeamCalendarSharing::All,
+                EventVisibility::Private,
+            ),
+            row(
+                "macro|busy@example.com",
+                TeamCalendarSharing::BusyOnly,
+                EventVisibility::Default,
+            ),
+        ])),
+        ..FakeRepo::default()
+    };
+    let service = CalendarService::new(repository);
+
+    let rows = service
+        .list_team_out_of_office("macro|viewer@example.com", team_range(), 100)
+        .await
+        .unwrap();
+
+    let titles: Vec<Option<&str>> = rows.iter().map(|row| row.title.as_deref()).collect();
+    assert_eq!(titles, vec![Some("Vacation"), None, None]);
 }

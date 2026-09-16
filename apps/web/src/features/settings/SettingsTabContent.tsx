@@ -9,6 +9,7 @@ import { ApiKeys } from './ApiKeys';
 import { Appearance } from './Appearance';
 import { Billing } from './Billing';
 import { Bots } from './Bots';
+import { Calendar } from './Calendar';
 import { ConnectedAccounts } from './ConnectedAccounts';
 import { Crm } from './Crm';
 import { Harness } from './Harness';
@@ -39,6 +40,9 @@ export function SettingsTabContent(props: { tab: SettingsTab }) {
       </Show>
       <Show when={isCurrentTab('Notifications')}>
         <Notifications />
+      </Show>
+      <Show when={isCurrentTab('Calendar')}>
+        <Calendar />
       </Show>
       <Show when={isCurrentTab('Billing')}>
         <Billing />

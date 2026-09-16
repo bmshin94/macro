@@ -2872,6 +2872,135 @@ export interface ToolPropertyOption {
   displayValue: string;
 }
 /**
+ * Find out when the user's teammates are busy and when they are all free between two instants. Use it for questions like "when is my team free this week?", "is Alex available Thursday afternoon?", or to pick a meeting time before CreateCalendarEvent. Each teammate controls what the team sees: `all` shares event titles, `busy_only` shares only the time, and `none` shares nothing — say so rather than guessing when a teammate shares nothing or has no calendar connected. `freeWindows` spans the whole window, so restrict suggestions to working hours yourself. Keep the window narrow — a day or a week — and no wider than 370 days, within one year past to two years future. Pass `userIds` (from ListTeamMembers) to ask about specific people; omit it for the whole team.
+ */
+export interface GetTeamAvailability {
+  /**
+   * Inclusive window start, RFC 3339 UTC (e.g. 2026-08-20T00:00:00Z).
+   */
+  start: string;
+  /**
+   * Exclusive window end, RFC 3339 UTC. Must be after start.
+   */
+  end: string;
+  /**
+   * Macro user ids of the teammates to consider, as returned by ListTeamMembers. Omit to consider the whole team.
+   */
+  userIds?: string[] | null;
+}
+/**
+ * Response from the GetTeamAvailability tool.
+ */
+export interface GetTeamAvailabilityResponse {
+  /**
+   * Every teammate considered, whether or not they are busy.
+   */
+  members: TeamMemberAvailability[];
+  /**
+   * Spans inside the window when every teammate who shares a connected
+   * calendar is free, soonest first. Covers the whole window including
+   * nights and weekends; apply working hours when suggesting a time.
+   */
+  freeWindows: TeamFreeWindow[];
+  /**
+   * Whether more free windows existed than were returned.
+   */
+  freeWindowsTruncated: boolean;
+  /**
+   * Requested user ids that are not on the user's team, ignored.
+   */
+  unknownUserIds: string[];
+  /**
+   * IANA time zone of the user's primary calendar, for reading all-day
+   * blocks (which are treated as UTC days when computing free windows).
+   */
+  timeZone?: string | null;
+  /**
+   * Whether the window held more teammate occurrences than were read;
+   * `freeWindows` may then be optimistic — narrow the window.
+   */
+  truncated: boolean;
+  /**
+   * A human-readable summary of the result.
+   */
+  summary: string;
+}
+/**
+ * One teammate's availability inside the window.
+ */
+export interface TeamMemberAvailability {
+  /**
+   * Macro user id of the teammate, as ListTeamMembers reports it.
+   */
+  userId: string;
+  /**
+   * What the teammate shares with the team: `all` (details), `busy_only`
+   * (time only), or `none` (nothing — their `busy` list is always empty
+   * and they are left out of `freeWindows`).
+   */
+  sharing: string;
+  /**
+   * Whether the teammate has a calendar connected to Macro. Without one
+   * nothing is known about their time and they are left out of
+   * `freeWindows`.
+   */
+  hasCalendar: boolean;
+  /**
+   * Busy blocks in the window, soonest first. Transparent (free) events,
+   * working locations, and birthdays never count as busy.
+   */
+  busy: TeamBusyBlock[];
+  /**
+   * Whether more busy blocks existed than were returned.
+   */
+  busyTruncated: boolean;
+}
+/**
+ * One span during which a teammate is busy.
+ */
+export interface TeamBusyBlock {
+  /**
+   * Block start: RFC 3339 UTC instant, or YYYY-MM-DD for all-day events.
+   */
+  start: string;
+  /**
+   * Exclusive block end: RFC 3339 UTC instant, or YYYY-MM-DD for all-day
+   * events.
+   */
+  end: string;
+  /**
+   * Whether the block covers whole days.
+   */
+  isAllDay: boolean;
+  /**
+   * Event status: confirmed or tentative.
+   */
+  status: string;
+  /**
+   * Event title, present only when the teammate shares event details and
+   * the event is not private.
+   */
+  title?: string | null;
+  /**
+   * Provider event type for status-style events (out_of_office,
+   * focus_time); absent for regular events.
+   */
+  eventType?: string | null;
+}
+/**
+ * A span during which every teammate counted is free.
+ */
+export interface TeamFreeWindow {
+  /**
+   * Window start, RFC 3339 UTC.
+   */
+  start: string;
+  /**
+   * Exclusive window end, RFC 3339 UTC.
+   */
+  end: string;
+}
+/**
  * Retrieve an email thread and its messages. Returns the thread metadata, the labels applied to the thread (e.g. INBOX, UNREAD, STARRED, and any custom labels), and message contents including sender, recipients, subject, body text, and the labels on each individual message. Use this to read the contents of a specific email conversation or to see which labels a thread or message has.
  */
 export interface GetThread {

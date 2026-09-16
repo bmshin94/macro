@@ -117,3 +117,26 @@ fn attendee_body_defaults_to_required_attendance() {
     assert!(!input.is_optional);
     assert_eq!(input.email, "a@b.com");
 }
+
+#[test]
+fn team_sharing_body_uses_snake_case_levels() {
+    for (wire, expected) in [
+        ("all", TeamCalendarSharing::All),
+        ("busy_only", TeamCalendarSharing::BusyOnly),
+        ("none", TeamCalendarSharing::None),
+    ] {
+        let body: TeamCalendarSharingBody =
+            serde_json::from_value(serde_json::json!({ "sharing": wire })).unwrap();
+        assert_eq!(body.sharing, expected);
+        assert_eq!(
+            serde_json::to_value(&body).unwrap(),
+            serde_json::json!({ "sharing": wire })
+        );
+    }
+    assert!(
+        serde_json::from_value::<TeamCalendarSharingBody>(
+            serde_json::json!({ "sharing": "everything" })
+        )
+        .is_err()
+    );
+}

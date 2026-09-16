@@ -303,7 +303,7 @@ fn list_error(error: rootcause::Report) -> ToolCallError {
 
 /// Exclusive local date bound covering the instant window, mirroring the
 /// occurrence HTTP route's default.
-fn end_date_bound(end: DateTime<Utc>) -> chrono::NaiveDate {
+pub(super) fn end_date_bound(end: DateTime<Utc>) -> chrono::NaiveDate {
     if end.time() == chrono::NaiveTime::MIN {
         end.date_naive()
     } else {

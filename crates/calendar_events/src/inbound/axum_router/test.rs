@@ -90,3 +90,72 @@ fn mention_preview_items_serialize_the_preview_contract() {
         "does_not_exist"
     );
 }
+
+#[test]
+fn team_calendar_items_omit_withheld_details() {
+    let starts_at = Utc.with_ymd_and_hms(2026, 8, 20, 10, 0, 0).unwrap();
+    let time = EventTime::Timed {
+        starts_at,
+        ends_at: starts_at + chrono::Duration::hours(1),
+        time_zone: None,
+    };
+    let event_id = uuid::Uuid::now_v7();
+    let shared = TeamCalendarOccurrenceItem {
+        owner_id: "macro|open@example.com".to_string(),
+        event_id,
+        occurrence_key: starts_at.to_rfc3339(),
+        time: time.clone(),
+        status: EventStatus::Confirmed,
+        transparency: EventTransparency::Opaque,
+        event_type: EventType::Default,
+        sharing: TeamCalendarSharing::All,
+        details: Some(TeamCalendarEventDetails {
+            title: "Budget review".to_string(),
+            description: None,
+            location: Some("Room 4".to_string()),
+            conference_url: None,
+            organizer_email: None,
+            organizer_name: None,
+            attendees: Vec::new(),
+        }),
+    };
+    let json = serde_json::to_value(&shared).unwrap();
+    assert_eq!(json["ownerId"], "macro|open@example.com");
+    assert_eq!(json["eventId"], event_id.to_string());
+    assert_eq!(json["sharing"], "all");
+    assert_eq!(json["eventType"], "default");
+    assert_eq!(json["details"]["title"], "Budget review");
+    assert_eq!(json["details"]["location"], "Room 4");
+    assert!(json["details"].get("description").is_none());
+
+    let busy_only = TeamCalendarOccurrenceItem {
+        owner_id: "macro|busy@example.com".to_string(),
+        event_id,
+        occurrence_key: starts_at.to_rfc3339(),
+        time,
+        status: EventStatus::Tentative,
+        transparency: EventTransparency::Opaque,
+        event_type: EventType::OutOfOffice,
+        sharing: TeamCalendarSharing::BusyOnly,
+        details: None,
+    };
+    let json = serde_json::to_value(&busy_only).unwrap();
+    assert_eq!(json["sharing"], "busy_only");
+    assert_eq!(json["status"], "tentative");
+    assert_eq!(json["eventType"], "out_of_office");
+    assert!(json.get("details").is_none(), "no detail key leaks through");
+
+    let response = TeamCalendarResponse {
+        members: vec![TeamCalendarMemberItem {
+            user_id: "macro|busy@example.com".to_string(),
+            sharing: TeamCalendarSharing::None,
+            has_calendar: false,
+        }],
+        items: Vec::new(),
+        has_more: false,
+    };
+    let json = serde_json::to_value(&response).unwrap();
+    assert_eq!(json["members"][0]["sharing"], "none");
+    assert_eq!(json["members"][0]["hasCalendar"], false);
+    assert_eq!(json["hasMore"], false);
+}

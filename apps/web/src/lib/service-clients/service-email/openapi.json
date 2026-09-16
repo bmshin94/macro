@@ -385,6 +385,81 @@
         }
       }
     },
+    "/calendar/team-sharing": {
+      "get": {
+        "tags": ["calendar_events"],
+        "summary": "Read how much of the requester's calendar their teammates may see.",
+        "operationId": "get_team_sharing",
+        "responses": {
+          "200": {
+            "description": "The requester's team calendar sharing setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamCalendarSharingBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "503": {
+            "description": "Transient failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarMutationApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["calendar_events"],
+        "summary": "Set how much of the requester's calendar their teammates may see.",
+        "operationId": "set_team_sharing",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamCalendarSharingBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The stored team calendar sharing setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamCalendarSharingBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sharing level"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "503": {
+            "description": "Transient failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarMutationApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/email/attachments/{id}": {
       "get": {
         "tags": ["Attachments"],
@@ -6087,6 +6162,22 @@
         "type": "string",
         "description": "Coarse sync state for an inbox, used to render a one-line hint in the\nmulti-inbox settings list. Derived from the link's `is_sync_active` flag, its\nreauth health, and its most recent backfill job.",
         "enum": ["SYNCING", "UP_TO_DATE", "ERROR", "NEEDS_REAUTH", "INACTIVE"]
+      },
+      "TeamCalendarSharing": {
+        "type": "string",
+        "description": "How much of a user's calendar their teammates may see.\n\nStored per user; absence of a stored value is [`Self::All`].",
+        "enum": ["all", "busy_only", "none"]
+      },
+      "TeamCalendarSharingBody": {
+        "type": "object",
+        "description": "The requester's team calendar sharing setting, read and written alike.",
+        "required": ["sharing"],
+        "properties": {
+          "sharing": {
+            "$ref": "#/components/schemas/TeamCalendarSharing",
+            "description": "How much of the requester's calendar their teammates may see."
+          }
+        }
       },
       "Thread": {
         "type": "object",

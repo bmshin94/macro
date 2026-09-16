@@ -1695,6 +1695,39 @@ export const GetEntityPropertiesResponse = z.object({
   summary: z.string(),
 });
 
+export const GetTeamAvailability = z.object({
+  start: z.string().datetime({ offset: true }),
+  end: z.string().datetime({ offset: true }),
+  userIds: z.union([z.array(z.string()), z.null()]).optional(),
+});
+
+export const GetTeamAvailabilityResponse = z.object({
+  members: z.array(
+    z.object({
+      userId: z.string(),
+      sharing: z.string(),
+      hasCalendar: z.boolean(),
+      busy: z.array(
+        z.object({
+          start: z.string(),
+          end: z.string(),
+          isAllDay: z.boolean(),
+          status: z.string(),
+          title: z.union([z.string(), z.null()]).optional(),
+          eventType: z.union([z.string(), z.null()]).optional(),
+        })
+      ),
+      busyTruncated: z.boolean(),
+    })
+  ),
+  freeWindows: z.array(z.object({ start: z.string(), end: z.string() })),
+  freeWindowsTruncated: z.boolean(),
+  unknownUserIds: z.array(z.string()),
+  timeZone: z.union([z.string(), z.null()]).optional(),
+  truncated: z.boolean(),
+  summary: z.string(),
+});
+
 export const GetThread = z.object({
   threadId: z.string().uuid(),
   limit: z.union([z.number().int(), z.null()]).optional(),

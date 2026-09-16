@@ -1,6 +1,11 @@
 import { useCalendarPager } from '@app/features/calendar/components/CalendarPagerContext';
 import { useCalendarView } from '@app/features/calendar/components/CalendarViewContext';
 import { SourceControls } from '@app/features/calendar/components/SourceControls';
+import { TeamCalendarControls } from '@app/features/calendar/components/TeamCalendarControls';
+import {
+  type TeamCalendarMember,
+  toTeamCalendarMember,
+} from '@app/features/calendar/hooks/use-team-calendar';
 import {
   TEAM_OOO_SOURCE_ID,
   type TeamOooWindow,
@@ -9,7 +14,11 @@ import {
 } from '@app/features/calendar/hooks/use-team-ooo';
 import { ShowFeatureFlag } from '@app/lib/analytics/posthog';
 import { SidePanel, useSidePanel } from '@components/app/side-panel/SidePanel';
-import { enableCalendarTeamOoo } from '@core/constant/featureFlags';
+import {
+  enableCalendarTeamOoo,
+  enableCalendarTeamSharing,
+} from '@core/constant/featureFlags';
+import { useTeamCalendarMembersQuery } from '@queries/calendar/team';
 import { Calendar as MiniCalendar, ToggleSwitch } from '@ui';
 import { format } from 'date-fns';
 import {
@@ -98,6 +107,56 @@ function CalendarSourcesSidePanelSection() {
           isVisible={calendarView.isSourceVisible}
           onVisibilityChange={calendarView.setSourceVisibility}
         />
+      </SidePanel.Section>
+    </Show>
+  );
+}
+
+function CalendarTeamCalendarsSidePanelSection() {
+  const calendarView = useCalendarView();
+  const hasTeammates = useHasTeammates();
+  const membersQuery = useTeamCalendarMembersQuery(hasTeammates);
+  // Read data only on success so a pending roster never hits the suspending
+  // resource read; the section shows its skeleton meanwhile.
+  const members = createMemo<TeamCalendarMember[]>(() =>
+    membersQuery.isSuccess ? membersQuery.data.map(toTeamCalendarMember) : []
+  );
+
+  return (
+    <Show when={hasTeammates()}>
+      <SidePanel.Section
+        id="calendar-team-calendars"
+        title="Team calendars"
+        order={25}
+        defaultOpen
+        actions={
+          <span title="Show on calendar">
+            <ToggleSwitch
+              checked={calendarView.displaySettings.showTeamCalendars}
+              onChange={calendarView.setShowTeamCalendars}
+              aria-label="Show team calendars on the calendar"
+            />
+          </span>
+        }
+      >
+        <Switch>
+          <Match when={membersQuery.isPending}>
+            <TeamOooSkeleton />
+          </Match>
+          <Match when={membersQuery.isError}>
+            <span class="px-2 py-1 text-xs text-ink-muted">
+              Couldn't load your team
+            </span>
+          </Match>
+          <Match when={membersQuery.isSuccess}>
+            <TeamCalendarControls
+              members={members()}
+              enabled={calendarView.displaySettings.showTeamCalendars}
+              isVisible={calendarView.isSourceVisible}
+              onVisibilityChange={calendarView.setSourceVisibility}
+            />
+          </Match>
+        </Switch>
       </SidePanel.Section>
     </Show>
   );
@@ -221,6 +280,9 @@ export function SidePanelSections() {
     <Show when={!sidePanel?.isNarrow()}>
       <CalendarMiniCalendarSidePanelSection />
       <CalendarSourcesSidePanelSection />
+      <ShowFeatureFlag flag={enableCalendarTeamSharing}>
+        <CalendarTeamCalendarsSidePanelSection />
+      </ShowFeatureFlag>
       <ShowFeatureFlag flag={enableCalendarTeamOoo}>
         <CalendarTeamOooSidePanelSection />
       </ShowFeatureFlag>

@@ -30,6 +30,7 @@ import type {
   SendMessageRequest,
   SendMessageResponse,
   SharedInboxConflictResponse,
+  TeamCalendarSharingBody,
   UpdateCalendarEventRequest,
   UpdateLabelBatchRequest,
   UpdateLabelBatchResponse,
@@ -591,6 +592,22 @@ export const emailClient = {
       `${emailHost}/calendar/calendars`,
       {
         method: 'GET',
+      }
+    );
+  },
+  async getTeamCalendarSharing() {
+    return fetchWithToken<TeamCalendarSharingBody>(
+      `${emailHost}/calendar/team-sharing`,
+      { method: 'GET' }
+    );
+  },
+  async setTeamCalendarSharing(args: TeamCalendarSharingBody) {
+    return fetchWithToken<TeamCalendarSharingBody, CalendarMutationErrorCode>(
+      `${emailHost}/calendar/team-sharing`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(args),
+        errorResponseHandler: calendarMutationErrorHandler,
       }
     );
   },

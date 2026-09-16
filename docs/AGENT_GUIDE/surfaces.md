@@ -518,7 +518,7 @@ and split navigation.
 
 Left nav: General → `Account` (profile, delete account), `API Keys` (create /
 list / delete personal keys; the secret is shown only once and is sent as
-`x-macro-user-api-key`), `Notifications`, `Billing`,
+`x-macro-user-api-key`), `Notifications`, `Calendar` (see below), `Billing`,
 `Appearance`, `Mobile App`, `Shortcuts` (interactive keyboard visualization, not a list);
 Workspace → `Team`, `Tags`, `CRM` (enable/disable; once enabled, a `Deal stages` section
 with `Customize stages`, inline rename, reorder by drag handle or arrow keys (up/down
@@ -538,6 +538,25 @@ saving; each teammate connects their own account. An agent session that calls a 
 but unconnected app gets a tool result saying so, and the agent's reply renders a
 `Connect <app>` chip that opens Settings → Connections for that app.
 `Back to app` returns to the previous surface. Open via user-email button menu or `Ctrl+;`.
+
+`Calendar` (`/app/settings/calendar`, shown when the calendar UI is enabled) groups
+everything calendar-related: `Accounts` lists each connected Google account with a
+calendar on/off dot and an `Enable calendar` (re-runs Google consent with calendar
+scope) or `Turn off calendar` action, plus `Connect another account`; the same
+controls also remain on `Connections`. `Calendars` lists every synced calendar per
+account with a `Show … on the calendar` switch. `Display` sets the default view
+(Day / Week / Month), week start, 12/24-hour time, and weekends. `Team sharing` is a
+radio trio deciding what teammates see of your calendar: `Everything` (default),
+`Busy blocks only` (time only — no titles, guests, or locations), or `Nothing`
+(hidden from teammates, including the team out-of-office list); it applies
+immediately and is stored server-side. `Team calendars` has a `Show team calendars`
+switch and one switch per teammate, each labelled with what that teammate shares
+(`Details`, `Busy only`, `Not shared`, or `No calendar`). The calendar block's right
+side panel repeats the `Team calendars` section as checkboxes; when on, teammates'
+events overlay the grid in a per-teammate color, titled `<Name>: <title>` or
+`<Name>: Busy`. In AI chat, `GetTeamAvailability` answers "when is my team free?"
+with per-teammate busy blocks and shared free windows, honoring each teammate's
+sharing setting.
 
 `Agents` → `Create agent` (or edit an existing agent) opens runtime selectors.
 The model list is loaded live and independently for In-memory, connected Cursor, and every

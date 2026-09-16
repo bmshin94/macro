@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            teammate.user_id,\n            COALESCE(sharing.sharing, 'all') AS \"sharing!\",\n            EXISTS (\n                SELECT 1\n                FROM calendar_accounts account\n                WHERE account.owner_id = teammate.user_id\n                  AND account.sync_status <> 'disabled'\n            ) AS \"has_calendar!\"\n        FROM team_user membership\n        JOIN team_user teammate ON teammate.team_id = membership.team_id\n        LEFT JOIN calendar_team_sharing sharing ON sharing.user_id = teammate.user_id\n        WHERE membership.user_id = $1\n          AND teammate.user_id <> $1\n        ORDER BY teammate.user_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "sharing!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "has_calendar!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "16033059c29265afd7a4aae82223254562cec8361654d877e6d9e2d8aa8d94e0"
+}

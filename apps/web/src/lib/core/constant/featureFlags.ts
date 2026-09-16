@@ -624,6 +624,18 @@ export const enableCalendarTeamOoo = defineFlag({
   default: onInDev,
 });
 
+// Team calendar sharing: Settings › Calendar's team sharing controls, the
+// calendar side panel's "Team calendars" section, and teammates' shared events
+// overlaid on the grid. Purely additive: when off, no team calendar query is
+// issued and the sharing controls never mount. Lives inside the calendar
+// surfaces, so `enable-calendar-ui` already gates it. PostHog-gated with a
+// dev-mode default; override with VITE_ENABLE_CALENDAR_TEAM_SHARING.
+export const enableCalendarTeamSharing = defineFlag({
+  key: 'enable-calendar-team-sharing',
+  env: 'ENABLE_CALENDAR_TEAM_SHARING',
+  default: onInDev,
+});
+
 // Sharing a personal tag with the team: the "Share with team" action on
 // personal tags in Settings › Tags, and the prompt that merges into an
 // existing team label when the names collide. The backend endpoints ship

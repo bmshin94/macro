@@ -13,6 +13,7 @@ import {
   useCalendarOccurrenceData,
 } from '@app/features/calendar/hooks/use-calendar-occurrence-data';
 import { useCalendarTimeGridHoverIndicator } from '@app/features/calendar/hooks/use-calendar-time-grid-hover-indicator';
+import { useTeamCalendarEvents } from '@app/features/calendar/hooks/use-team-calendar';
 import { useTeamOooEvents } from '@app/features/calendar/hooks/use-team-ooo';
 import {
   type CalendarEvent,
@@ -245,14 +246,36 @@ export function Page(props: {
     isSourceVisible: calendarView.isSourceVisible,
     refetchOnWindowFocus: isActive,
   });
+  const teamCalendar = useTeamCalendarEvents({
+    range,
+    showTeamCalendars: () => calendarView.displaySettings.showTeamCalendars,
+    isSourceVisible: calendarView.isSourceVisible,
+    refetchOnWindowFocus: isActive,
+  });
+  // A teammate's out-of-office event reaches both overlays under the same
+  // occurrence id; the shared-calendar copy wins so it is drawn once, in the
+  // teammate's color.
+  const teamEvents = createMemo(() => {
+    const shared = teamCalendar.visibleEvents();
+    if (shared.length === 0) return teamOoo.visibleEvents();
+    const sharedIds = new Set(shared.map((event) => event.id));
+    return [
+      ...teamOoo.visibleEvents().filter((event) => !sharedIds.has(event.id)),
+      ...shared,
+    ];
+  });
   const visibleEvents = createMemo(() => [
     ...data.visibleEvents(),
-    ...teamOoo.visibleEvents(),
+    ...teamEvents(),
   ]);
   const eventsById = createMemo(() =>
-    teamOoo.eventsById().size === 0
+    teamOoo.eventsById().size === 0 && teamCalendar.eventsById().size === 0
       ? data.eventsById()
-      : new Map([...data.eventsById(), ...teamOoo.eventsById()])
+      : new Map([
+          ...data.eventsById(),
+          ...teamOoo.eventsById(),
+          ...teamCalendar.eventsById(),
+        ])
   );
   const updateEventTime = useUpdateCalendarEventMutation();
   const handleSelect = (selection: DateSelectArg) => {
@@ -349,7 +372,7 @@ export function Page(props: {
         <CalendarPageHost
           id={props.id}
           data={data}
-          teamEvents={teamOoo.visibleEvents}
+          teamEvents={teamEvents}
           eventsById={eventsById}
           grid={grid}
         />
@@ -361,9 +384,9 @@ export function Page(props: {
 function CalendarPageHost(props: {
   id: CalendarPageId;
   data: CalendarOccurrenceData;
-  /** Teammate out-of-office events rendered on this page. */
+  /** Teammate events (out of office and shared calendars) on this page. */
   teamEvents: Accessor<CalendarEvent[]>;
-  /** Occurrence events merged with the team out-of-office overlay. */
+  /** Occurrence events merged with the teammate overlays. */
   eventsById: Accessor<Map<string, CalendarEvent>>;
   grid: CalendarGridHandle;
 }) {

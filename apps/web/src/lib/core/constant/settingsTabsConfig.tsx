@@ -3,6 +3,7 @@ import BotIcon from '@icon/wide-bot.svg';
 import BellIcon from '@phosphor/bell-simple.svg';
 import BugIcon from '@phosphor/bug.svg';
 import BuildingsIcon from '@phosphor/buildings.svg';
+import CalendarDotsIcon from '@phosphor/calendar-dots.svg';
 import CpuIcon from '@phosphor/cpu.svg';
 import CreditCardIcon from '@phosphor/credit-card.svg';
 import DeviceMobileIcon from '@phosphor/device-mobile-speaker.svg';
@@ -23,6 +24,7 @@ import {
   botManagement,
   DEV_MODE_ENV,
   ENABLE_APP_STORE_QR_CODE,
+  enableCalendarUi,
   enableChatV3Agents,
   enableCrm,
   enableNotificationSettings,
@@ -56,6 +58,7 @@ export const SETTINGS_TAB_GROUPS: SettingsTabGroup[] = [
       { tab: 'Account', label: 'Account', icon: UserIconPhosphor },
       { tab: 'API Keys', label: 'API Keys', icon: KeyIcon },
       { tab: 'Notifications', label: 'Notifications', icon: BellIcon },
+      { tab: 'Calendar', label: 'Calendar', icon: CalendarDotsIcon },
       { tab: 'Billing', label: 'Billing', icon: CreditCardIcon },
       { tab: 'Appearance', label: 'Appearance', icon: SwatchesIcon },
       { tab: 'Mobile App', label: 'Mobile App', icon: DeviceMobileIcon },
@@ -103,6 +106,7 @@ const SETTINGS_TAB_SLUGS: Record<SettingsTab, string> = {
   Account: 'account',
   'API Keys': 'api-keys',
   Notifications: 'notifications',
+  Calendar: 'calendar',
   Billing: 'billing',
   Subscription: 'subscription',
   Organization: 'organization',
@@ -162,6 +166,7 @@ export const useSettingsTabAvailable = () => {
   const chatV3AgentsFlag = useFeatureFlag(enableChatV3Agents);
   const crmFlag = useFeatureFlag(enableCrm);
   const notificationSettingsFlag = useFeatureFlag(enableNotificationSettings);
+  const calendarUiFlag = useFeatureFlag(enableCalendarUi);
   const hasAdminPanel = useHasPermission(PERMISSION_IDS.WRITE_ADMIN_PANEL);
 
   return (tab: SettingsTab): boolean => {
@@ -173,6 +178,10 @@ export const useSettingsTabAvailable = () => {
         return true;
       case 'Notifications':
         return notificationSettingsFlag().enabled;
+      // The calendar page manages calendar accounts, display, and team
+      // sharing, all of which only exist behind the calendar UI flag.
+      case 'Calendar':
+        return calendarUiFlag().enabled;
       case 'Team':
       case 'Tags':
         return true;

@@ -4,6 +4,7 @@ import {
   enableCalendarPromptWeb,
   enableCalendarSearchUi,
   enableCalendarTeamOoo,
+  enableCalendarTeamSharing,
   enableCalendarUi,
 } from '@core/constant/featureFlags';
 import { isMobile } from '@core/mobile/isMobile';
@@ -45,5 +46,15 @@ export function useCalendarPromptAllowed(): Accessor<boolean> {
  */
 export function useCalendarTeamOooFlag(): Accessor<boolean> {
   const flag = useFeatureFlag(enableCalendarTeamOoo);
+  return () => flag().enabled;
+}
+
+/**
+ * Whether team calendar sharing (the Settings › Calendar sharing controls,
+ * the "Team calendars" side panel section, and the teammate event overlay)
+ * is enabled.
+ */
+export function useCalendarTeamSharingFlag(): Accessor<boolean> {
+  const flag = useFeatureFlag(enableCalendarTeamSharing);
   return () => flag().enabled;
 }

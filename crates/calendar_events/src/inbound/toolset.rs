@@ -7,6 +7,7 @@
 
 mod create_calendar_event;
 mod delete_calendar_event;
+mod get_team_availability;
 mod list_calendar_events;
 mod list_calendars;
 mod update_calendar_event;
@@ -33,6 +34,10 @@ use crate::domain::{
 pub use create_calendar_event::CreateCalendarEvent;
 pub use delete_calendar_event::{
     DeleteCalendarEvent, DeleteCalendarEventResponse, DeletionScopeInput,
+};
+pub use get_team_availability::{
+    GetTeamAvailability, GetTeamAvailabilityResponse, TeamBusyBlock, TeamFreeWindow,
+    TeamMemberAvailability,
 };
 pub use list_calendar_events::{
     CalendarEventListItem, ListCalendarEvents, ListCalendarEventsResponse,
@@ -89,6 +94,7 @@ where
     AsyncToolCollection::new()
         .add_tool::<ListCalendarEvents, CalendarToolContext<M, O>>()
         .add_tool::<ListCalendars, CalendarToolContext<M, O>>()
+        .add_tool::<GetTeamAvailability, CalendarToolContext<M, O>>()
         .add_tool::<UpdateCalendarEvent, CalendarToolContext<M, O>>()
         .add_tool::<DeleteCalendarEvent, CalendarToolContext<M, O>>()
 }

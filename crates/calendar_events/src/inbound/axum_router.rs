@@ -22,9 +22,10 @@ use uuid::Uuid;
 
 use crate::domain::{
     models::{
-        CalendarEvent, CalendarMentionEvent, CalendarMentionPreview, CalendarMentionRequestItem,
-        CalendarOccurrence, CalendarOccurrenceCursor, CalendarSyncStatus, EventTime,
-        OccurrenceRange,
+        CalendarAttendee, CalendarEvent, CalendarMentionEvent, CalendarMentionPreview,
+        CalendarMentionRequestItem, CalendarOccurrence, CalendarOccurrenceCursor,
+        CalendarSyncStatus, EventStatus, EventTime, EventTransparency, EventType, OccurrenceRange,
+        TeamCalendarSharing,
     },
     ports::CalendarOccurrenceService,
     service::CalendarValidationError,
@@ -78,6 +79,10 @@ where
         .route(
             "/calendar-events/team-out-of-office",
             get(list_team_out_of_office::<S, Auth>),
+        )
+        .route(
+            "/calendar-events/team",
+            get(list_team_occurrences::<S, Auth>),
         )
         .with_state(state)
 }
@@ -360,6 +365,212 @@ where
         .collect();
 
     Ok(Json(TeamOutOfOfficeResponse { items, has_more }))
+}
+
+/// Query parameters for the team calendar viewport.
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamCalendarQuery {
+    /// Inclusive UTC viewport start.
+    start: DateTime<Utc>,
+    /// Exclusive UTC viewport end.
+    end: DateTime<Utc>,
+    /// Inclusive local date boundary for all-day events.
+    start_date: Option<NaiveDate>,
+    /// Exclusive local date boundary for all-day events.
+    end_date: Option<NaiveDate>,
+    /// Maximum number of occurrences, from 1 through 2,000.
+    #[param(minimum = 1, maximum = 2000)]
+    limit: Option<u16>,
+}
+
+/// One teammate and what they share with the team.
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamCalendarMemberItem {
+    /// Macro user id of the teammate.
+    user_id: String,
+    /// The teammate's sharing policy.
+    sharing: TeamCalendarSharing,
+    /// Whether the teammate has a connected, enabled calendar.
+    has_calendar: bool,
+}
+
+/// Details of a teammate's event, present only when they share them and
+/// the event is not private.
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamCalendarEventDetails {
+    /// Display title.
+    title: String,
+    /// Optional event body.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    /// Optional location label.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    location: Option<String>,
+    /// Direct join URL when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    conference_url: Option<String>,
+    /// Organizer email.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    organizer_email: Option<String>,
+    /// Organizer display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    organizer_name: Option<String>,
+    /// Attendees of the teammate's copy of the event.
+    attendees: Vec<CalendarAttendee>,
+}
+
+/// One occurrence from a teammate's primary calendar.
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamCalendarOccurrenceItem {
+    /// Macro user id of the teammate whose calendar the occurrence is on.
+    owner_id: String,
+    /// The teammate's calendar event id.
+    event_id: Uuid,
+    /// Stable occurrence key within the event.
+    occurrence_key: String,
+    /// Occurrence time span.
+    time: EventTime,
+    /// Event status: confirmed or tentative.
+    status: EventStatus,
+    /// Whether the occurrence blocks the teammate's availability.
+    transparency: EventTransparency,
+    /// Provider event type; `default` for regular events.
+    event_type: EventType,
+    /// The sharing policy applied to this occurrence.
+    sharing: TeamCalendarSharing,
+    /// Event details, absent when the teammate shares busy time only or
+    /// the event's visibility withholds them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    details: Option<TeamCalendarEventDetails>,
+}
+
+/// Team calendar viewport response.
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamCalendarResponse {
+    /// The requester's teammates and what each shares, whether or not they
+    /// have occurrences in the viewport.
+    members: Vec<TeamCalendarMemberItem>,
+    /// Teammates' occurrences in the viewport, soonest first.
+    items: Vec<TeamCalendarOccurrenceItem>,
+    /// Whether the viewport held more occurrences than the limit.
+    has_more: bool,
+}
+
+/// Return teammates' calendar occurrences in the requested viewport, with
+/// each teammate's sharing policy applied.
+#[tracing::instrument(skip_all, err)]
+#[utoipa::path(
+    get,
+    path = "/calendar-events/team",
+    tag = "calendar_events",
+    params(TeamCalendarQuery),
+    responses(
+        (status = 200, description = "Teammates' calendar occurrences in the requested viewport", body = TeamCalendarResponse),
+        (status = 400, description = "Invalid or unsupported calendar viewport"),
+        (status = 401, description = "Authentication required"),
+        (status = 500, description = "Calendar query failed"),
+    )
+)]
+pub async fn list_team_occurrences<S, Auth>(
+    State(state): State<CalendarRouterState<S, Auth>>,
+    user: MacroAuthorizationExtractor<Auth, UserOrInternal>,
+    Query(query): Query<TeamCalendarQuery>,
+) -> Result<Json<TeamCalendarResponse>, CalendarApiError>
+where
+    S: CalendarOccurrenceService,
+    Auth: MacroAuthorizationService,
+{
+    let requester_id = user.authorization.user.macro_user_id.as_ref();
+    let default_end_date = default_end_date(query.end);
+    let range = OccurrenceRange {
+        starts_at: query.start,
+        ends_at: query.end,
+        start_date: query.start_date.unwrap_or_else(|| query.start.date_naive()),
+        end_date: query
+            .end_date
+            .or(default_end_date)
+            .ok_or(CalendarApiError {
+                status: StatusCode::BAD_REQUEST,
+                message: "calendar end is outside the supported date range",
+            })?,
+    };
+    let (limit, repository_limit) = query_limits(query.limit)?;
+    let members = state
+        .service
+        .list_team_calendar_members(requester_id)
+        .await
+        .map_err(|error| {
+            tracing::error!(error = ?error, "failed to query team calendar members");
+            CalendarApiError {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "unable to query team calendar",
+            }
+        })?;
+    let mut occurrences = state
+        .service
+        .list_team_occurrences(requester_id, range, None, repository_limit)
+        .await
+        .map_err(|error| {
+            if error
+                .as_ref()
+                .downcast_current_context::<CalendarValidationError>()
+                .is_some()
+            {
+                return CalendarApiError {
+                    status: StatusCode::BAD_REQUEST,
+                    message: "calendar range must be positive, at most 370 days, inside the maintained one-year-history/two-year-future window, with limit 1–2000",
+                };
+            }
+            tracing::error!(error = ?error, "failed to query team calendar occurrences");
+            CalendarApiError {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "unable to query team calendar",
+            }
+        })?;
+    let has_more = occurrences.len() > usize::from(limit);
+    occurrences.truncate(usize::from(limit));
+    let items = occurrences
+        .into_iter()
+        .map(|row| TeamCalendarOccurrenceItem {
+            owner_id: row.owner_id,
+            event_id: row.event_id,
+            occurrence_key: row.occurrence_key,
+            time: row.time,
+            status: row.status,
+            transparency: row.transparency,
+            event_type: row.event_type,
+            sharing: row.sharing,
+            details: row.details.map(|details| TeamCalendarEventDetails {
+                title: details.title,
+                description: details.description,
+                location: details.location,
+                conference_url: details.conference_url,
+                organizer_email: details.organizer_email,
+                organizer_name: details.organizer_name,
+                attendees: details.attendees,
+            }),
+        })
+        .collect();
+    let members = members
+        .into_iter()
+        .map(|member| TeamCalendarMemberItem {
+            user_id: member.user_id,
+            sharing: member.sharing,
+            has_calendar: member.has_calendar,
+        })
+        .collect();
+
+    Ok(Json(TeamCalendarResponse {
+        members,
+        items,
+        has_more,
+    }))
 }
 
 /// One mentioned event to resolve for the requester.

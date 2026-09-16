@@ -130,6 +130,7 @@ import type { Item } from './generated/schemas/item';
 import type { ListFavoritesParams } from './generated/schemas/listFavoritesParams';
 import type { ListOccurrencesParams } from './generated/schemas/listOccurrencesParams';
 import type { ListRemindersParams } from './generated/schemas/listRemindersParams';
+import type { ListTeamOccurrencesParams } from './generated/schemas/listTeamOccurrencesParams';
 import type { ListTeamOutOfOfficeParams } from './generated/schemas/listTeamOutOfOfficeParams';
 import type { LocationResponseV3 } from './generated/schemas/locationResponseV3';
 import type { PairingDetails } from './generated/schemas/pairingDetails';
@@ -159,6 +160,7 @@ import type { SetContactNameRequest } from './generated/schemas/setContactNameRe
 import type { SharePermissionV2 } from './generated/schemas/sharePermissionV2';
 import type { SoupPage } from './generated/schemas/soupPage';
 import type { SyncServiceVersionID } from './generated/schemas/syncServiceVersionID';
+import type { TeamCalendarResponse } from './generated/schemas/teamCalendarResponse';
 import type { TeamOutOfOfficeResponse } from './generated/schemas/teamOutOfOfficeResponse';
 import type { ThreadResponse } from './generated/schemas/threadResponse';
 import type { TypedSuccessResponse } from './generated/schemas/typedSuccessResponse';
@@ -442,6 +444,24 @@ export const storageServiceClient = {
     return (
       await dssFetch<TeamOutOfOfficeResponse>(
         `/calendar-events/team-out-of-office?${params.toString()}`,
+        { method: 'GET', signal }
+      )
+    ).map((result) => result);
+  },
+
+  async listTeamCalendar(
+    args: ListTeamOccurrencesParams & { signal?: AbortSignal }
+  ) {
+    const { end, endDate, limit, signal, start, startDate } = args;
+    const params = new URLSearchParams({ end, start });
+
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    if (limit !== undefined) params.set('limit', String(limit));
+
+    return (
+      await dssFetch<TeamCalendarResponse>(
+        `/calendar-events/team?${params.toString()}`,
         { method: 'GET', signal }
       )
     ).map((result) => result);

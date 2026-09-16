@@ -309,6 +309,8 @@ export * from './settingsSignature';
 export * from './settingsSignatureOnRepliesForwards';
 export * from './sharedInboxConflictResponse';
 export * from './syncStatus';
+export * from './teamCalendarSharing';
+export * from './teamCalendarSharingBody';
 export * from './thread';
 export * from './threadLatestInboundMessageTs';
 export * from './threadLatestNonSpamMessageTs';

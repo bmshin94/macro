@@ -1482,6 +1482,23 @@ export type SharedInboxConflictResponse = {
  */
 export type SyncStatus = 'SYNCING' | 'UP_TO_DATE' | 'ERROR' | 'NEEDS_REAUTH' | 'INACTIVE';
 
+/**
+ * How much of a user's calendar their teammates may see.
+ *
+ * Stored per user; absence of a stored value is [`Self::All`].
+ */
+export type TeamCalendarSharing = 'all' | 'busy_only' | 'none';
+
+/**
+ * The requester's team calendar sharing setting, read and written alike.
+ */
+export type TeamCalendarSharingBody = {
+    /**
+     * How much of the requester's calendar their teammates may see.
+     */
+    sharing: TeamCalendarSharing;
+};
+
 export type Thread = {
     created_at: string;
     db_id: string;
@@ -1951,6 +1968,68 @@ export type RsvpCalendarEventResponses = {
 };
 
 export type RsvpCalendarEventResponse = RsvpCalendarEventResponses[keyof RsvpCalendarEventResponses];
+
+export type GetTeamSharingData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/calendar/team-sharing';
+};
+
+export type GetTeamSharingErrors = {
+    /**
+     * Authentication required
+     */
+    401: unknown;
+    /**
+     * Transient failure
+     */
+    503: CalendarMutationApiError;
+};
+
+export type GetTeamSharingError = GetTeamSharingErrors[keyof GetTeamSharingErrors];
+
+export type GetTeamSharingResponses = {
+    /**
+     * The requester's team calendar sharing setting
+     */
+    200: TeamCalendarSharingBody;
+};
+
+export type GetTeamSharingResponse = GetTeamSharingResponses[keyof GetTeamSharingResponses];
+
+export type SetTeamSharingData = {
+    body: TeamCalendarSharingBody;
+    path?: never;
+    query?: never;
+    url: '/calendar/team-sharing';
+};
+
+export type SetTeamSharingErrors = {
+    /**
+     * Invalid sharing level
+     */
+    400: unknown;
+    /**
+     * Authentication required
+     */
+    401: unknown;
+    /**
+     * Transient failure
+     */
+    503: CalendarMutationApiError;
+};
+
+export type SetTeamSharingError = SetTeamSharingErrors[keyof SetTeamSharingErrors];
+
+export type SetTeamSharingResponses = {
+    /**
+     * The stored team calendar sharing setting
+     */
+    200: TeamCalendarSharingBody;
+};
+
+export type SetTeamSharingResponse = SetTeamSharingResponses[keyof SetTeamSharingResponses];
 
 export type GetAttachmentData = {
     body?: never;

@@ -819,8 +819,148 @@ pub struct TeamOutOfOffice {
     pub title: Option<String>,
     /// Stored event visibility backing the title policy.
     pub visibility: EventVisibility,
+    /// How much of their calendar the teammate shares with the team; the
+    /// domain service turns [`TeamCalendarSharing::BusyOnly`] into a
+    /// withheld title. Repositories never return rows for teammates who
+    /// share nothing.
+    pub sharing: TeamCalendarSharing,
     /// Occurrence time span.
     pub time: EventTime,
+}
+
+/// How much of a user's calendar their teammates may see.
+///
+/// Stored per user; absence of a stored value is [`Self::All`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(utoipa::ToSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum TeamCalendarSharing {
+    /// Teammates see event details: title, guests, location, description.
+    #[default]
+    All,
+    /// Teammates see when the user is busy, and nothing about why.
+    BusyOnly,
+    /// Teammates see nothing from this user's calendar.
+    None,
+}
+
+impl TeamCalendarSharing {
+    /// Database representation.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::BusyOnly => "busy_only",
+            Self::None => "none",
+        }
+    }
+
+    /// Whether teammates may see event details under this policy.
+    pub fn shares_details(self) -> bool {
+        matches!(self, Self::All)
+    }
+}
+
+impl std::fmt::Display for TeamCalendarSharing {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// A sharing value outside the closed set.
+#[derive(Debug, thiserror::Error)]
+#[error("unknown team calendar sharing level: {0}")]
+pub struct UnknownTeamCalendarSharing(pub String);
+
+impl std::str::FromStr for TeamCalendarSharing {
+    type Err = UnknownTeamCalendarSharing;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "all" => Ok(Self::All),
+            "busy_only" => Ok(Self::BusyOnly),
+            "none" => Ok(Self::None),
+            other => Err(UnknownTeamCalendarSharing(other.to_string())),
+        }
+    }
+}
+
+/// One of the requester's teammates and what they share with the team.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TeamCalendarMember {
+    /// Macro user id of the teammate.
+    pub user_id: String,
+    /// The teammate's sharing policy.
+    pub sharing: TeamCalendarSharing,
+    /// Whether the teammate has a connected, enabled calendar to share.
+    pub has_calendar: bool,
+}
+
+/// Details of a teammate's event, present only when their sharing policy
+/// and the event's own visibility allow them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TeamCalendarOccurrenceDetails {
+    /// Display title.
+    pub title: String,
+    /// Optional event body.
+    pub description: Option<String>,
+    /// Optional location label.
+    pub location: Option<String>,
+    /// Direct join URL when known.
+    pub conference_url: Option<String>,
+    /// Organizer email.
+    pub organizer_email: Option<String>,
+    /// Organizer display name.
+    pub organizer_name: Option<String>,
+    /// Attendees of the teammate's copy of the event.
+    pub attendees: Vec<CalendarAttendee>,
+}
+
+/// One occurrence from a teammate's primary calendar, read from the
+/// projection their own connected inbox synced.
+///
+/// A narrow projection rather than a [`CalendarEvent`]: nothing about a
+/// teammate's event reaches the requester unless it is named here, so a
+/// field added to the entity later never leaks by default.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TeamCalendarOccurrence {
+    /// Macro user whose calendar the occurrence is on.
+    pub owner_id: String,
+    /// The teammate's calendar event entity id.
+    pub event_id: Uuid,
+    /// RFC 5545 UID, used to collapse the same event synced through more
+    /// than one of the teammate's connected inboxes.
+    pub ical_uid: String,
+    /// Stable key of this occurrence within the event.
+    pub occurrence_key: String,
+    /// Occurrence time span.
+    pub time: EventTime,
+    /// Event status: confirmed or tentative.
+    pub status: EventStatus,
+    /// Whether the occurrence blocks the teammate's availability.
+    pub transparency: EventTransparency,
+    /// Provider event type, so status-style events read as such.
+    pub event_type: EventType,
+    /// Stored event visibility backing the detail policy.
+    pub visibility: EventVisibility,
+    /// The owner's sharing policy at read time.
+    pub sharing: TeamCalendarSharing,
+    /// Event details. Repositories fill them unmasked; the domain service
+    /// clears them when the owner's policy or the event's visibility
+    /// withholds them.
+    pub details: Option<TeamCalendarOccurrenceDetails>,
+}
+
+impl TeamCalendarOccurrence {
+    /// Whether this occurrence should count as busy time for the teammate:
+    /// it blocks availability and is not a purely informational status
+    /// entry such as a working location or a birthday.
+    pub fn is_busy(&self) -> bool {
+        self.transparency == EventTransparency::Opaque
+            && !matches!(
+                self.event_type,
+                EventType::WorkingLocation | EventType::Birthday
+            )
+    }
 }
 
 /// One mentioned event to resolve for a requester's mention preview.

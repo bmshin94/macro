@@ -51,6 +51,7 @@ import type {
   SendMessageRequest,
   SendMessageResponse,
   SharedInboxConflictResponse,
+  TeamCalendarSharingBody,
   UnblockSenderRequest,
   UnresolvedSignatureImagesError,
   UpdateCalendarEventRequest,
@@ -449,6 +450,123 @@ export const rsvpCalendarEvent = async (
     status: res.status,
     headers: res.headers,
   } as rsvpCalendarEventResponse;
+};
+
+/**
+ * @summary Read how much of the requester's calendar their teammates may see.
+ */
+export type getTeamSharingResponse200 = {
+  data: TeamCalendarSharingBody;
+  status: 200;
+};
+
+export type getTeamSharingResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type getTeamSharingResponse503 = {
+  data: CalendarMutationApiError;
+  status: 503;
+};
+
+export type getTeamSharingResponseSuccess = getTeamSharingResponse200 & {
+  headers: Headers;
+};
+export type getTeamSharingResponseError = (
+  | getTeamSharingResponse401
+  | getTeamSharingResponse503
+) & {
+  headers: Headers;
+};
+
+export type getTeamSharingResponse =
+  | getTeamSharingResponseSuccess
+  | getTeamSharingResponseError;
+
+export const getGetTeamSharingUrl = () => {
+  return `/calendar/team-sharing`;
+};
+
+export const getTeamSharing = async (
+  options?: RequestInit
+): Promise<getTeamSharingResponse> => {
+  const res = await fetch(getGetTeamSharingUrl(), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getTeamSharingResponse['data'] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as getTeamSharingResponse;
+};
+
+/**
+ * @summary Set how much of the requester's calendar their teammates may see.
+ */
+export type setTeamSharingResponse200 = {
+  data: TeamCalendarSharingBody;
+  status: 200;
+};
+
+export type setTeamSharingResponse400 = {
+  data: void;
+  status: 400;
+};
+
+export type setTeamSharingResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type setTeamSharingResponse503 = {
+  data: CalendarMutationApiError;
+  status: 503;
+};
+
+export type setTeamSharingResponseSuccess = setTeamSharingResponse200 & {
+  headers: Headers;
+};
+export type setTeamSharingResponseError = (
+  | setTeamSharingResponse400
+  | setTeamSharingResponse401
+  | setTeamSharingResponse503
+) & {
+  headers: Headers;
+};
+
+export type setTeamSharingResponse =
+  | setTeamSharingResponseSuccess
+  | setTeamSharingResponseError;
+
+export const getSetTeamSharingUrl = () => {
+  return `/calendar/team-sharing`;
+};
+
+export const setTeamSharing = async (
+  teamCalendarSharingBody: TeamCalendarSharingBody,
+  options?: RequestInit
+): Promise<setTeamSharingResponse> => {
+  const res = await fetch(getSetTeamSharingUrl(), {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(teamCalendarSharingBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: setTeamSharingResponse['data'] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as setTeamSharingResponse;
 };
 
 /**

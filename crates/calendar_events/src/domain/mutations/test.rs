@@ -254,6 +254,38 @@ impl CalendarRepository for FakeRepo {
         unreachable!()
     }
 
+    async fn team_calendar_sharing(
+        &self,
+        _user_id: &str,
+    ) -> Result<crate::domain::models::TeamCalendarSharing, rootcause::Report> {
+        unreachable!("team sharing is not exercised here")
+    }
+
+    async fn set_team_calendar_sharing(
+        &self,
+        _user_id: &str,
+        _sharing: crate::domain::models::TeamCalendarSharing,
+    ) -> Result<(), rootcause::Report> {
+        unreachable!("team sharing is not exercised here")
+    }
+
+    async fn list_team_calendar_members(
+        &self,
+        _requester_id: &str,
+    ) -> Result<Vec<crate::domain::models::TeamCalendarMember>, rootcause::Report> {
+        unreachable!("team sharing is not exercised here")
+    }
+
+    async fn list_team_occurrences(
+        &self,
+        _requester_id: &str,
+        _range: OccurrenceRange,
+        _owner_ids: Option<&[String]>,
+        _limit: u16,
+    ) -> Result<Vec<crate::domain::models::TeamCalendarOccurrence>, rootcause::Report> {
+        unreachable!("team sharing is not exercised here")
+    }
+
     async fn upsert_google_calendar(
         &self,
         _key: CalendarBackfillJobKey,

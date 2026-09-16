@@ -1,5 +1,8 @@
 //! PostgreSQL implementation of the calendar repository port.
 
+/// Team calendar sharing queries.
+mod team;
+
 use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, NaiveDate, Utc};
@@ -24,7 +27,8 @@ use crate::domain::{
         EventStart, EventStatus, EventTime, EventTransparency, EventType, EventVisibility,
         GOOGLE_CALENDAR_SCOPES, GoogleCalendarSyncSnapshot, GoogleScopeSet, GoogleWatchChannel,
         OccurrenceContent, OccurrenceRange, ProviderCalendar, StoredGoogleCalendar,
-        TeamOutOfOffice, VisibleCalendar, is_system_calendar,
+        TeamCalendarMember, TeamCalendarOccurrence, TeamCalendarSharing, TeamOutOfOffice,
+        VisibleCalendar, is_system_calendar,
     },
     ports::{
         CalendarBackfillRepository, CalendarEventChange, CalendarEventWrite,
@@ -1007,6 +1011,8 @@ impl CalendarRepository for PgCalendarRepository {
         range: OccurrenceRange,
         limit: u16,
     ) -> Result<Vec<TeamOutOfOffice>, Report> {
+        // Teammates who share nothing are filtered here so their rows never
+        // leave the database; the busy-only masking is domain policy.
         // Type, title, and visibility come from the teammate's primary
         // calendar copy, so a shared calendar's re-import of the event (which
         // flattens the type and brackets the title) neither hides their status
@@ -1024,6 +1030,7 @@ impl CalendarRepository for PgCalendarRepository {
                 occurrence_key AS "occurrence_key!",
                 title AS "title!",
                 visibility AS "visibility!",
+                sharing AS "sharing!",
                 time_zone,
                 occurrence_starts_at AS "occurrence_starts_at?",
                 occurrence_ends_at AS "occurrence_ends_at?",
@@ -1037,6 +1044,7 @@ impl CalendarRepository for PgCalendarRepository {
                     occurrence.occurrence_key,
                     source.title,
                     source.visibility,
+                    COALESCE(sharing.sharing, 'all') AS sharing,
                     event.time_zone,
                     occurrence.starts_at AS occurrence_starts_at,
                     occurrence.ends_at AS occurrence_ends_at,
@@ -1056,6 +1064,7 @@ impl CalendarRepository for PgCalendarRepository {
                 JOIN calendar_accounts account
                   ON account.id = source.account_id
                  AND account.sync_status <> 'disabled'
+                LEFT JOIN calendar_team_sharing sharing ON sharing.user_id = event.owner_id
                 WHERE occurrence.owner_id IN (
                         SELECT teammate.user_id
                         FROM team_user membership
@@ -1063,6 +1072,7 @@ impl CalendarRepository for PgCalendarRepository {
                         WHERE membership.user_id = $1
                           AND teammate.user_id <> $1
                   )
+                  AND COALESCE(sharing.sharing, 'all') <> 'none'
                   AND source.event_type = 'out_of_office'
                   AND event.status <> 'cancelled'
                   AND NOT occurrence.is_cancelled
@@ -1104,6 +1114,7 @@ impl CalendarRepository for PgCalendarRepository {
                     occurrence_key: row.occurrence_key,
                     title: Some(row.title),
                     visibility: event_visibility(&row.visibility),
+                    sharing: team::parse_sharing(&row.sharing)?,
                     time: row_time(
                         row.occurrence_starts_at,
                         row.occurrence_ends_at,
@@ -1114,6 +1125,39 @@ impl CalendarRepository for PgCalendarRepository {
                 })
             })
             .collect()
+    }
+
+    #[tracing::instrument(skip(self, user_id), err)]
+    async fn team_calendar_sharing(&self, user_id: &str) -> Result<TeamCalendarSharing, Report> {
+        team::team_calendar_sharing(&self.pool, user_id).await
+    }
+
+    #[tracing::instrument(skip(self, user_id), err)]
+    async fn set_team_calendar_sharing(
+        &self,
+        user_id: &str,
+        sharing: TeamCalendarSharing,
+    ) -> Result<(), Report> {
+        team::set_team_calendar_sharing(&self.pool, user_id, sharing).await
+    }
+
+    #[tracing::instrument(skip(self, requester_id), err)]
+    async fn list_team_calendar_members(
+        &self,
+        requester_id: &str,
+    ) -> Result<Vec<TeamCalendarMember>, Report> {
+        team::list_team_calendar_members(&self.pool, requester_id).await
+    }
+
+    #[tracing::instrument(skip(self, requester_id, range, owner_ids), err)]
+    async fn list_team_occurrences(
+        &self,
+        requester_id: &str,
+        range: OccurrenceRange,
+        owner_ids: Option<&[String]>,
+        limit: u16,
+    ) -> Result<Vec<TeamCalendarOccurrence>, Report> {
+        team::list_team_occurrences(&self.pool, requester_id, range, owner_ids, limit).await
     }
 
     #[tracing::instrument(skip(self, requester_id, items), err)]

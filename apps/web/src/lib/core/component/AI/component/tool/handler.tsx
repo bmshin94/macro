@@ -86,6 +86,7 @@ import { sendChannelMessageHandler } from './SendChannelMessage';
 import { sendEmailHandler } from './SendEmail';
 import { setSenderPolicyHandler } from './SetSenderPolicy';
 import { subagentHandler } from './Subagent';
+import { getTeamAvailabilityHandler } from './TeamAvailability';
 import { textEditorCodeExecutionHandler } from './TextEditorCodeExecution';
 import {
   type RenderContext,
@@ -116,6 +117,7 @@ const toolHandlers: ToolHandlerMap<RenderContext> = {
   DeleteImportEntity: deleteImportEntityHandler,
   ImportNotionPage: importNotionPageHandler,
   GetCompany: getCompanyHandler,
+  GetTeamAvailability: getTeamAvailabilityHandler,
   GetEntityProperties: getEntityPropertiesHandler,
   ListCompanies: listCompaniesHandler,
   ListImportEntities: listImportEntitiesHandler,

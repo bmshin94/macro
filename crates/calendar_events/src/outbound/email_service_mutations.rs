@@ -11,13 +11,13 @@
 mod test;
 
 use reqwest::StatusCode;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::domain::{
     models::{
         AttendeeResponseStatus, CalendarEvent, CalendarEventDraft, CalendarEventPatch,
-        VisibleCalendar,
+        TeamCalendarSharing, VisibleCalendar,
     },
     ports::{
         CalendarDeletionScope, CalendarMutationError, CalendarMutationService, CalendarRsvpScope,
@@ -79,6 +79,22 @@ impl EmailServiceCalendarMutations {
         Err(error_from_response(status, response.text().await.ok()))
     }
 
+    async fn sharing_from(
+        &self,
+        request: reqwest::RequestBuilder,
+    ) -> Result<TeamCalendarSharing, CalendarMutationError> {
+        self.send(request)
+            .await?
+            .json::<TeamSharingWire>()
+            .await
+            .map(|wire| wire.sharing)
+            .map_err(|error| {
+                CalendarMutationError::Retryable(format!(
+                    "the team sharing setting could not be parsed: {error}"
+                ))
+            })
+    }
+
     async fn event_from(
         &self,
         request: reqwest::RequestBuilder,
@@ -100,6 +116,15 @@ impl EmailServiceCalendarMutations {
 struct ListCalendarsWire {
     calendars: Vec<VisibleCalendar>,
 }
+
+/// Wire body of the team sharing setting, read and written alike.
+#[derive(Serialize, Deserialize)]
+struct TeamSharingWire {
+    sharing: TeamCalendarSharing,
+}
+
+/// Route of the requester's team sharing setting on the email service.
+const TEAM_SHARING_PATH: &str = "/calendar/team-sharing";
 
 /// Wire body of a mutation error response.
 #[derive(Deserialize)]
@@ -371,5 +396,27 @@ impl CalendarMutationService for EmailServiceCalendarMutations {
         ))
         .await
         .map(|_| ())
+    }
+
+    #[tracing::instrument(skip(self, requester_id), err)]
+    async fn team_calendar_sharing(
+        &self,
+        requester_id: &str,
+    ) -> Result<TeamCalendarSharing, CalendarMutationError> {
+        self.sharing_from(self.request(reqwest::Method::GET, TEAM_SHARING_PATH, requester_id))
+            .await
+    }
+
+    #[tracing::instrument(skip(self, requester_id), err)]
+    async fn set_team_calendar_sharing(
+        &self,
+        requester_id: &str,
+        sharing: TeamCalendarSharing,
+    ) -> Result<TeamCalendarSharing, CalendarMutationError> {
+        self.sharing_from(
+            self.request(reqwest::Method::PUT, TEAM_SHARING_PATH, requester_id)
+                .json(&TeamSharingWire { sharing }),
+        )
+        .await
     }
 }
