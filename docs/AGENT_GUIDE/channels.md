@@ -110,6 +110,13 @@ can continue updating during the turn. Mention
 eligibility is covered by component/query tests; the channel interaction requires
 a configured backend for end-to-end verification.
 
+`@cursor` is offered to every user, connected or not. A mention from someone with
+no Cursor API key opens no session: the Cursor bot replies in the thread that
+`@cursor` runs on their own account and is not connected yet, followed by a
+**Connect Cursor** chip. Clicking the chip opens Settings → Harness; once a key
+is saved the same chip reads **Cursor connected** and stops navigating. The
+original mention is not replayed - mention `@cursor` again after connecting.
+
 Cursor sessions choose a repository from the mentioning user's linked GitHub App
 installations on their first prompt. A session without a repository can still use
 Macro and connected MCP tools, but cannot use the Git proxy. For a PR smoke test,
