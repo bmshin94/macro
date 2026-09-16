@@ -46,21 +46,11 @@ function sortByNotifiedAt<T extends EntityData>(a: T, b: T): number {
 }
 
 function sortByCreatedAt<T extends EntityData>(a: T, b: T): number {
-  // Agent sessions should always sort by creation date (newest first) to appear at the top
-  const aDate = a.type === 'agent_session' ? a.createdAt : (a.sortTs ?? a.createdAt);
-  const bDate = b.type === 'agent_session' ? b.createdAt : (b.sortTs ?? b.createdAt);
-  return compareDateDesc(aDate, bDate);
+  return compareDateDesc(a.sortTs ?? a.createdAt, b.sortTs ?? b.createdAt);
 }
 
 function sortByUpdatedAt<T extends EntityData>(a: T, b: T) {
-  // For agent sessions, use creation date to ensure they appear at the top when newly created
-  const aDate = a.type === 'agent_session' 
-    ? a.createdAt 
-    : (a.sortTs ?? a.updatedAt);
-  const bDate = b.type === 'agent_session'
-    ? b.createdAt
-    : (b.sortTs ?? b.updatedAt);
-  return compareDateDesc(aDate, bDate);
+  return compareDateDesc(a.sortTs ?? a.updatedAt, b.sortTs ?? b.updatedAt);
 }
 
 function sortByViewedAt<T extends EntityData>(a: T, b: T) {
