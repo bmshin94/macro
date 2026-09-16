@@ -8,6 +8,7 @@ export default defineConfig({
   testDir: directory,
   testMatch: [
     'coordinator.browser.e2e.ts',
+    'cache-startup.browser.e2e.ts',
     'cache-wasm-packaging.browser.e2e.ts',
     'cache-lifecycle.browser.e2e.ts',
   ],

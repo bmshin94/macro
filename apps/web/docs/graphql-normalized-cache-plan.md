@@ -189,8 +189,23 @@ The cache's validated envelopes, request ids, Web Locks, owner epochs,
 heartbeats, and replay policy remain application-owned. A normal `pagehide`
 uses a fenced navigation-departure message: the page terminates its dedicated
 worker, but the next owner opens the existing OPFS database. Only an
-unannounced liveness, heartbeat, transport, or engine failure selects
-`wipe-before-open`. Browsers missing the required worker, lock, or OPFS
+unannounced liveness, heartbeat, transport, or engine failure **after the database
+open grant** selects `wipe-before-open`.
+
+Protocol v3 separates startup into asset loading and database opening. The engine
+loads/compiles WASM without touching OPFS, reports `engine-assets-ready`, and waits
+for the coordinator's `open-engine` grant. The coordinator records that storage may
+be touched before sending this grant. Pre-grant failures preserve the current
+open/reset requirement; an earlier required wipe is never forgotten. Startup phase
+budgets are relayed to every page, including late joiners: asset loading gets five
+minutes and database opening gets twenty seconds, plus a five-second page response
+grace. Ordinary read deadlines remain ten seconds. Coordinator registration gets
+sixty seconds per attempt, with three attempts; engine recovery retains its bounded
+five retries. Exhausted bootstrap retries preserve the cache scope only when the
+coordinator explicitly proves storage was untouched, not from a page's last-seen
+phase. Missing/broken transports remain conservatively uncertain.
+
+Browsers missing the required worker, lock, or OPFS
 capabilities use a storage-free no-op cache host. Tauri
 detection selects the native transport before browser capability checks. All
 paths remain behind the same `CacheHost` interface.
