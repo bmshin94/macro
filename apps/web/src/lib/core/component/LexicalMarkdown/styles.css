@@ -18,12 +18,19 @@
   display: none;
 }
 
+.md {
+  --md-line-height: calc(1.45 / 0.9375);
+  line-height: var(--md-line-height);
+}
+
 .md * {
   caret-color: currentcolor;
 }
 
 .md-p:empty {
-  min-height: 1.5em;
+  /* One line box; 1lh tracks the real line-height instead of assuming a 1.5
+     ratio, which no longer holds now that text-base is < 1rem. */
+  min-height: 1lh;
 }
 
 .md-list {
@@ -46,8 +53,14 @@
   --md-marker-center-x: calc(
     -1 * (var(--md-marker-gap) + var(--md-marker-width) / 2)
   );
-  /* Half the 1.5em line box, so markers sit on the first line's midline. */
-  --md-marker-center-y: 0.75em;
+  /*
+  * Half the line box, so markers sit on the first line's midline. Derived from
+  * the shared --text-base--line-height token (index.css) rather than a hardcoded
+  * ratio: the list text renders at text-base, whose unitless line-height is not
+  * 1.5 (font-size < 1rem keeps the box at 1.5rem), so half of it in em is the
+  * true midline and tracks any future type-scale change.
+  */
+  --md-marker-center-y: calc(var(--text-base--line-height, 1.6) / 2 * 1em);
 
   /*
   * Outline of an unchecked checkbox. The same token listitemChecked uses, so
@@ -75,7 +88,7 @@
 }
 
 .md-list > li:empty {
-  min-height: 1.5em;
+  min-height: 1lh;
 }
 
 .md-list.md-bullet > li::before {

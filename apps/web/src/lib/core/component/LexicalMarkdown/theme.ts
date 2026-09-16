@@ -1,7 +1,7 @@
 import './styles.css';
 import type { EditorThemeClasses } from 'lexical';
 
-const VERTICAL_GAP = 'my-4 first:mt-1.5 last:mb-1.5';
+const VERTICAL_GAP = 'my-3 first:mt-1.25 last:mb-1.25';
 
 // Syntax highlighting consumes the theme's authored named palette directly.
 const codeHighlight: Record<string, string> = {
@@ -38,7 +38,7 @@ const codeHighlight: Record<string, string> = {
 };
 
 export const theme: EditorThemeClasses = {
-  root: 'md',
+  root: 'md font-regular',
   text: {
     bold: 'font-bold',
     italic: 'italic',
@@ -61,7 +61,7 @@ export const theme: EditorThemeClasses = {
   list: {
     ul: `${VERTICAL_GAP} list-none md-list md-bullet`,
     ol: `${VERTICAL_GAP} list-decimal md-list md-number`,
-    listitem: 'my-[0.25em] [&>ul]:my-0! [&>ol]:my-0!',
+    listitem: '[&>ul]:my-0! [&>ol]:my-0!',
     nested: {
       listitem: 'list-none nested',
     },
