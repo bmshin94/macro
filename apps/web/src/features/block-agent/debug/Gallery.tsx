@@ -7,6 +7,7 @@
 import { StaticMarkdownContext } from '@core/component/LexicalMarkdown/component/core/StaticMarkdown';
 import { MagicChipView } from '@core/component/LexicalMarkdown/component/decorator/MagicChip/MagicChipView';
 import type { MagicChipPresentation } from '@core/component/LexicalMarkdown/component/decorator/MagicChip/presentation';
+import { handlePullRequestUpdated } from '@queries/storage/pr-mention-sync';
 import type {
   ElicitationSchema,
   FoldedMessage,
@@ -14,10 +15,16 @@ import type {
   PendingElicitation,
   ToolStatus,
 } from '@service-agent-fold/generated/types';
-import { createSignal, type JSX, onCleanup } from 'solid-js';
+import type { ForeignEntity } from '@service-storage/generated/schemas';
+import { createSignal, For, type JSX, onCleanup } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { Message } from '../component/AgentMessage';
+import {
+  AgentPullRequestChip,
+  type AgentPullRequestLink,
+} from '../component/AgentPullRequestChip';
 import { ReplyToSelection } from '../component/ReplyToSelection';
+import { summarizePullRequest } from '../core/pull-request-summary';
 import { initialValues, validate } from '../state/elicitation-form';
 import {
   ActionLine,
@@ -499,6 +506,106 @@ function MagicChipAskingDemo(props: {
   );
 }
 
+const GALLERY_PR_URL = 'https://github.com/macro-inc/macro/pull/6303';
+
+const galleryCheck = (
+  id: number,
+  name: string,
+  status: string,
+  conclusion: string | null
+) => ({ id, name, status, conclusion });
+
+/** The header chip through a PR's life; hover shows the mention's preview. */
+const GALLERY_PULL_REQUESTS: {
+  label: string;
+  url: string;
+  entity: ForeignEntity | undefined;
+}[] = [
+  {
+    label: 'Unsynced (opens GitHub)',
+    url: GALLERY_PR_URL,
+    entity: undefined,
+  },
+  ...(
+    [
+      [
+        'Open, checks running',
+        'open',
+        [
+          galleryCheck(1, 'lint', 'completed', 'success'),
+          galleryCheck(2, 'test', 'in_progress', null),
+        ],
+      ],
+      [
+        'Open, checks passing',
+        'open',
+        [
+          galleryCheck(1, 'lint', 'completed', 'success'),
+          galleryCheck(2, 'test', 'completed', 'success'),
+        ],
+      ],
+      [
+        'Open, checks failing',
+        'open',
+        [
+          galleryCheck(1, 'lint', 'completed', 'success'),
+          galleryCheck(2, 'test', 'completed', 'failure'),
+        ],
+      ],
+      ['Merged', 'merged', [galleryCheck(1, 'ci', 'completed', 'success')]],
+      ['Closed', 'closed', []],
+    ] as const
+  ).map(([label, status, checks], index) => {
+    // Numbered after the unsynced fixture so every chip reads differently.
+    const number = 6304 + index;
+    const url = GALLERY_PR_URL.replace('6303', String(number));
+    return {
+      label,
+      url,
+      entity: {
+        id: `019f0000-0000-7000-8000-00000000000${index}`,
+        foreignEntityId: `macro-inc/macro/pull/${number}`,
+        foreignEntitySource: 'github_pull_request',
+        metadata: {
+          owner: 'macro-inc',
+          repo: 'macro',
+          number,
+          status,
+          name: 'feat(agents): pull request chip in the split header',
+          url,
+          additions: 212,
+          deletions: 14,
+          checks,
+        },
+        storedForId: 'gallery',
+        storedForAuthEntity: 'user',
+        createdAt: '2026-09-11T00:00:00Z',
+        updatedAt: '2026-09-11T00:00:00Z',
+      } satisfies ForeignEntity,
+    };
+  }),
+];
+
+function PullRequestChipDemo(props: {
+  url: string;
+  entity: ForeignEntity | undefined;
+}) {
+  // The hover preview reads the entity by id from the mention cache; seed it
+  // the way connection gateway would so the card shows fixture data.
+  if (props.entity) void handlePullRequestUpdated(props.entity);
+  const link: AgentPullRequestLink = {
+    url: () => props.url,
+    entity: () => props.entity,
+    summary: () => summarizePullRequest(props.url, props.entity),
+    open: (event) =>
+      console.info('[gallery] open pull request', {
+        synced: Boolean(props.entity),
+        shiftKey: event?.shiftKey ?? false,
+      }),
+  };
+  return <AgentPullRequestChip link={link} />;
+}
+
 function ElicitationFormDemo() {
   const [values, setValues] = createStore(initialValues(FIXTURE_ELICITATION));
   const errors = () => validate(FIXTURE_ELICITATION, values);
@@ -523,6 +630,22 @@ export default function AgentUiGallery() {
     <StaticMarkdownContext>
       <div class="size-full overflow-auto">
         <div class="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-8">
+          <Item label="AgentPullRequestChip (header; hover for preview)">
+            <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+              <For each={GALLERY_PULL_REQUESTS}>
+                {(fixture) => (
+                  <div class="flex items-center gap-2 text-xs text-ink-muted">
+                    <PullRequestChipDemo
+                      url={fixture.url}
+                      entity={fixture.entity}
+                    />
+                    {fixture.label}
+                  </div>
+                )}
+              </For>
+            </div>
+          </Item>
+
           <Item label="ElicitationForm (live validation)">
             <ElicitationFormDemo />
           </Item>
