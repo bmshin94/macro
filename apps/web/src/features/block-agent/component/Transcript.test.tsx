@@ -10,6 +10,7 @@ const session = vi.hoisted(() => ({
   sessionId: () => 'session',
   messages: () => [] as FoldedMessage[],
   quoteSelection: vi.fn(),
+  composer: { sending: (): boolean => false },
   touch: false,
   top: () => 40,
   bottom: (): number => 80,
@@ -56,6 +57,18 @@ const message = (turn: number, text = 'hello'): FoldedMessage =>
     parts: [{ kind: 'text', text }],
     stop: null,
   }) as FoldedMessage;
+const prompt = (turn: number): FoldedMessage =>
+  ({
+    ...message(turn, 'do the thing'),
+    author: { kind: 'user', userId: 'owner' },
+  }) as FoldedMessage;
+const rowTop = (view: { container: HTMLElement }, selector: string) =>
+  Number.parseFloat(
+    view.container
+      .querySelector<HTMLElement>(selector)!
+      .closest<HTMLElement>('[data-index]')!
+      .style.transform.slice('translateY(calc('.length)
+  );
 
 // Keep the real ThreadList/Solid adapter/core. Only browser geometry and the
 // expensive message renderer are substituted; jsdom has no layout engine.
@@ -91,6 +104,7 @@ beforeEach(() => {
   rowHeight = 96;
   session.touch = false;
   session.bottom = () => 80;
+  session.composer = { sending: () => false };
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -456,6 +470,71 @@ describe('Transcript with the shared TanStack ThreadList', () => {
     expect(view.scroller.scrollTop).toBeLessThan(
       view.scroller.scrollHeight - viewport - 50
     );
+  });
+
+  it('rests a new prompt at the top of the viewport and fills the reply in below it', async () => {
+    const view = mount([
+      ...Array.from({ length: 30 }, (_, i) => message(i)),
+      prompt(30),
+      message(30),
+    ]);
+    await settle();
+    // Pinned at the end with a short tail: the latest prompt heads the view.
+    expect(view.scroller.scrollTop).toBe(view.scroller.scrollHeight - viewport);
+    expect(view.scroller.scrollTop).toBe(
+      rowTop(view, '[data-message="30:user"]')
+    );
+
+    view.setMessages((list) => [...list, prompt(31)]);
+    await settle();
+    const promptTop = rowTop(view, '[data-message="31:user"]');
+    expect(view.scroller.scrollTop).toBe(promptTop);
+    expect(view.scroller.scrollHeight).toBe(promptTop + viewport);
+
+    // The reply appears and grows inside the reserved space: nothing moves.
+    view.setMessages((list) => [...list, message(31)]);
+    await settle();
+    expect(view.scroller.scrollTop).toBe(promptTop);
+    expect(view.scroller.scrollHeight).toBe(promptTop + viewport);
+
+    // Once the prompt and reply overflow the viewport, following resumes.
+    rowHeight = 300;
+    resize();
+    await settle();
+    expect(view.scroller.scrollHeight).toBeGreaterThan(
+      rowTop(view, '[data-message="31:user"]') + viewport
+    );
+    expect(view.scroller.scrollTop).toBe(view.scroller.scrollHeight - viewport);
+  });
+
+  it('brings our own prompt into view from history, and leaves a teammate prompt alone', async () => {
+    const [sending, setSending] = createSignal(false);
+    session.composer = { sending };
+    const view = mount([
+      ...Array.from({ length: 40 }, (_, i) => message(i)),
+      prompt(40),
+      message(40),
+    ]);
+    await settle();
+    view.scroller.dispatchEvent(new WheelEvent('wheel', { deltaY: -600 }));
+    view.scroller.scrollTo({ top: 200 });
+    await settle();
+
+    view.setMessages((list) => [
+      ...list,
+      { ...prompt(41), author: { kind: 'user', userId: 'teammate' } },
+    ]);
+    await settle();
+    expect(view.scroller.scrollTop).toBe(200);
+
+    setSending(true);
+    setSending(false);
+    view.setMessages((list) => [...list, prompt(42)]);
+    await settle();
+    expect(view.scroller.scrollTop).toBe(
+      rowTop(view, '[data-message="42:user"]')
+    );
+    expect(view.scroller.scrollTop).toBe(view.scroller.scrollHeight - viewport);
   });
 
   it('keeps the end pin through keyboard squish and floating composer inset changes', async () => {

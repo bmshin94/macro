@@ -15,6 +15,7 @@ import {
   type Range,
   type ScrollToOptions,
   type VirtualItem,
+  type Virtualizer,
 } from '@tanstack/solid-virtual';
 import {
   type Accessor,
@@ -103,9 +104,20 @@ type ThreadListProps = {
    * grows toward the composer; once the list overflows both behave alike.
    */
   shortListAlignment?: 'start' | 'end';
+  /**
+   * The key the tail of the conversation is read from — its latest prompt.
+   * Trailing space is reserved so that message and everything after it fill
+   * at least one viewport: scrolled to the end, the prompt rests at the top
+   * and a streamed reply fills the space below it without moving anything.
+   * Once the tail overflows, the list follows growth like any pinned thread.
+   * A new anchor scrolls to the top of a pinned viewport.
+   */
+  tailAnchorId?: string;
 };
 
 const NEAR_TOP_THRESHOLD = 800;
+// Distances from the end are clamped at zero, so this threshold is never met.
+const NEVER_AT_END = -1;
 const HISTORY_BUFFER_VIEWPORTS = 3;
 const WEBKIT_HISTORY_BUFFER_VIEWPORTS = 6;
 const EXPLICIT_SCROLL_DOWN_TRIGGER_DISTANCE = 64;
@@ -188,6 +200,35 @@ export function ThreadList(props: ThreadListProps) {
     });
   };
 
+  // Measurements are not reactive in the Solid adapter. Appends show up in
+  // its total size; a resize that leaves the total alone only notifies, so
+  // every notification bumps this as well.
+  const [layoutVersion, setLayoutVersion] = createSignal(0);
+  let core: Virtualizer<HTMLDivElement, HTMLDivElement> | undefined;
+  // The end pin as of the last committed layout — that is, before the change
+  // an effect is currently reacting to. Effects run after the sizer has been
+  // re-rendered, so the live geometry can no longer answer "was it pinned?".
+  let pinnedAtLastLayout = false;
+  const tailReserve = createMemo(() => {
+    layoutVersion();
+    const id = props.tailAnchorId;
+    if (id === undefined || !core) return 0;
+    // The reserve is part of the total, but it is a function of the rows
+    // alone, so re-reading it here settles after one round.
+    core.getTotalSize();
+    const index = props.keys().indexOf(id);
+    if (index < 0) return 0;
+    const measurements = core.getMeasurements();
+    const anchor = measurements[index];
+    const last = measurements[measurements.length - 1];
+    if (!anchor || !last) return 0;
+    const { start, end } = insets();
+    return Math.max(
+      0,
+      viewportSize() - start - end - (last.end - anchor.start)
+    );
+  });
+
   const lifecycle = createScrollLifecycle({
     hasLayout: () => viewportSize() > 0 && props.keys().length > 0,
     waitForElement: initialPosition.type === 'element',
@@ -243,12 +284,17 @@ export function ThreadList(props: ThreadListProps) {
     },
     // Use the same end tolerance for append, resize, navigation, and snapshots.
     // A loose tolerance also mistakes optimistic row estimates for a pin.
-    scrollEndThreshold: NEAR_BOTTOM_THRESHOLD,
+    // While the tail reserve absorbs growth the total does not change, so
+    // there is nothing for the core to follow — and it would follow before
+    // the reserve could shrink. The effects below take over for that phase.
+    get scrollEndThreshold() {
+      return tailReserve() > 0 ? NEVER_AT_END : NEAR_BOTTOM_THRESHOLD;
+    },
     get paddingStart() {
       return insets().start;
     },
     get paddingEnd() {
-      return insets().end;
+      return insets().end + tailReserve();
     },
     get scrollPaddingStart() {
       return insets().start;
@@ -352,8 +398,15 @@ export function ThreadList(props: ThreadListProps) {
           instance.scrollToEnd();
         }
       }),
-    onChange: scheduleScrollState,
+    onChange: () => {
+      setLayoutVersion((version) => version + 1);
+      scheduleScrollState();
+    },
   });
+  // The option getters above are read while the virtualizer is constructed,
+  // before it can be referenced; the bump lets the reserve pick it up.
+  core = virtualizer;
+  setLayoutVersion((version) => version + 1);
 
   if (scrollCompensation) {
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (
@@ -452,6 +505,7 @@ export function ThreadList(props: ThreadListProps) {
       distanceFromTop <=
       Math.max(NEAR_TOP_THRESHOLD, el.clientHeight * historyBufferViewports);
     const nearBottom = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD;
+    pinnedAtLastLayout = nearBottom;
     const hasUserIntent = scrollIntent.isUserInteracting();
     const delta = distanceFromTop - previousScrollOffset;
     if (delta !== 0) {
@@ -510,6 +564,35 @@ export function ThreadList(props: ThreadListProps) {
         virtualizer.scrollToEnd();
       }
       scheduleScrollState();
+    })
+  );
+
+  const followTailIfPinned = () => {
+    if (!lifecycle.isReady() || !pinnedAtLastLayout) return;
+    scrollCompensation?.finish();
+    virtualizer.scrollToEnd();
+    scheduleScrollState();
+  };
+  // A fresh prompt lands at the top of a pinned viewport. The initial anchor
+  // is positioned by the lifecycle, and the core's own append-follow is off
+  // whenever a reserve is active, so this covers both phases.
+  createEffect(
+    on(
+      () => props.tailAnchorId,
+      (id, previous) => {
+        if (previous === undefined || id === undefined || id === previous)
+          return;
+        followTailIfPinned();
+      }
+    )
+  );
+  // The reply has filled the reserved space: the growth that exhausted it
+  // was not followed, so catch up once and let the end anchor take it from
+  // here.
+  createEffect(
+    on(tailReserve, (reserve, previous) => {
+      if (previous === undefined || previous === 0 || reserve !== 0) return;
+      followTailIfPinned();
     })
   );
 

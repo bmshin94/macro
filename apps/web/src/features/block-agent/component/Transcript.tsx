@@ -1,11 +1,11 @@
 /**
  * Agent messages on the channel's end-anchored TanStack scroll surface.
  *
- * Unlike a channel, a session reads top-down: the first prompt sits at the
- * top and the reply streams toward the composer, the way ChatGPT lays out a
- * conversation. The end anchor still follows streamed growth and new turns
- * while the viewer is pinned to the latest message, and lets go the moment
- * they scroll up to read.
+ * Unlike a channel, a session reads top-down, the way ChatGPT and the chat
+ * block lay out a conversation: a short transcript starts at the top, and a
+ * sent prompt rests at the top of the viewport with the reply streaming into
+ * the space below it. Once the reply overflows, the end anchor follows it
+ * while the viewer stays pinned, and lets go the moment they scroll up.
  */
 import { ScrollToBottomOverlay } from '@channel/Channel/ScrollToBottomOverlay';
 import {
@@ -30,7 +30,7 @@ import { Message } from './AgentMessage';
 import { ReplyToSelection } from './ReplyToSelection';
 
 export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
-  const { messages, quoteSelection, sessionId } = useAgentSession();
+  const { composer, messages, quoteSelection, sessionId } = useAgentSession();
   const initialTarget = props.searchTarget;
   const initialSessionId = sessionId();
   const splitPanel = useSplitPanel();
@@ -50,6 +50,35 @@ export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
       )
   );
   const keys = createMemo(() => [...messageById().keys()]);
+  // The latest prompt: the list reserves room under it for the reply.
+  const latestPromptId = createMemo(() => {
+    const entries = [...messageById()];
+    return entries.findLast(
+      ([, message]) => message.author.kind === 'user'
+    )?.[0];
+  });
+  // A prompt of our own reads like ChatGPT's: it moves to the top of the
+  // viewport even if we had scrolled up to reread something first. Someone
+  // else's prompt only follows when we were already at the end, like a
+  // channel. The prompt lands in the fold after its POST settles, so the
+  // arming outlives `sending` by a moment.
+  const OWN_SEND_WINDOW_MS = 5000;
+  let ownSendArmedUntil = 0;
+  createEffect(
+    on(composer.sending, (sending, wasSending) => {
+      if (sending) ownSendArmedUntil = Number.POSITIVE_INFINITY;
+      else if (wasSending) ownSendArmedUntil = Date.now() + OWN_SEND_WINDOW_MS;
+    })
+  );
+  createEffect(
+    on(latestPromptId, (id, previous) => {
+      if (previous === undefined || id === undefined || id === previous) return;
+      if (Date.now() >= ownSendArmedUntil) return;
+      ownSendArmedUntil = 0;
+      setHighlightedId(undefined);
+      navigation()?.scrollToLatest();
+    })
+  );
   let positionedTarget: AgentMessageTarget | undefined;
   // Navigation is an external effect. Wait for both log hydration and the
   // virtual list's layout; subsequent live folds must not repeat the jump.
@@ -105,6 +134,7 @@ export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
         }
         insets={insets()}
         shortListAlignment="start"
+        tailAnchorId={latestPromptId()}
         targetId={highlightedId()}
         onUserNavigation={() => setHighlightedId(undefined)}
         onReady={(handle) => {
