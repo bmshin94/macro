@@ -213,6 +213,15 @@ and each `*InTargetCaches` helper applies the change to all three cache families
 - **Following**: core end anchoring handles measured streaming growth and
   `followOnAppend` follows new keys only near the end (50px). No one-second agent
   settle loop or independent growth observer is needed.
+- **Tail reserve** (`tailAnchorId`, agent transcript only): the latest prompt's
+  key. `paddingEnd` grows so that message and everything after it fill one
+  viewport, so scrolled to the end the prompt rests at the top and the reply
+  streams into the space below without moving anything — the chat block's
+  `min-height` wrapper, for a virtualizer. While the reserve is nonzero the
+  core's `scrollEndThreshold` is `-1` (its end-follow would fire before the
+  reserve could shrink); when the reserve reaches zero the list catches up once
+  and the end anchor resumes. A new anchor scrolls to the top of a pinned
+  viewport; `Transcript` additionally brings an own send into view from history.
 - **Mobile**: numeric `insets` participate in measurements and navigation; viewport
   and floating-inset changes preserve the pin only when previously near the end.
   Short lists bottom-align within these insets by default (`shortListAlignment: 'end'`);
