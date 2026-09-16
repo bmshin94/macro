@@ -218,7 +218,9 @@ export function ThreadList(props: ThreadListProps) {
     core.getTotalSize();
     const index = props.keys().indexOf(id);
     if (index < 0) return 0;
-    const measurements = core.getMeasurements();
+    // Fresh on both triggers: the adapter recomputes the measurements before
+    // it publishes a total or calls `onChange`.
+    const measurements = core.measurementsCache;
     const anchor = measurements[index];
     const last = measurements[measurements.length - 1];
     if (!anchor || !last) return 0;
