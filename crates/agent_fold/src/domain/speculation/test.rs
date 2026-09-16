@@ -473,3 +473,41 @@ fn speculating_an_action_the_log_already_confirmed_changes_nothing() {
     assert_eq!(fold.pending().count(), 0);
     assert_eq!(fold.messages(), confirmed.as_slice());
 }
+
+/// The bug this pins: a prompt sent into a booting session showed, vanished
+/// on the first live row, and came back once the runtime answered. The
+/// runtime's `disconnected` event makes the replay gate stage every
+/// runtime-bound frame until the next `initialize`, and a rebase re-folded
+/// the speculated prompt through that gate.
+#[test]
+fn a_speculation_survives_the_replay_gate_across_a_disconnect() {
+    let mut fold = settled();
+    let id = AgentActionId::mint();
+    fold.push(speculation(AgentAction::prompt("hi"), id))
+        .unwrap();
+
+    // The runtime drops while the prompt is still on the wire.
+    let disconnected =
+        parse_log(r#"{"direction":"to_server","content":{"type":"event","event":"disconnected"}}"#)
+            .remove(0);
+    let events = fold
+        .push(FoldInput::Confirmed(cursor(99), disconnected))
+        .unwrap();
+
+    assert!(is_replace(&events), "a foreign row rebases the suffix");
+    assert_eq!(
+        user_texts(fold.messages()).pop(),
+        Some(("hi".to_owned(), true)),
+        "the pending prompt is still shown after the rebase"
+    );
+    assert_eq!(fold.metadata().turn, TurnState::Disconnected);
+
+    // Speculating straight into a disconnected session shows just the same.
+    let second = AgentActionId::mint();
+    fold.push(speculation(AgentAction::prompt("again"), second))
+        .unwrap();
+    assert_eq!(
+        user_texts(fold.messages()).pop(),
+        Some(("again".to_owned(), true))
+    );
+}

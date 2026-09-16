@@ -137,9 +137,48 @@ impl FoldMachineImpl {
     /// Fold a frame this client caused but the log has not confirmed. Every
     /// message it derives is marked [`FoldedMessage::pending`] until the
     /// confirmed frame is folded in its place.
+    ///
+    /// Bypasses the replay gate on purpose. That gate stages runtime-bound
+    /// frames while the connection is down or a load is in flight, because a
+    /// *logged* frame in that window may belong to a session that will never
+    /// answer. A speculated frame is not logged traffic: it is what this
+    /// client just asked for, and the whole point is to show it while the
+    /// runtime is still booting - exactly when the gate would swallow it.
     pub fn push_speculative(&mut self, log: AgentSessionLog) -> Vec<FoldEvent<'_>> {
         self.state.speculative = true;
-        self.push(log)
+        let changes = self.state.step(log);
+        self.state.speculative = false;
+        self.report(changes)
+    }
+
+    /// Turn a step's changes into events, refreshing the turn state first.
+    fn report(&mut self, mut changes: Vec<StepChange>) -> Vec<FoldEvent<'_>> {
+        // The turn state is a projection of everything the step touched, so
+        // it is refreshed once per push rather than by every handler.
+        if self.state.refresh_turn_state()
+            && !changes
+                .iter()
+                .any(|change| matches!(change, StepChange::Metadata))
+        {
+            changes.push(StepChange::Metadata);
+        }
+        changes
+            .into_iter()
+            .filter_map(|change| match change {
+                StepChange::Message(changed) => {
+                    self.state
+                        .messages
+                        .get(changed.message)
+                        .map(|message| match changed.kind {
+                            Change::New => FoldEvent::NewMessage(Cow::Borrowed(message)),
+                            Change::Updated => FoldEvent::MessageUpdate(Cow::Borrowed(message)),
+                        })
+                }
+                StepChange::Metadata => Some(FoldEvent::MetadataUpdated(Cow::Borrowed(
+                    &self.state.metadata,
+                ))),
+            })
+            .collect()
     }
 
     /// The ACP session id the runtime answers to, once the log has shown it:
@@ -185,11 +224,7 @@ impl FoldMachineImpl {
 
 impl FoldMachine for FoldMachineImpl {
     fn push(&mut self, log: AgentSessionLog) -> Vec<FoldEvent<'_>> {
-        // `push_speculative` sets the flag for exactly one frame; stepping
-        // consumes it, so a plain push is always a confirmed frame.
-        let outcome = self.replay.step(&mut self.state, log);
-        self.state.speculative = false;
-        let mut changes = match outcome {
+        let changes = match self.replay.step(&mut self.state, log) {
             replay::Outcome::Changes(changes) => changes,
             replay::Outcome::Staged => return Vec::new(),
             replay::Outcome::Replaced => {
@@ -200,32 +235,7 @@ impl FoldMachine for FoldMachineImpl {
                 ];
             }
         };
-        // The turn state is a projection of everything the step touched, so
-        // it is refreshed once per push rather than by every handler.
-        if self.state.refresh_turn_state()
-            && !changes
-                .iter()
-                .any(|change| matches!(change, StepChange::Metadata))
-        {
-            changes.push(StepChange::Metadata);
-        }
-        changes
-            .into_iter()
-            .filter_map(|change| match change {
-                StepChange::Message(changed) => {
-                    self.state
-                        .messages
-                        .get(changed.message)
-                        .map(|message| match changed.kind {
-                            Change::New => FoldEvent::NewMessage(Cow::Borrowed(message)),
-                            Change::Updated => FoldEvent::MessageUpdate(Cow::Borrowed(message)),
-                        })
-                }
-                StepChange::Metadata => Some(FoldEvent::MetadataUpdated(Cow::Borrowed(
-                    &self.state.metadata,
-                ))),
-            })
-            .collect()
+        self.report(changes)
     }
 }
 
