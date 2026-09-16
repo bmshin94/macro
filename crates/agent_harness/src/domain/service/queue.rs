@@ -489,12 +489,30 @@ where
     /// necessarily: entries can linger from a drain that failed, and FIFO
     /// order holds regardless. The outcome reports what happened to *this*
     /// action - still waiting, or on the wire.
+    ///
+    /// An action whose id this session already holds is the same action
+    /// arriving twice - a caller retrying a control request under the id it
+    /// named. It reports what became of the first copy instead of queueing a
+    /// second, so a retry cannot double-prompt. Only what this replica still
+    /// holds is checked: an id whose action has already finished its turn is
+    /// no longer anywhere to be seen, and accepting it again is indistinguishable
+    /// from asking for the same thing twice on purpose.
     pub(super) async fn enqueue_then_dispatch(
         &self,
         session_id: AgentSessionId,
         command: DeliverAction,
     ) -> Result<CommandOutcome> {
         let action_id = command.id;
+        if self.queues.contains(session_id, action_id) {
+            return Ok(CommandOutcome::Queued);
+        }
+        if self
+            .busy
+            .turn(session_id)
+            .is_some_and(|turn| turn.action_id == action_id)
+        {
+            return Ok(CommandOutcome::Completed);
+        }
         let prompt = match &command.action {
             AgentAction::Prompt(prompt) => Some(prompt.prompt.clone()),
             _ => None,

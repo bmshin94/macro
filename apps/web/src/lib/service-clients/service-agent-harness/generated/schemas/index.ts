@@ -56,6 +56,8 @@ export * from './agentSessionResponseThreadId';
 export * from './agentSetModelAction';
 export * from './botId';
 export * from './controlRequest';
+export * from './controlRequestAllOf';
+export * from './controlRequestAllOfActionId';
 export * from './controlResponse';
 export * from './controlStatusDto';
 export * from './createAgentSessionRequest';
