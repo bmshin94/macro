@@ -29,7 +29,7 @@ import { handleCommsTyping } from '@queries/channel/typing';
 import { invalidateContacts } from '@queries/contacts/contacts';
 import { handleRefreshEmail } from '@queries/email/sync';
 import { invalidateFavorites } from '@queries/favorites/favorites';
-import { createHarnessPresenceSync } from '@queries/harnesses/sync';
+import { invalidateHarnesses } from '@queries/harnesses/harnesses';
 import {
   applyNotificationStatusUpdate,
   notificationStatusUpdatePayloadSchema,
@@ -70,8 +70,11 @@ function withParsedWebsocketPayload<T>(
 }
 
 export function QuerySyncProvider(props: SyncProviderProps) {
-  createHarnessPresenceSync();
   // Also cover the first connection: a lookup can finish before the socket opens.
+  ws.addEventListener(WebsocketEvent.Open, invalidateHarnesses);
+  onCleanup(() =>
+    ws.removeEventListener(WebsocketEvent.Open, invalidateHarnesses)
+  );
   ws.addEventListener(WebsocketEvent.Open, invalidateAgentSessionMetadata);
   onCleanup(() =>
     ws.removeEventListener(WebsocketEvent.Open, invalidateAgentSessionMetadata)
@@ -90,6 +93,9 @@ export function QuerySyncProvider(props: SyncProviderProps) {
       })
       .with({ type: 'contacts_invalidation' }, () => {
         invalidateContacts();
+      })
+      .with({ type: 'harnesses_invalidation' }, () => {
+        invalidateHarnesses();
       })
       .with({ type: 'comms_message' }, () => {
         withParsedWebsocketPayload(data.type, data.data, handleCommsMessage);

@@ -55,7 +55,7 @@ pub struct PgHarnessPresence<R> {
 }
 
 impl<R: HarnessRepo> PgHarnessPresence<R> {
-    /// Record presence through the owning repository and notify its viewers.
+    /// Wrap a repository and the connection gateway.
     pub fn new(repo: R, gateway: Arc<ConnectionGatewayClient>) -> Self {
         Self { repo, gateway }
     }

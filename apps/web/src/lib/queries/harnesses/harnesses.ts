@@ -19,10 +19,6 @@ export type DeleteHarnessParams = {
   harnessId: string;
 };
 
-/**
- * The macrod harnesses registered for the signed-in user (and their team).
- * Presence changes invalidate this query through the connection gateway.
- */
 export function useHarnessesQuery() {
   return useQuery(() => ({
     queryKey: harnessKeys.list.queryKey,
