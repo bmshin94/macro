@@ -3,7 +3,6 @@ import { isCodexBotId } from '@core/constant/codexAgent';
 import type { IUser } from '@core/user/types';
 import { useAgentsQuery } from '@queries/agents/agents';
 import { useCodexStatusQuery } from '@queries/auth/codex';
-import { useCursorApiKeyStatusQuery } from '@queries/auth/cursor-api-key';
 import { useChannelBotsQuery } from '@queries/channel/channel-bots';
 import type { Agent } from '@service-storage/generated/schemas/agent';
 import type { Bot } from '@service-storage/generated/schemas/bot';
@@ -18,18 +17,21 @@ function mentionUser(bot: Bot): IUser {
   };
 }
 
-/** Build mention entries from installed channel bots and virtual global agents. */
+/**
+ * Build mention entries from installed channel bots and virtual global
+ * agents. Cursor-harness agents are offered whether or not the viewer has
+ * connected Cursor: the harness answers a keyless mention with a connect
+ * prompt in the thread.
+ */
 export function availableBotMentionUsers(
   channelBots: readonly Bot[],
   agents: readonly Agent[],
-  cursorConnected: boolean,
   codexConnected = false
 ): IUser[] {
   const globalAgents = agents.filter(
     (agent) =>
       agent.channel_scope === 'all' &&
       agent.bot.has_agent &&
-      (agent.harness !== 'cursor' || cursorConnected) &&
       (agent.harness !== 'codex-cloud' || codexConnected)
   );
   const codexBotIds = new Set(
@@ -65,7 +67,6 @@ export function useChannelBotMentionUsers(
 ): Accessor<IUser[]> {
   const channelBots = useChannelBotsQuery(channelId);
   const agents = useAgentsQuery();
-  const cursorStatus = useCursorApiKeyStatusQuery();
   const canUseCodex = useCodexAgentsAccess();
   const codexStatus = useCodexStatusQuery(canUseCodex);
 
@@ -73,7 +74,6 @@ export function useChannelBotMentionUsers(
     availableBotMentionUsers(
       channelBots.isSuccess ? channelBots.data : [],
       agents.isSuccess ? agents.data : [],
-      cursorStatus.isSuccess ? cursorStatus.data.registered : false,
       canUseCodex() &&
         codexStatus.isSuccess &&
         codexStatus.data.connected &&

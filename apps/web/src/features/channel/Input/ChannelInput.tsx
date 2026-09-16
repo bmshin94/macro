@@ -19,7 +19,6 @@ import {
   enableChatV3Agents,
   isFeatureEnabled,
 } from '@core/constant/featureFlags';
-import { useCursorAgentsAccess } from '@core/cursor/flag';
 import { registerHotkey, useHotkeyDOMScope } from '@core/hotkey/hotkeys';
 import { isTouchDevice } from '@core/mobile/isTouchDevice';
 import type { IUser } from '@core/user/types';
@@ -32,7 +31,6 @@ import {
 } from '@core/util/upload';
 import type { EntityData } from '@entity';
 import { useCodexStatusQuery } from '@queries/auth/codex';
-import { useCursorApiKeyStatusQuery } from '@queries/auth/cursor-api-key';
 import { CollapsedInput, ComposerSurface } from '@ui';
 import { $getRoot } from 'lexical';
 import {
@@ -257,18 +255,14 @@ export function ChannelInput(props: ChannelInputProps) {
     queueMicrotask(() => focusEditorNow());
   };
 
-  const canUseCursor = useCursorAgentsAccess();
-  const cursorApiKey = useCursorApiKeyStatusQuery();
   const canUseCodex = useCodexAgentsAccess();
   const codexStatus = useCodexStatusQuery(canUseCodex);
 
-  // Macro AI and Macro Coder (flag-gated) are mentionable in every channel,
-  // and any bot added to the channel is mentionable too. All are surfaced
-  // through the same `@`-mention typeahead as participants and re-tagged as
-  // bot mentions at send time.
+  // Macro AI, Cursor, and Macro Coder (flag-gated) are mentionable in every
+  // channel, and any bot added to the channel is mentionable too. All are
+  // surfaced through the same `@`-mention typeahead as participants and
+  // re-tagged as bot mentions at send time.
   const mentionUsers: Accessor<IUser[]> = () => {
-    const cursorEnabled =
-      canUseCursor() && (cursorApiKey.data?.registered ?? false);
     const codexEnabled =
       canUseCodex() &&
       codexStatus.isSuccess &&
@@ -277,11 +271,7 @@ export function ChannelInput(props: ChannelInputProps) {
     const base = [
       ...(props.participants?.() ?? []),
       ...(props.bots?.() ?? []),
-    ].filter(
-      (user) =>
-        (cursorEnabled || !isCursorBotId(user.id)) &&
-        (codexEnabled || !isCodexBotId(user.id))
-    );
+    ].filter((user) => codexEnabled || !isCodexBotId(user.id));
     if (
       isFeatureEnabled(enableChatV3Agents) &&
       !base.some((user) => isMacroCoderId(user.id))
@@ -294,12 +284,11 @@ export function ChannelInput(props: ChannelInputProps) {
     ) {
       base.unshift(macroNewMentionUser());
     }
-    if (
-      cursorEnabled &&
-      // Hiding it is not enforcement — a mention can still arrive from a
-      // copied message or another client — so the harness refuses these too.
-      !base.some((user) => isCursorBotId(user.id))
-    ) {
+    // Offered whether or not this user has connected Cursor: a mention from
+    // someone without a key gets the bot's "connect your account" reply
+    // (with a chip into Settings → Harness) rather than a hidden entry they
+    // could never discover.
+    if (!base.some((user) => isCursorBotId(user.id))) {
       base.unshift(cursorMentionUser());
     }
     if (codexEnabled && !base.some((user) => isCodexBotId(user.id))) {

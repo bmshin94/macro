@@ -97,9 +97,7 @@ function ConnectChip(
       data-connect-app={props.appSlug}
       data-connect-target={props.target}
       aria-label={
-        props.connected()
-          ? `${props.name} connected`
-          : `Connect ${props.name}`
+        props.connected() ? `${props.name} connected` : `Connect ${props.name}`
       }
       class={cn(
         'pointer-events-auto inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 align-middle text-xs font-medium',

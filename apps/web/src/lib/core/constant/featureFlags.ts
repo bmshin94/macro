@@ -665,16 +665,6 @@ export const enableChatV3Agents = defineFlag({
   default: onInDev,
 });
 
-// The `@cursor` mention entry: agent sessions served by Cursor cloud agents
-// on Macro's Cursor account. PostHog-gated per user; the backend additionally
-// restricts these sessions to @macro.com senders. Override with
-// VITE_ENABLE_CURSOR_AGENTS.
-export const enableCursorAgents = defineFlag({
-  key: 'enable-cursor-agents',
-  env: 'ENABLE_CURSOR_AGENTS',
-  default: onInDev,
-});
-
 // Codex cloud agent mentions, composer choices, and harness settings also
 // require enableChatV3Agents. Override with VITE_ENABLE_CODEX_AGENTS.
 export const enableCodexAgents = defineFlag({

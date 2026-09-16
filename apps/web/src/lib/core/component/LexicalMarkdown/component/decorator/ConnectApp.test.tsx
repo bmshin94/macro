@@ -28,6 +28,7 @@ vi.mock('@queries/auth/cursor-api-key', () => ({
 // Reached through LexicalWrapperContext; the plugin barrel is far heavier
 // than the context object this chip reads its selection from.
 vi.mock('../../plugins', () => ({}));
+
 import { ConnectApp } from './ConnectApp';
 
 beforeEach(() => {

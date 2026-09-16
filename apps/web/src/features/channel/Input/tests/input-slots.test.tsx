@@ -40,10 +40,6 @@ vi.mock('@core/util/upload', () => ({
   uploadFile: vi.fn(),
 }));
 
-vi.mock('@core/cursor/flag', () => ({
-  useCursorAgentsAccess: () => () => true,
-}));
-
 vi.mock('@core/codex/flag', () => ({
   useCodexAgentsAccess: () => () => false,
 }));
@@ -249,8 +245,8 @@ const baseInput: InputData = {
 };
 
 /**
- * `ChannelInput` reads the stored Cursor API key status to decide whether to
- * offer `@cursor` in the mention typeahead, so it needs a query client even
+ * `ChannelInput` reads the Codex connection status to decide whether to
+ * offer `@codex` in the mention typeahead, so it needs a query client even
  * though none of these tests care about that entry. Shadowing `render` keeps
  * every call site below unchanged.
  */
