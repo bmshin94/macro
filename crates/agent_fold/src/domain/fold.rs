@@ -56,7 +56,9 @@ use std::borrow::Cow;
 use agent_client_protocol::schema::v1::SessionId;
 
 use crate::domain::log::{AgentSessionId, AgentSessionLog};
-use crate::domain::model::{FoldEvent, FoldedMessage, SessionMetadata, TurnId};
+use crate::domain::model::{
+    ElicitationRequestId, FoldEvent, FoldedMessage, SessionMetadata, TurnId,
+};
 use crate::domain::ports::{FoldMachine, FoldSession, LogRepo};
 
 /// Config-option and session-info bookkeeping.
@@ -137,8 +139,10 @@ impl FoldMachineImpl {
     }
 
     /// Fold a frame this client caused but the log has not confirmed. Every
-    /// message it derives is marked [`FoldedMessage::pending`] until the
-    /// confirmed frame is folded in its place.
+    /// message it touches is marked [`FoldedMessage::pending`] until the
+    /// confirmed frame is folded in its place - the ones it mints, and the
+    /// ones it only resolves: an elicitation answer lands on the part the
+    /// question already occupies in a message the log confirmed long ago.
     ///
     /// Bypasses the replay gate on purpose. That gate stages runtime-bound
     /// frames while the connection is down or a load is in flight, because a
@@ -150,6 +154,13 @@ impl FoldMachineImpl {
         self.state.speculative = true;
         let changes = self.state.step(log);
         self.state.speculative = false;
+        for change in &changes {
+            if let StepChange::Message(changed) = change
+                && let Some(message) = self.state.messages.get_mut(changed.message)
+            {
+                message.pending = true;
+            }
+        }
         self.report(changes)
     }
 
@@ -190,6 +201,26 @@ impl FoldMachineImpl {
     #[must_use]
     pub fn acp_session_id(&self) -> Option<&SessionId> {
         self.state.acp_session.as_ref()
+    }
+
+    /// Whether the open turn has already been asked to stop. A cancel is a
+    /// notification carrying no action id, so this is the only way to ask
+    /// whether a stop is already reflected here.
+    #[must_use]
+    pub fn stop_requested(&self) -> bool {
+        self.state
+            .turn
+            .as_ref()
+            .is_some_and(|turn| turn.stop_requested)
+    }
+
+    /// Whether the question the agent asked under `request_id` has resolved.
+    /// An answer rides on the agent's own request id, so a folded answer
+    /// leaves no message under the answerer's action id - the question's
+    /// outcome is what records that it landed.
+    #[must_use]
+    pub fn elicitation_answered(&self, request_id: &ElicitationRequestId) -> bool {
+        self.state.elicitation_answered(request_id)
     }
 
     /// Every committed message, oldest first. A pending load is invisible here.

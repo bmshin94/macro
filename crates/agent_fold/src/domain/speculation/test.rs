@@ -1,14 +1,23 @@
 //! The two-tier fold's contract: speculate, promote, rebase, retract.
 
+use std::collections::BTreeMap;
+
 use super::*;
-use crate::domain::model::{Author, Control, ControlOutcome, MessagePart, TurnState};
+use crate::domain::model::{
+    AnsweredField, AnsweredValue, Author, Control, ControlOutcome, ElicitationOutcome,
+    ElicitationRequestId, MessagePart, TurnState,
+};
 use crate::testing::{TURN, parse_log, test_session};
 use agent_client_protocol::schema::v1::SessionId;
+use agent_runtime_protocol::domain::action::{ElicitationAnswer, ElicitationContentValue};
 use chrono::{Duration, TimeZone, Utc};
 use macro_uuid::Uuid;
 
 /// The ACP session the `TURN` fixture runs in.
 const ACP_SESSION: &str = "s1";
+
+/// The id the agent asks its question under in [`blocked`].
+const QUESTION_ID: ElicitationRequestId = ElicitationRequestId::Number(7);
 
 fn cursor(index: usize) -> LogCursor {
     let index = u128::try_from(index).expect("small index");
@@ -45,7 +54,7 @@ fn logged(action: &AgentAction, action_id: AgentActionId) -> AgentSessionLog {
 }
 
 fn speculation(action: AgentAction, action_id: AgentActionId) -> FoldInput {
-    FoldInput::Speculated(Speculation::new(action_id, action, Some(user())).expect("speculatable"))
+    FoldInput::Speculated(Speculation::new(action_id, action, Some(user())))
 }
 
 /// A fold that has folded the whole `TURN` fixture: one closed turn.
@@ -65,6 +74,64 @@ fn mid_turn() -> SpeculativeFold {
         .expect("snapshot");
     assert_eq!(fold.metadata().turn, TurnState::Running);
     fold
+}
+
+/// A fold whose open turn is blocked on a question the agent asked.
+fn blocked() -> SpeculativeFold {
+    let mut log: Vec<&str> = TURN.lines().take(5).collect();
+    log.push(
+        r#"{"direction":"to_server","content":{"type":"acp","jsonrpc":"2.0","id":7,"method":"elicitation/create","params":{"mode":"form","sessionId":"s1","message":"Which colour?","requestedSchema":{"type":"object","properties":{"colour":{"type":"string","title":"Colour"}}}}}}"#,
+    );
+    let mut fold = SpeculativeFold::new(test_session());
+    fold.push(FoldInput::Snapshot(rows(parse_log(&log.join("\n")))))
+        .expect("snapshot");
+    assert_eq!(fold.metadata().turn, TurnState::Blocked);
+    fold
+}
+
+/// Submitting `colour` to the question [`blocked`] holds open.
+fn accept(colour: &str) -> AgentAction {
+    AgentAction::respond_elicitation(
+        QUESTION_ID,
+        ElicitationAnswer::Accept {
+            content: Some(BTreeMap::from([(
+                "colour".to_owned(),
+                ElicitationContentValue::Text(colour.to_owned()),
+            )])),
+        },
+    )
+}
+
+/// The question's outcome, and whether the message holding it is pending.
+fn question(fold: &SpeculativeFold) -> (ElicitationOutcome, bool) {
+    fold.messages()
+        .iter()
+        .find_map(|message| {
+            message.parts.iter().find_map(|part| match part {
+                MessagePart::Elicitation { outcome, .. } => {
+                    Some((outcome.clone(), message.pending))
+                }
+                _ => None,
+            })
+        })
+        .expect("the question is in the transcript")
+}
+
+/// Whether each stop line in the transcript is still pending, in order.
+fn stops(fold: &SpeculativeFold) -> Vec<bool> {
+    fold.messages()
+        .iter()
+        .filter(|message| {
+            matches!(
+                message.parts.first(),
+                Some(MessagePart::Control {
+                    control: Control::Stop,
+                    ..
+                })
+            )
+        })
+        .map(|message| message.pending)
+        .collect()
 }
 
 fn user_texts(messages: &[FoldedMessage]) -> Vec<(String, bool)> {
@@ -108,17 +175,156 @@ fn nothing_is_accepted_before_a_snapshot() {
 }
 
 #[test]
-fn an_elicitation_answer_cannot_be_speculated() {
-    let action: AgentAction = serde_json::from_value(serde_json::json!({
-        "type": "respondElicitation",
-        "requestId": 3,
-        "action": "decline"
-    }))
-    .expect("an elicitation answer");
+fn a_speculated_answer_resolves_the_question_and_unblocks_the_turn() {
+    let mut fold = blocked();
+    let before = fold.messages().len();
+    let id = AgentActionId::mint();
+
+    fold.push(speculation(accept("red"), id)).unwrap();
+
+    let (outcome, pending) = question(&fold);
     assert_eq!(
-        Speculation::new(AgentActionId::mint(), action, None).unwrap_err(),
-        SpeculationError::Unspeculatable
+        outcome,
+        ElicitationOutcome::Accepted {
+            answers: vec![AnsweredField {
+                name: "colour".to_owned(),
+                label: "Colour".to_owned(),
+                value: AnsweredValue::Text {
+                    text: "red".to_owned()
+                },
+            }],
+        }
     );
+    assert!(pending, "the message holding the question is unconfirmed");
+    assert!(fold.metadata().pending_elicitation.is_none());
+    assert_eq!(fold.metadata().turn, TurnState::Running);
+    // The answer resolves a part; it mints no message of its own.
+    assert_eq!(fold.messages().len(), before);
+    assert_eq!(fold.pending().collect::<Vec<_>>(), vec![id]);
+}
+
+#[test]
+fn the_confirmed_answer_promotes_by_content() {
+    let mut fold = blocked();
+    let id = AgentActionId::mint();
+    fold.push(speculation(accept("red"), id)).unwrap();
+    let speculated = fold.messages().len();
+
+    // The harness logs the answer under the agent's request id, so the row
+    // carries no action id at all and matches on content.
+    fold.push(FoldInput::Confirmed(
+        cursor(99),
+        logged(&accept("red"), AgentActionId::mint()),
+    ))
+    .unwrap();
+
+    assert_eq!(fold.pending().count(), 0);
+    assert!(fold.fork.is_none());
+    let (outcome, pending) = question(&fold);
+    assert!(matches!(outcome, ElicitationOutcome::Accepted { .. }));
+    assert!(!pending);
+    assert_eq!(fold.messages().len(), speculated, "nothing was duplicated");
+    assert_eq!(fold.metadata().turn, TurnState::Running);
+}
+
+#[test]
+fn retracting_an_answer_restores_the_question() {
+    let mut fold = blocked();
+    let id = AgentActionId::mint();
+    fold.push(speculation(accept("red"), id)).unwrap();
+
+    let events = fold.push(FoldInput::Retracted(id)).unwrap();
+
+    assert!(is_replace(&events));
+    assert_eq!(question(&fold), (ElicitationOutcome::Pending, false));
+    assert!(fold.metadata().pending_elicitation.is_some());
+    assert_eq!(fold.metadata().turn, TurnState::Blocked);
+}
+
+#[test]
+fn a_speculated_decline_reads_as_declined() {
+    let mut fold = blocked();
+    fold.push(speculation(
+        AgentAction::respond_elicitation(QUESTION_ID, ElicitationAnswer::Decline),
+        AgentActionId::mint(),
+    ))
+    .unwrap();
+
+    assert_eq!(question(&fold).0, ElicitationOutcome::Declined);
+    assert_eq!(fold.metadata().turn, TurnState::Running);
+}
+
+#[test]
+fn answering_a_question_already_answered_changes_nothing() {
+    let mut fold = blocked();
+    fold.push(speculation(accept("red"), AgentActionId::mint()))
+        .unwrap();
+    let answered: Vec<FoldedMessage> = fold.messages().to_vec();
+
+    let events = fold
+        .push(speculation(accept("blue"), AgentActionId::mint()))
+        .unwrap();
+
+    assert!(events.is_empty());
+    assert_eq!(fold.pending().count(), 1);
+    assert_eq!(fold.messages(), answered.as_slice());
+}
+
+#[test]
+fn a_stop_beats_a_question_the_user_walked_away_from() {
+    let mut fold = blocked();
+
+    fold.push(speculation(AgentAction::Stop, AgentActionId::mint()))
+        .unwrap();
+
+    assert_eq!(fold.metadata().turn, TurnState::Stopping);
+}
+
+#[test]
+fn a_stop_speculated_before_the_session_id_is_known_still_promotes() {
+    let mut fold = SpeculativeFold::new(test_session());
+    fold.push(FoldInput::Snapshot(rows(parse_log(
+        r#"{"direction":"to_server","content":{"type":"event","event":"acp_ready"}}"#,
+    ))))
+    .unwrap();
+    assert_eq!(fold.committed.machine.acp_session_id(), None);
+
+    let id = AgentActionId::mint();
+    fold.push(speculation(AgentAction::Stop, id)).unwrap();
+    let Message::ToRuntime(ToRuntimeMessage::Acp(acp)) = &fold.suffix[0].frame.content else {
+        panic!("a runtime-bound frame");
+    };
+    let RawJsonRpcMessage::Notification(notification) = &acp.0 else {
+        panic!("a notification");
+    };
+    let params = serde_json::to_value(notification.params.as_ref()).unwrap();
+    assert_eq!(params["sessionId"], PLACEHOLDER_ACP_SESSION);
+
+    // The harness sent the cancel into the session the runtime had by then.
+    fold.push(FoldInput::Confirmed(
+        cursor(99),
+        logged(&AgentAction::Stop, AgentActionId::mint()),
+    ))
+    .unwrap();
+
+    assert_eq!(fold.pending().count(), 0);
+    assert!(fold.fork.is_none());
+    assert_eq!(stops(&fold), vec![false], "one stop line, confirmed");
+}
+
+#[test]
+fn stopping_twice_leaves_one_stop_line() {
+    let mut fold = mid_turn();
+    fold.push(speculation(AgentAction::Stop, AgentActionId::mint()))
+        .unwrap();
+
+    let events = fold
+        .push(speculation(AgentAction::Stop, AgentActionId::mint()))
+        .unwrap();
+
+    assert!(events.is_empty());
+    assert_eq!(stops(&fold), vec![true]);
+    assert_eq!(fold.pending().count(), 1);
 }
 
 #[test]
@@ -289,7 +495,7 @@ fn a_snapshot_settles_what_it_already_contains() {
 }
 
 #[test]
-fn a_speculated_stop_reads_as_stopping_and_promotes_by_content() {
+fn a_speculated_stop_reads_as_stopping_and_promotes_by_method() {
     let mut fold = mid_turn();
     let id = AgentActionId::mint();
 
@@ -320,8 +526,9 @@ fn a_speculated_stop_reads_as_stopping_and_promotes_by_content() {
     assert_eq!(fold.metadata().turn, TurnState::Stopping);
     assert!(fold.messages().last().unwrap().stop.is_none() || fold.messages().len() > 1);
 
-    // A cancel is a notification with no request id, so the confirmed row
-    // matches on content and promotes the same way.
+    // A cancel is a notification with no request id, and its content is the
+    // same bytes for every stop in the session, so the confirmed row matches
+    // on its method and promotes the same way.
     let events = fold
         .push(FoldInput::Confirmed(
             cursor(99),

@@ -70,7 +70,7 @@ impl FoldStream {
     ///
     /// Returns a JS string when an input cannot be read, when a live or
     /// speculative input arrives before any snapshot, or when an action
-    /// cannot be speculated.
+    /// cannot be encoded as the frame the harness would log.
     pub fn push(&mut self, inputs: JsValue) -> Result<JsValue, JsValue> {
         let inputs: Vec<WireInput> = serde_wasm_bindgen::from_value(inputs).map_err(|error| {
             JsValue::from_str(&format!("fold inputs are not readable: {error}"))
@@ -183,10 +183,7 @@ impl WireInput {
                 action_id,
                 action,
                 user_id,
-            } => FoldInput::Speculated(
-                Speculation::new(action_id, action, user_id)
-                    .map_err(|error| JsValue::from_str(&error.to_string()))?,
-            ),
+            } => FoldInput::Speculated(Speculation::new(action_id, action, user_id)),
             Self::Retracted { action_id } => FoldInput::Retracted(action_id),
         })
     }

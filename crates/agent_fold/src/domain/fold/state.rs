@@ -508,8 +508,11 @@ impl FoldState {
         } else {
             match &self.turn {
                 None => TurnState::Idle,
-                Some(_) if self.metadata.pending_elicitation.is_some() => TurnState::Blocked,
+                // Before `Blocked`: a user who pressed stop while the agent
+                // was waiting on their answer is owed the stop, not the
+                // question they just walked away from.
                 Some(turn) if turn.stop_requested => TurnState::Stopping,
+                Some(_) if self.metadata.pending_elicitation.is_some() => TurnState::Blocked,
                 Some(turn) if turn.prompt_pending && turn.agent.is_none() => TurnState::Starting,
                 Some(_) => TurnState::Running,
             }

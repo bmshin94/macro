@@ -9,8 +9,9 @@
 //! suffix entry:
 //!
 //! - **Promote.** A confirmed row matches it - same request id, or for a
-//!   notification the same content - and the entry is dropped. The committed
-//!   machine now derives what the fork already showed, minus the pending mark.
+//!   frame that carries none the same method or content - and the entry is
+//!   dropped. The committed machine now derives what the fork already
+//!   showed, minus the pending mark.
 //! - **Rebase.** A confirmed row matches nothing while the suffix is
 //!   non-empty. It belongs *before* the suffix, so the fork is rebuilt:
 //!   clone the committed machine, replay the suffix.
@@ -45,7 +46,8 @@ mod test;
 /// real one - a first prompt into a session whose runtime is still booting.
 /// The fold's handlers ignore it; only the replay gate reads it, and that gate
 /// is closed while nothing has been opened yet. The confirmed frame carries
-/// the real id and promotes by request id, so the placeholder never sticks.
+/// the real id and promotes by request id - or, for a stop, by method - so
+/// the placeholder never sticks.
 const PLACEHOLDER_ACP_SESSION: &str = "pending";
 
 /// One thing that can happen to a client's view of a session log.
@@ -74,26 +76,20 @@ pub struct Speculation {
 
 impl Speculation {
     /// An action under the id the client will send it with. The id is what a
-    /// confirmed row is matched on, so it has to be the one the harness logs.
-    ///
-    /// # Errors
-    ///
-    /// [`SpeculationError::Unspeculatable`] for an elicitation answer: it is a
-    /// response on the agent's own request id, so no minted id reaches the
-    /// wire and nothing could ever promote it.
+    /// confirmed row is matched on where the wire carries one; a stop and an
+    /// elicitation answer carry no id, and are matched as described on
+    /// [`Pending::is_confirmed_by`].
+    #[must_use]
     pub fn new(
         action_id: AgentActionId,
         action: AgentAction,
         user_id: Option<MacroUserIdStr<'static>>,
-    ) -> Result<Self, SpeculationError> {
-        if matches!(action, AgentAction::RespondElicitation(_)) {
-            return Err(SpeculationError::Unspeculatable);
-        }
-        Ok(Self {
+    ) -> Self {
+        Self {
             action_id,
             action,
             user_id,
-        })
+        }
     }
 }
 
@@ -105,9 +101,6 @@ pub enum SpeculationError {
     /// caller has to fetch first.
     #[error("the fold has no snapshot yet; a snapshot must be the first input")]
     NoSnapshot,
-    /// The action answers on the agent's request id and cannot be matched.
-    #[error("an elicitation answer rides on the agent's request id and cannot be speculated")]
-    Unspeculatable,
     /// The action could not be encoded as the frame the harness would log.
     #[error("the action could not be encoded as an ACP frame: {0}")]
     Encode(String),
@@ -144,17 +137,53 @@ impl Pending {
     /// A request carries the action id on the wire, so it matches on that
     /// alone: the harness composes prompts (mentions, context) after
     /// accepting them, so the confirmed text may legitimately differ from
-    /// what was speculated, and the confirmed content wins. A notification
-    /// (a stop) has no id and matches on content.
+    /// what was speculated, and the confirmed content wins.
+    ///
+    /// A notification - a stop - carries no id, and its content is no help
+    /// either: `session/cancel` is byte-identical for every stop in a
+    /// session, and one speculated before the log showed the ACP session
+    /// names [`PLACEHOLDER_ACP_SESSION`] where the confirmed frame names the
+    /// real id, so full content never matches. It matches on the method
+    /// instead, and on the user where both rows name one.
+    ///
+    /// Everything else - an elicitation answer, which is a response on the
+    /// agent's own request id - matches on content, which is deterministic:
+    /// the agent's id plus the answer, encoded the one way
+    /// [`AgentAction::to_runtime`] encodes it.
     fn is_confirmed_by(&self, row: &AgentSessionLog) -> bool {
-        match request_action_id(row) {
-            Some(id) => id == self.action_id,
-            None => {
-                request_action_id(&self.frame).is_none()
-                    && serde_json::to_value(&self.frame.content).ok()
-                        == serde_json::to_value(&row.content).ok()
+        if let Some(id) = request_action_id(row) {
+            return id == self.action_id;
+        }
+        if request_action_id(&self.frame).is_some() {
+            return false;
+        }
+        match (notification_method(&self.frame), notification_method(row)) {
+            (Some(mine), Some(theirs)) => mine == theirs && self.same_user_as(row),
+            _ => {
+                serde_json::to_value(&self.frame.content).ok()
+                    == serde_json::to_value(&row.content).ok()
             }
         }
+    }
+
+    /// Whether `row` was issued by whoever issued this entry. A row that
+    /// names no user cannot contradict one that does, so it is accepted.
+    fn same_user_as(&self, row: &AgentSessionLog) -> bool {
+        match (&self.frame.user_id, &row.user_id) {
+            (Some(mine), Some(theirs)) => mine == theirs,
+            _ => true,
+        }
+    }
+}
+
+/// The method of a notification frame, if the row is one.
+fn notification_method(row: &AgentSessionLog) -> Option<&str> {
+    match &row.content {
+        Message::ToRuntime(ToRuntimeMessage::Acp(acp)) => match &acp.0 {
+            RawJsonRpcMessage::Notification(notification) => Some(notification.method.as_ref()),
+            _ => None,
+        },
+        _ => None,
     }
 }
 
@@ -259,7 +288,7 @@ impl SpeculativeFold {
                 // The log got there first: the confirmed row can land over
                 // the socket before the control response names its id, and
                 // a client re-speculating under that id must not double it.
-                if self.confirmed_contains(speculation.action_id) {
+                if self.already_reflected(&speculation) {
                     return Ok(Vec::new());
                 }
                 let frame = self.synthesize(&speculation)?;
@@ -308,13 +337,32 @@ impl SpeculativeFold {
         })
     }
 
-    /// Whether the committed fold already derived a message under this id.
-    fn confirmed_contains(&self, action_id: AgentActionId) -> bool {
-        self.committed
-            .machine
-            .messages()
-            .iter()
-            .any(|message| message.request_id == Some(action_id))
+    /// Whether the fold already shows what this speculation would add, so
+    /// folding it again would only double it.
+    ///
+    /// A prompt, a compact and a model change carry their action id on the
+    /// wire, so the committed fold answers for them directly - and only the
+    /// committed fold, because a second prompt while one is still pending is
+    /// an ordinary queued prompt, not a duplicate.
+    ///
+    /// A stop and an elicitation answer carry no action id, so each is
+    /// recognized by the effect it has already had, on the fork as much as on
+    /// the committed machine: two of either add nothing the first did not,
+    /// and a second suffix entry that nothing distinguishes would outlive the
+    /// one confirmed row that could settle it.
+    fn already_reflected(&self, speculation: &Speculation) -> bool {
+        match &speculation.action {
+            AgentAction::Stop => self.tier().stop_requested(),
+            AgentAction::RespondElicitation(answer) => {
+                self.tier().elicitation_answered(&answer.request_id)
+            }
+            AgentAction::Prompt(_) | AgentAction::Compact | AgentAction::SetModel(_) => self
+                .committed
+                .machine
+                .messages()
+                .iter()
+                .any(|message| message.request_id == Some(speculation.action_id)),
+        }
     }
 
     /// Drop the suffix entry `row` confirms, if any. `true` when one was.
