@@ -350,7 +350,10 @@ fn a_speculated_stop_reads_as_stopping_and_promotes_by_content() {
 #[test]
 fn a_speculated_frame_names_the_session_the_log_showed() {
     let mut fold = settled();
-    assert_eq!(fold.committed.machine.acp_session_id(), Some(ACP_SESSION));
+    assert_eq!(
+        fold.committed.machine.acp_session_id(),
+        Some(&SessionId::from(ACP_SESSION))
+    );
     let id = AgentActionId::mint();
     fold.push(speculation(AgentAction::prompt("hi"), id))
         .unwrap();

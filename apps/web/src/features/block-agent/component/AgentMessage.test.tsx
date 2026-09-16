@@ -48,7 +48,9 @@ vi.mock('../ui', () => ({
   Thought: (props: { text: string }) => (
     <div data-testid="thought">{props.text}</div>
   ),
-  WorkingLine: () => <div data-testid="working" />,
+  WorkingLine: (props: { label?: string }) => (
+    <div data-testid="working">{props.label}</div>
+  ),
   ActionLine: (props: { label: string }) => <div>{props.label}</div>,
   ToolGroup: (props: {
     count: number;
@@ -210,5 +212,24 @@ describe('Message tool grouping', () => {
     );
     expect(view.getByTestId('group').dataset.count).toBe('2');
     expect(view.getByTestId('text')).toBe(prose);
+  });
+});
+
+describe('Message working tail', () => {
+  it('names the work after the last part of an open turn', () => {
+    const view = render(() => (
+      <Message message={message([text('Looking.'), tool('a')], null)} />
+    ));
+    expect(view.getByTestId('working').textContent).toBe('Running tools');
+  });
+
+  it('settles the moment a stop is speculated, before the log closes the turn', () => {
+    const view = render(() => (
+      <Message
+        message={message([text('Looking.'), tool('a')], null)}
+        turn="stopping"
+      />
+    ));
+    expect(view.queryByTestId('working')).toBeNull();
   });
 });

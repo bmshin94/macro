@@ -3,7 +3,7 @@
 use agent_client_protocol::schema::v1::{
     AGENT_METHOD_NAMES, InitializeRequest, LoadSessionRequest, LoadSessionResponse,
     NewSessionRequest, NewSessionResponse, PromptRequest, RequestId, Response,
-    ResumeSessionRequest, ResumeSessionResponse,
+    ResumeSessionRequest, ResumeSessionResponse, SessionId,
 };
 use agent_client_protocol::{JsonRpcMessage, JsonRpcResponse, RawJsonRpcMessage, RawJsonRpcParams};
 use agent_runtime_protocol::domain::schema::v0::{SystemEvent, ToRuntimeMessage, ToServerMessage};
@@ -21,7 +21,7 @@ pub(super) struct Replay {
     // A failed/abandoned load may still have queued notifications. Handshake
     // markers invalidate correlations, but do not prove those frames are live.
     quarantined: bool,
-    replay_session: Option<String>,
+    replay_session: Option<SessionId>,
     pending_open: Option<(RequestId, Opening)>,
 }
 
@@ -30,7 +30,7 @@ enum Opening {
     New,
     /// A resume names the session in its request; the response only confirms.
     Resume {
-        session: Option<String>,
+        session: Option<SessionId>,
     },
 }
 
@@ -38,7 +38,7 @@ impl Opening {
     /// The ACP session id the response opened, or `None` for a response that
     /// does not decode as this opening's success. A resume whose request
     /// named no session reads as `Some(None)`: accepted, id unknown.
-    fn accepts(&self, response: &Response<serde_json::Value>) -> Option<Option<String>> {
+    fn accepts(&self, response: &Response<serde_json::Value>) -> Option<Option<SessionId>> {
         let Response::Result { result, .. } = response else {
             return None;
         };
@@ -46,7 +46,7 @@ impl Opening {
             Self::New => {
                 NewSessionResponse::from_value(AGENT_METHOD_NAMES.session_new, result.clone())
                     .ok()
-                    .map(|response| Some(response.session_id.to_string()))
+                    .map(|response| Some(response.session_id.clone()))
             }
             Self::Resume { session } => {
                 ResumeSessionResponse::from_value(AGENT_METHOD_NAMES.session_resume, result.clone())
@@ -60,7 +60,7 @@ impl Opening {
 #[derive(Debug, Clone)]
 struct Transaction {
     request: RequestId,
-    session: String,
+    session: SessionId,
     metadata: crate::domain::model::SessionMetadata,
     pending_initialize: Option<RequestId>,
     entries: Vec<AgentSessionLog>,
@@ -142,10 +142,11 @@ impl Replay {
                     return Outcome::Staged;
                 };
                 self.pending_open = None;
-                self.replay_session = Some(session.to_owned());
+                let session = SessionId::new(session);
+                self.replay_session = Some(session.clone());
                 self.transaction = Some(Transaction {
                     request: request.id.clone(),
-                    session: session.to_owned(),
+                    session,
                     metadata: self.initialization.metadata.clone(),
                     pending_initialize: self.initialization.pending_initialize.clone(),
                     entries: vec![entry],
@@ -182,7 +183,7 @@ impl Replay {
                     {
                         let session = param(request.params.as_ref(), "sessionId")
                             .and_then(|value| value.as_str())
-                            .map(str::to_owned);
+                            .map(SessionId::new);
                         self.pending_open = Some((request.id.clone(), Opening::Resume { session }));
                         return Outcome::Changes(committed.step(entry));
                     }
@@ -253,7 +254,7 @@ impl Replay {
             };
             if param(params, "sessionId")
                 .and_then(|v| v.as_str())
-                .is_some_and(|session| session != candidate.session)
+                .is_some_and(|session| session != candidate.session.0.as_ref())
             {
                 return Outcome::Staged;
             }
@@ -274,8 +275,8 @@ impl Replay {
             .and_then(|value| value.as_str())
             .is_some_and(|session| {
                 self.replay_session
-                    .as_deref()
-                    .is_none_or(|expected| session == expected)
+                    .as_ref()
+                    .is_none_or(|expected| session == expected.0.as_ref())
             })
     }
 }

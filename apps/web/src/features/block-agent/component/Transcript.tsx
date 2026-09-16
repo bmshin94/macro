@@ -58,7 +58,6 @@ export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
   const workingLabel = () =>
     match(turn())
       .with('starting', () => 'Sending')
-      .with('stopping', () => 'Stopping')
       .otherwise(() => 'Working');
   const keys = createMemo(() => [
     ...messageById().keys(),

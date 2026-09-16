@@ -74,7 +74,7 @@ impl FoldState {
                 // to; a speculative one only echoes what this fold already
                 // knew, so it must not become the source of that fact.
                 if !self.speculative {
-                    self.acp_session = Some(request.session_id.to_string());
+                    self.acp_session = Some(request.session_id.clone());
                 }
                 request
                     .prompt

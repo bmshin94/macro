@@ -4,6 +4,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::domain::error::FoldError;
 use crate::domain::harness::{HarnessReader, ToolFrame};
+use agent_client_protocol::schema::v1::SessionId;
+
 use crate::domain::log::{AgentSessionId, AgentSessionLog, Message};
 use crate::domain::model::{Control, FoldedMessage, SessionMetadata, ToolUseId, TurnId, TurnState};
 use agent_client_protocol::schema::v1::{
@@ -97,7 +99,7 @@ pub(super) struct FoldState {
     /// The ACP session id the runtime answers to, from the request that
     /// opened it or any prompt addressed to it. See
     /// [`FoldMachineImpl::acp_session_id`].
-    pub(super) acp_session: Option<String>,
+    pub(super) acp_session: Option<SessionId>,
     /// The session the entry currently being folded belongs to, for
     /// [`State::warn`]. Set fresh from each log entry, so it is always
     /// current even though it rarely changes within one fold.

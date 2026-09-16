@@ -291,13 +291,12 @@ impl SpeculativeFold {
     /// The frame the harness will log for `speculation`, built the way the
     /// harness builds it.
     fn synthesize(&self, speculation: &Speculation) -> Result<AgentSessionLog, SpeculationError> {
-        let acp_session = SessionId::from(
-            self.committed
-                .machine
-                .acp_session_id()
-                .unwrap_or(PLACEHOLDER_ACP_SESSION)
-                .to_owned(),
-        );
+        let acp_session = self
+            .committed
+            .machine
+            .acp_session_id()
+            .cloned()
+            .unwrap_or_else(|| SessionId::from(PLACEHOLDER_ACP_SESSION));
         let message = speculation
             .action
             .to_runtime(&acp_session, speculation.action_id.to_request_id())

@@ -49,10 +49,12 @@ export function AgentComposer(props: {
   };
 
   // A turn is open in some form: the send button becomes a stop square and
-  // prompts sent now wait in the server queue behind it.
+  // prompts sent now wait in the server queue behind it. A stop the fold has
+  // speculated already reads as done - the button goes back to send with the
+  // rest of the transcript, and the log confirms the end of the turn later.
   const busy = () => {
     const state = turn();
-    return state !== 'idle' && state !== 'disconnected';
+    return state !== 'idle' && state !== 'disconnected' && state !== 'stopping';
   };
   // The runtime is gone and the user has asked it for something anyway, so
   // the service is bringing its sandbox back before it can deliver. There is

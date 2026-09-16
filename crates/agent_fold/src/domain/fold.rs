@@ -53,6 +53,8 @@
 
 use std::borrow::Cow;
 
+use agent_client_protocol::schema::v1::SessionId;
+
 use crate::domain::log::{AgentSessionId, AgentSessionLog};
 use crate::domain::model::{FoldEvent, FoldedMessage, SessionMetadata, TurnId};
 use crate::domain::ports::{FoldMachine, FoldSession, LogRepo};
@@ -186,8 +188,8 @@ impl FoldMachineImpl {
     /// addressed to it. What a synthesized frame has to name so the replay
     /// gate does not treat it as another session's traffic.
     #[must_use]
-    pub fn acp_session_id(&self) -> Option<&str> {
-        self.state.acp_session.as_deref()
+    pub fn acp_session_id(&self) -> Option<&SessionId> {
+        self.state.acp_session.as_ref()
     }
 
     /// Every committed message, oldest first. A pending load is invisible here.

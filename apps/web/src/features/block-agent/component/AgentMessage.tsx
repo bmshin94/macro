@@ -81,7 +81,10 @@ function ToolGroupPart(props: {
     props.message.parts
       .slice(props.start, props.end)
       .filter((part): part is ToolUsePart => part.kind === 'tool_use');
-  const active = () => calls().some((call) => isToolActive(call.status));
+  // A speculated stop settles the message before the log closes the calls,
+  // so a group only reads as active while the turn itself still is.
+  const active = () =>
+    props.inFlight && calls().some((call) => isToolActive(call.status));
 
   return (
     <Show when={calls().at(-1)}>
@@ -132,15 +135,10 @@ function showsWorkingLine(message: FoldedMessage): boolean {
 }
 
 /**
- * What the working row says. A stop request wins over whatever the agent was
- * doing; otherwise the last part names the work — a tool call or a plan —
- * and a bare turn is just working.
+ * What the working row says: the last part names the work — a tool call or
+ * a plan — and a bare turn is just working.
  */
-function workingLabel(
-  message: FoldedMessage,
-  turn: TurnState | undefined
-): string {
-  if (turn === 'stopping') return 'Stopping';
+function workingLabel(message: FoldedMessage): string {
   const last = message.parts.at(-1);
   if (last === undefined) return 'Working';
   return match(last)
@@ -188,11 +186,18 @@ function UserMessage(props: { message: FoldedMessage }) {
 
 export function Message(props: {
   message: FoldedMessage;
-  /** The session's turn state, when the caller has it: `stopping` relabels the working row. */
+  /**
+   * The session's turn state, when the caller has it. A speculated stop
+   * settles the open message at once: the fold shows the Stopped line before
+   * the log confirms the turn ended, and the message should not still be
+   * working underneath it.
+   */
   turn?: TurnState;
 }) {
   const inFlight = () =>
-    props.message.author.kind === 'agent' && props.message.stop == null;
+    props.message.author.kind === 'agent' &&
+    props.message.stop == null &&
+    props.turn !== 'stopping';
   const failure = () =>
     props.message.stop?.kind === 'failed'
       ? props.message.stop.message
@@ -237,7 +242,7 @@ export function Message(props: {
           {/* The turn is open with nothing to read yet — a ripple and a label
               naming the work, so the wait reads as work rather than a stall. */}
           <Show when={inFlight() && showsWorkingLine(props.message)}>
-            <WorkingLine label={workingLabel(props.message, props.turn)} />
+            <WorkingLine label={workingLabel(props.message)} />
           </Show>
           {/* A turn the runtime errored is something that happened to the
               session, like a model change or a stop — so it reads as one,
