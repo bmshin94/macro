@@ -22,10 +22,15 @@ import { openExternalUrl } from '@core/util/url';
 import type { AgentSessionEntity } from '@entity';
 import ArrowSquareOut from '@phosphor/arrow-square-out.svg';
 import GitBranch from '@phosphor/git-branch.svg';
+import GitPullRequest from '@phosphor/git-pull-request.svg';
 import ShareIcon from '@phosphor/share.svg';
 import type { AgentSessionResponse } from '@service-agent-harness/generated/schemas';
 import { createSignal, For, Show, Suspense } from 'solid-js';
 import { useAgentSession } from '../context/AgentSessionContext';
+import {
+  AgentPullRequestChip,
+  createAgentPullRequestLink,
+} from './AgentPullRequestChip';
 import { harnessTitle } from './compose-agent-session-options';
 
 export { harnessTitle };
@@ -89,6 +94,10 @@ export function AgentSplitHeader(props: {
     },
   ];
 
+  const pullRequest = createAgentPullRequestLink(
+    () => props.session?.pullRequestUrl ?? undefined
+  );
+
   const tools: BlockTool[] = [
     {
       label: () => {
@@ -102,6 +111,23 @@ export function AgentSplitHeader(props: {
         if (url) openExternalUrl(url);
       },
       condition: () => Boolean(props.session?.external?.url),
+    },
+  ];
+
+  // The desktop header shows the PR as a chip (`AgentPullRequestChip`); this
+  // entry is its stand-in where the tools collapse into the title menu.
+  const menuTools: BlockTool[] = [
+    ...tools,
+    {
+      label: () => {
+        const summary = pullRequest.summary();
+        return summary
+          ? `Open pull request ${summary.label}`
+          : 'Open pull request';
+      },
+      icon: GitPullRequest,
+      action: () => pullRequest.open(),
+      condition: () => Boolean(pullRequest.summary()),
     },
   ];
 
@@ -139,6 +165,7 @@ export function AgentSplitHeader(props: {
       <Show when={!isMobile()}>
         <SplitHeaderRight>
           <div class="order-[1000] flex items-center gap-1">
+            <AgentPullRequestChip link={pullRequest} />
             <For each={tools}>
               {(tool) => (
                 <Show when={!tool.condition || tool.condition()}>
@@ -169,7 +196,7 @@ export function AgentSplitHeader(props: {
 
       <ResponsiveBlockToolbar
         tools={shareTools}
-        menuTools={tools}
+        menuTools={menuTools}
         ops={entity() ? ops : []}
         id={sessionId() ?? ''}
         itemType="agent_session"

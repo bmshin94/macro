@@ -126,7 +126,8 @@ function fallbackLabel(label: string | undefined): string {
   return label || 'Pull request';
 }
 
-function PullRequestStatusIcon(props: { status: string }) {
+/** GitHub's state glyph, sized by its wrapper: open/closed pull-request icon, merged merge icon. */
+export function PullRequestStatusIcon(props: { status: string }) {
   return (
     <Show
       when={props.status === 'merged'}
@@ -339,7 +340,11 @@ function PullRequestPreviewBody(props: { id: string; fallbackLabel?: string }) {
   );
 }
 
-function PullRequestPreviewCard(props: { id: string; fallbackLabel?: string }) {
+/** The mention's hover preview: status, ref, title, and diff/check stats. */
+export function PullRequestPreviewCard(props: {
+  id: string;
+  fallbackLabel?: string;
+}) {
   return (
     <div class="select-none overflow-hidden w-80 text-ink">
       <Surface depth={3} class="rounded-xl shadow-lg shadow-drop-shadow">
