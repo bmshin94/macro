@@ -268,9 +268,13 @@ Existing announcement chips remain locked to the turn they announced.
 ### Transcript navigation
 
 Agent sessions reuse the channel's TanStack `ThreadList`. Opening a session lands
-at the latest message, including when history arrives after the empty view. Short
-transcripts sit at the bottom, above the composer. Only the visible rows and an
-overscan buffer are mounted: scroll to older turns before searching their DOM text.
+at the latest message, including when history arrives after the empty view. On
+desktop, short transcripts sit at the bottom, above the composer. On mobile,
+the latest turn is pinned to the top of the unobscured viewport when following
+the end, so a new prompt and its streamed reply generate downward — the same
+top-of-viewport rest that production AI chat uses for the last pair. Only the
+visible rows and an overscan buffer are mounted: scroll to older turns before
+searching their DOM text.
 
 Search links add `agent_message_turn=<zero-based turn>&agent_message_author=user|agent`.
 They wait for history to load, then scroll to and highlight the matching folded
@@ -279,7 +283,9 @@ open session) repeats the jump. Manual navigation or **Scroll to bottom** clears
 message highlight; incoming output does not repeat the search jump.
 
 - New messages and growing streamed replies follow while within 50px of the end.
-  Scroll up to read history without being pulled back by subsequent output.
+  On mobile, while pinned, the current turn stays at the top and grows down;
+  the trailing spacer shrinks instead of pushing the prompt offscreen. Scroll
+  up to read history without being pulled back by subsequent output.
 - Far above the end, scroll downward to reveal **Scroll to bottom**. Clicking it
   returns to latest and resumes following. The right-edge custom scrollbar is also
   drag-seekable, like channels.

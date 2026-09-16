@@ -1,7 +1,11 @@
 import { cleanup, render, waitFor } from '@solidjs/testing-library';
 import { createSignal } from 'solid-js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ThreadList, type ThreadListNavigation } from '../ThreadList';
+import {
+  pinLatestPadding,
+  ThreadList,
+  type ThreadListNavigation,
+} from '../ThreadList';
 
 const rowHeights = new Map<string, number>();
 
@@ -97,6 +101,33 @@ function setup(followOnAppend = true) {
   };
   return { element, paginate, prepend, setKeys, navigation: () => navigation };
 }
+
+describe('pinLatestPadding', () => {
+  it('fills the unobscured viewport below a short turn', () => {
+    expect(pinLatestPadding(400, 40, 80, 96)).toBe(184);
+  });
+
+  it('disappears once the turn fills the unobscured viewport', () => {
+    expect(pinLatestPadding(400, 40, 80, 280)).toBe(0);
+    expect(pinLatestPadding(400, 40, 80, 500)).toBe(0);
+    expect(pinLatestPadding(0, 0, 0, 96)).toBe(0);
+  });
+});
+
+describe('short channel lists', () => {
+  it('still bottom-aligns when latest is not pinned to the top', async () => {
+    const [keys] = createSignal(['0']);
+    const { container } = render(() => (
+      <ThreadList keys={keys}>{({ id }) => <div>{id}</div>}</ThreadList>
+    ));
+    const row = await waitFor(
+      () => container.querySelector<HTMLElement>('[data-index="0"]')!
+    );
+    expect(row.style.transform).toBe(
+      'translateY(calc(304px - var(--channel-scroll-adjustment, 0px)))'
+    );
+  });
+});
 
 describe('history loading ahead of scrolling', () => {
   it('fills a bounded Safari buffer before a gesture and preserves the bottom pin', async () => {

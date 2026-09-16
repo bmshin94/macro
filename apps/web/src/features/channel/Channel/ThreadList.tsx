@@ -92,11 +92,29 @@ type ThreadListProps = {
   /** Keep this thread mounted while its message or reply is being positioned. */
   targetId?: string;
   /**
+   * When set, following the end keeps this key (and everything after it) at
+   * the top of the unobscured viewport so new content fills downward. Mobile
+   * agent transcripts pass it; channels and desktop agents omit it so short
+   * lists stay bottom-aligned.
+   */
+  pinLatestFromKey?: string;
+  /**
    * For full-frame insets where the scroll surface spans the whole screen and content
    * scrolls behind the floating chrome. Included in virtual measurements and navigation.
    */
   insets?: ScrollInsets;
 };
+
+/** Trailing space that places `lastTurnSize` at the top of the unobscured viewport. */
+export function pinLatestPadding(
+  viewport: number,
+  insetStart: number,
+  insetEnd: number,
+  lastTurnSize: number
+): number {
+  if (viewport <= 0) return 0;
+  return Math.max(0, viewport - insetStart - insetEnd - lastTurnSize);
+}
 
 const NEAR_TOP_THRESHOLD = 800;
 const HISTORY_BUFFER_VIEWPORTS = 3;
@@ -115,6 +133,7 @@ export function ThreadList(props: ThreadListProps) {
   let contentRef: HTMLDivElement | undefined;
   const [scrollEl, setScrollEl] = createSignal<HTMLDivElement>();
   const [viewportSize, setViewportSize] = createSignal(0);
+  const [pinPadding, setPinPadding] = createSignal(0);
   const insets = () => props.insets ?? NO_SCROLL_INSETS;
   // Capture each key array so the previous virtualizer options still describe
   // the previous page while TanStack resolves its prepend anchor.
@@ -172,12 +191,56 @@ export function ThreadList(props: ThreadListProps) {
   // Publish after Solid has committed the virtual rows and spacer height.
   // Geometry notifications also cover reactions, streamed content and resizes
   // that do not produce a browser scroll event.
+  const lastTurnSize = (): number | undefined => {
+    const key = props.pinLatestFromKey;
+    if (!key) return;
+    const keys = props.keys();
+    const index = keys.indexOf(key);
+    if (index < 0) return;
+    const startItem = virtualizer.measurementsCache[index];
+    const endItem = virtualizer.measurementsCache[keys.length - 1];
+    if (startItem && endItem) return endItem.end - startItem.start;
+    return (keys.length - index) * BASE_ITEM_SIZE;
+  };
+
+  const computePinPadding = () => {
+    const turnSize = lastTurnSize();
+    if (turnSize === undefined) return 0;
+    const { start, end } = insets();
+    return pinLatestPadding(viewportSize(), start, end, turnSize);
+  };
+
+  const syncPinPadding = () => {
+    const next = computePinPadding();
+    const prev = pinPadding();
+    if (next === prev) return false;
+    // Item growth is applied before this padding shrinks. Treat the slack as
+    // still-pinned so a short turn stays at the top instead of following the
+    // intermediate taller total.
+    const wasPinned =
+      virtualizer.getDistanceFromEnd() <=
+      NEAR_BOTTOM_THRESHOLD + Math.abs(next - prev);
+    setPinPadding(next);
+    // Copy the new padding onto the instance before scrollToEnd. Solid will
+    // flush the getter on the next computed pass; without this the end
+    // correction still uses the previous taller total.
+    virtualizer.setOptions({
+      ...virtualizer.options,
+      paddingEnd: insets().end + next,
+    });
+    return wasPinned;
+  };
+
   const scheduleScrollState = () => {
     if (stateQueued) return;
     stateQueued = true;
     queueMicrotask(() => {
       stateQueued = false;
-      if (!lifecycle.isDisposed()) emitScrollState();
+      if (lifecycle.isDisposed()) return;
+      if (syncPinPadding() && props.pinLatestFromKey) {
+        virtualizer.scrollToEnd();
+      }
+      emitScrollState();
     });
   };
 
@@ -241,7 +304,7 @@ export function ThreadList(props: ThreadListProps) {
       return insets().start;
     },
     get paddingEnd() {
-      return insets().end;
+      return insets().end + pinPadding();
     },
     get scrollPaddingStart() {
       return insets().start;
@@ -365,7 +428,9 @@ export function ThreadList(props: ThreadListProps) {
   }
 
   const shortListOffset = () =>
-    Math.max(0, viewportSize() - virtualizer.getTotalSize());
+    props.pinLatestFromKey
+      ? 0
+      : Math.max(0, viewportSize() - virtualizer.getTotalSize());
   // The adapter mutates its store by index. Snapshot those values and let Key
   // own each row's accessor by message ID, including while a row is removed.
   // A lookup into a shared map can disappear before queued row effects run.
@@ -484,6 +549,13 @@ export function ThreadList(props: ThreadListProps) {
       props.onScrollNearBottom?.();
     } else if (!nearBottom) nearBottomFired = false;
   }
+
+  createEffect(
+    on(
+      () => props.pinLatestFromKey,
+      () => scheduleScrollState()
+    )
+  );
 
   // Floating chrome can resize without resizing the scroll viewport. Compare
   // against the old content extent before following the new inset to latest.

@@ -322,13 +322,67 @@ describe('Transcript with the shared TanStack ThreadList', () => {
     expect(view.scroller.scrollTop).toBe(view.scroller.scrollHeight - viewport);
   });
 
-  it('bottom-aligns a short transcript inside mobile insets and preserves selection wiring', async () => {
+  it('bottom-aligns a short desktop transcript above the composer', async () => {
+    const view = mount([
+      {
+        ...message(0),
+        author: { kind: 'user', userId: 'owner' },
+      } as FoldedMessage,
+      message(0),
+    ]);
+    await settle();
+    const user = view.container.querySelector<HTMLElement>('[data-index="0"]')!;
+    expect(user.style.transform).toBe(
+      'translateY(calc(208px - var(--channel-scroll-adjustment, 0px)))'
+    );
+    expect(view.scroller.scrollTop).toBe(0);
+  });
+
+  it('pins the latest mobile user prompt to the top so generation fills downward', async () => {
+    session.touch = true;
+    const view = mount([
+      {
+        ...message(0),
+        author: { kind: 'user', userId: 'owner' },
+      } as FoldedMessage,
+      message(0),
+    ]);
+    await settle();
+    const user = view.container.querySelector<HTMLElement>('[data-index="0"]')!;
+    expect(user.style.transform).toBe(
+      'translateY(calc(40px - var(--channel-scroll-adjustment, 0px)))'
+    );
+    expect(view.scroller.scrollTop).toBe(0);
+    expect(view.scroller.scrollHeight).toBe(viewport);
+  });
+
+  it('shrinks the mobile trailing spacer as a short turn grows instead of scrolling', async () => {
     session.touch = true;
     const view = mount([message(0)]);
     await settle();
     const row = view.container.querySelector<HTMLElement>('[data-index="0"]')!;
     expect(row.style.transform).toBe(
-      'translateY(calc(224px - var(--channel-scroll-adjustment, 0px)))'
+      'translateY(calc(40px - var(--channel-scroll-adjustment, 0px)))'
+    );
+    expect(view.scroller.scrollTop).toBe(0);
+    const heightBefore = view.scroller.scrollHeight;
+    rowHeight = 200;
+    resize();
+    await settle();
+    expect(row.style.transform).toBe(
+      'translateY(calc(40px - var(--channel-scroll-adjustment, 0px)))'
+    );
+    expect(view.scroller.scrollTop).toBe(0);
+    expect(view.scroller.scrollHeight).toBe(heightBefore);
+  });
+
+  it('pins a short mobile transcript to the top of the unobscured viewport and preserves selection wiring', async () => {
+    session.touch = true;
+    const view = mount([message(0)]);
+    await settle();
+    const row = view.container.querySelector<HTMLElement>('[data-index="0"]')!;
+    expect(row.style.transform).toBe(
+      'translateY(calc(40px - var(--channel-scroll-adjustment, 0px)))'
     );
     expect(view.scroller.scrollTop).toBe(0);
     const reply = view.getByText('Reply to selection');

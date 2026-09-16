@@ -18,6 +18,10 @@ import {
 } from 'solid-js';
 import { useAgentSession } from '../context/AgentSessionContext';
 import type { AgentMessageTarget } from '../core/search-location';
+import {
+  lastTurnStartKey,
+  transcriptMessageKey,
+} from '../core/transcript-keys';
 import { Message } from './AgentMessage';
 import { ReplyToSelection } from './ReplyToSelection';
 
@@ -35,10 +39,7 @@ export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
   const messageById = createMemo(
     () =>
       new Map(
-        messages().map((message) => [
-          `${message.agentSessionId}:${message.turn}:${message.author.kind}`,
-          message,
-        ])
+        messages().map((message) => [transcriptMessageKey(message), message])
       )
   );
   const keys = createMemo(() => [...messageById().keys()]);
@@ -96,6 +97,9 @@ export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
             : { type: 'latest' }
         }
         insets={insets()}
+        pinLatestFromKey={
+          isTouchDevice() ? lastTurnStartKey(messages()) : undefined
+        }
         targetId={highlightedId()}
         onUserNavigation={() => setHighlightedId(undefined)}
         onReady={(handle) => {
