@@ -96,6 +96,13 @@ type ThreadListProps = {
    * scrolls behind the floating chrome. Included in virtual measurements and navigation.
    */
   insets?: ScrollInsets;
+  /**
+   * Where rows sit while they are shorter than the viewport. `'end'` (default)
+   * is the messaging shape: rows hug the composer and a growing list fills
+   * upward. `'start'` reads top-down like a document, so streamed content
+   * grows toward the composer; once the list overflows both behave alike.
+   */
+  shortListAlignment?: 'start' | 'end';
 };
 
 const NEAR_TOP_THRESHOLD = 800;
@@ -365,7 +372,9 @@ export function ThreadList(props: ThreadListProps) {
   }
 
   const shortListOffset = () =>
-    Math.max(0, viewportSize() - virtualizer.getTotalSize());
+    props.shortListAlignment === 'start'
+      ? 0
+      : Math.max(0, viewportSize() - virtualizer.getTotalSize());
   // The adapter mutates its store by index. Snapshot those values and let Key
   // own each row's accessor by message ID, including while a row is removed.
   // A lookup into a shared map can disappear before queued row effects run.

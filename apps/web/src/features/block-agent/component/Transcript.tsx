@@ -1,4 +1,12 @@
-/** Agent messages on the channel's end-anchored TanStack scroll surface. */
+/**
+ * Agent messages on the channel's end-anchored TanStack scroll surface.
+ *
+ * Unlike a channel, a session reads top-down: the first prompt sits at the
+ * top and the reply streams toward the composer, the way ChatGPT lays out a
+ * conversation. The end anchor still follows streamed growth and new turns
+ * while the viewer is pinned to the latest message, and lets go the moment
+ * they scroll up to read.
+ */
 import { ScrollToBottomOverlay } from '@channel/Channel/ScrollToBottomOverlay';
 import {
   ThreadList,
@@ -96,6 +104,7 @@ export function Transcript(props: { searchTarget?: AgentMessageTarget }) {
             : { type: 'latest' }
         }
         insets={insets()}
+        shortListAlignment="start"
         targetId={highlightedId()}
         onUserNavigation={() => setHighlightedId(undefined)}
         onReady={(handle) => {

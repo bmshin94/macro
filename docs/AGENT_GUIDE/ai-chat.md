@@ -269,7 +269,10 @@ Existing announcement chips remain locked to the turn they announced.
 
 Agent sessions reuse the channel's TanStack `ThreadList`. Opening a session lands
 at the latest message, including when history arrives after the empty view. Short
-transcripts sit at the bottom, above the composer. Only the visible rows and an
+transcripts read top-down: the first prompt sits at the top of the pane and the
+reply streams downward toward the composer. Once the transcript overflows, the
+view follows streamed text and new turns while you are at the bottom, and stops
+following as soon as you scroll up. Only the visible rows and an
 overscan buffer are mounted: scroll to older turns before searching their DOM text.
 
 Search links add `agent_message_turn=<zero-based turn>&agent_message_author=user|agent`.

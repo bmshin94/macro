@@ -322,13 +322,47 @@ describe('Transcript with the shared TanStack ThreadList', () => {
     expect(view.scroller.scrollTop).toBe(view.scroller.scrollHeight - viewport);
   });
 
-  it('bottom-aligns a short transcript inside mobile insets and preserves selection wiring', async () => {
+  it('lays a short transcript out from the top on desktop', async () => {
+    const view = mount([message(0), message(1)]);
+    await settle();
+    const rows = view.container.querySelectorAll<HTMLElement>('[data-index]');
+    expect(rows[0].style.transform).toBe(
+      'translateY(calc(0px - var(--channel-scroll-adjustment, 0px)))'
+    );
+    expect(rows[1].style.transform).toBe(
+      'translateY(calc(96px - var(--channel-scroll-adjustment, 0px)))'
+    );
+    expect(view.scroller.scrollTop).toBe(0);
+  });
+
+  it('streams a fresh session downward and only starts following once it overflows', async () => {
+    const view = mount([message(0)]);
+    await settle();
+    const row = () =>
+      view.container.querySelector<HTMLElement>('[data-index="0"]')!;
+    // Growth while the list is shorter than the viewport moves nothing: the
+    // first row stays put and the text grows toward the composer.
+    rowHeight = 300;
+    resize();
+    await settle();
+    expect(row().style.transform).toBe(
+      'translateY(calc(0px - var(--channel-scroll-adjustment, 0px)))'
+    );
+    expect(view.scroller.scrollTop).toBe(0);
+    // Past the viewport the end anchor takes over and keeps the latest text
+    // in view, like a chat that autoscrolls while a reply streams.
+    view.setMessages([message(0), message(1)]);
+    await settle();
+    expect(view.scroller.scrollTop).toBe(view.scroller.scrollHeight - viewport);
+  });
+
+  it('top-aligns a short transcript inside mobile insets and preserves selection wiring', async () => {
     session.touch = true;
     const view = mount([message(0)]);
     await settle();
     const row = view.container.querySelector<HTMLElement>('[data-index="0"]')!;
     expect(row.style.transform).toBe(
-      'translateY(calc(224px - var(--channel-scroll-adjustment, 0px)))'
+      'translateY(calc(40px - var(--channel-scroll-adjustment, 0px)))'
     );
     expect(view.scroller.scrollTop).toBe(0);
     const reply = view.getByText('Reply to selection');

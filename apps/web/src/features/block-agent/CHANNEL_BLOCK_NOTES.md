@@ -215,7 +215,9 @@ and each `*InTargetCaches` helper applies the change to all three cache families
   settle loop or independent growth observer is needed.
 - **Mobile**: numeric `insets` participate in measurements and navigation; viewport
   and floating-inset changes preserve the pin only when previously near the end.
-  Short lists bottom-align within these insets.
+  Short lists bottom-align within these insets by default (`shortListAlignment: 'end'`);
+  the agent transcript passes `'start'` so a fresh session reads top-down and
+  streamed replies grow toward the composer, ChatGPT-style.
 - **Snapshots**: `{scrollOffset, measurements, isNearBottom}`; channel persists them,
   but the agent transcript currently opens at latest rather than restoring history.
 - **Chrome**: `CustomScrollbar` and `ScrollToBottomOverlay`; the overlay requires
