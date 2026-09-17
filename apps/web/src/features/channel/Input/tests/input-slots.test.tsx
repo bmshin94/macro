@@ -31,7 +31,9 @@ vi.mock('../../../dictation/composer-dictation', () => ({
       start: async () => {
         setActive(true);
       },
-      confirm: () => setActive(false),
+      confirm: async () => {
+        setActive(false);
+      },
       cancel: () => setActive(false),
     };
   },
