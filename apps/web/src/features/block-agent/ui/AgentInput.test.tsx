@@ -12,7 +12,7 @@ import {
 
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AgentInput } from './AgentInput';
+import { AGENT_INPUT_TEXT_AREA_ID, AgentInput } from './AgentInput';
 
 const editor = vi.hoisted(() => ({
   lexical: undefined as LexicalEditor | undefined,
@@ -235,6 +235,31 @@ describe('attachments', () => {
       'disabled',
       true
     );
+  });
+
+  it('measures the composer height above the editor row, so chips are inside it', () => {
+    // The surface is pinned to the measured element's height. The attachment
+    // chips render alongside the editor row, so the measured element has to be
+    // their shared parent — measuring the row alone clips them. The chips come
+    // from the mocked `@channel/Input` here, so this pins the measurement
+    // boundary rather than the chip markup.
+    const { container } = render(() => (
+      <AgentInput
+        onSend={vi.fn()}
+        attachments={[uploaded]}
+        onAttachFiles={vi.fn()}
+      />
+    ));
+
+    const measured = container.querySelector('[data-composer-content]');
+    const editorRow = container.querySelector('[data-composer-compact]');
+    expect(measured).toBeTruthy();
+    expect(editorRow).toBeTruthy();
+    expect(measured).not.toBe(editorRow);
+    expect(editorRow?.parentElement).toBe(measured);
+    expect(
+      measured?.querySelector(`#${AGENT_INPUT_TEXT_AREA_ID}`)
+    ).toBeTruthy();
   });
 
   it('offers the paperclip only when files can be attached', () => {

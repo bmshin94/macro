@@ -58,6 +58,56 @@ fn images_become_image_urls_and_other_files_are_named_to_the_model() {
 }
 
 #[test]
+fn an_image_the_browser_left_untyped_is_still_handed_over_as_an_image() {
+    // A browser can report no media type for a `.png`, and the composer shows
+    // it as a thumbnail either way - so the model must see the image, not a
+    // line of text describing it.
+    let prompt = UserPrompt::from_blocks(&[
+        link("shot.PNG", "https://x/file/1", None),
+        link("clip.mp4", "https://x/file/2", None),
+        link("notes", "https://x/file/3", None),
+    ]);
+    let attachments = prompt
+        .to_chat_message()
+        .attachments
+        .expect("files attach to the message");
+    let contents: Vec<_> = attachments
+        .parts()
+        .iter()
+        .map(|resolved| resolved.as_ref().expect("links always resolve"))
+        .collect();
+
+    // The name decides, and its case does not matter.
+    assert!(matches!(
+        &contents[0].content[0],
+        AttachmentPart::Image(ImageData::StaticUrl(url)) if url == "https://x/file/1"
+    ));
+    // A video and an extensionless file are still named in text.
+    assert!(matches!(
+        &contents[1].content[0],
+        AttachmentPart::Content(_)
+    ));
+    assert!(matches!(
+        &contents[2].content[0],
+        AttachmentPart::Content(_)
+    ));
+}
+
+#[test]
+fn a_media_type_naming_another_medium_wins_over_the_name() {
+    // The composer classifies by media type first, so a file typed as video
+    // is a video however it is named - the model input must agree.
+    let prompt =
+        UserPrompt::from_blocks(&[link("thumb.png", "https://x/file/1", Some("video/mp4"))]);
+    let attachments = prompt
+        .to_chat_message()
+        .attachments
+        .expect("the file attaches");
+    let content = attachments.parts()[0].as_ref().expect("links resolve");
+    assert!(matches!(&content.content[0], AttachmentPart::Content(_)));
+}
+
+#[test]
 fn a_text_only_prompt_attaches_nothing() {
     let message = UserPrompt::text("hi").to_chat_message();
     assert_eq!(message.content.message_text(), "hi");

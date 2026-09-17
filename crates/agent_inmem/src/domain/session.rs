@@ -103,16 +103,42 @@ impl UserPrompt {
     }
 }
 
+/// The image file extensions the composer's chips classify as images, so a
+/// file the user sees as a thumbnail is one the model sees as an image. Keep
+/// in step with `CHANNEL_IMAGE_FILE_EXTENSIONS` on the web side.
+const IMAGE_EXTENSIONS: &[&str] = &[
+    "apng", "avif", "bmp", "gif", "heic", "heif", "jpeg", "jpg", "png", "svg", "tif", "tiff",
+    "webp",
+];
+
+/// Whether this file is an image, by media type and then by name.
+///
+/// A browser can report no media type at all for a `.png`, and the composer
+/// still shows it as a thumbnail, so the name decides when the type cannot.
+fn is_image(attachment: &PromptAttachment) -> bool {
+    let mime = attachment.mime_type.as_deref().unwrap_or_default();
+    if mime.starts_with("image/") {
+        return true;
+    }
+    // Mirrors the composer's own order: a media type naming another medium
+    // wins, and otherwise the name decides.
+    if mime.starts_with("video/") {
+        return false;
+    }
+    attachment
+        .name
+        .rsplit_once('.')
+        .map(|(_, extension)| extension.to_ascii_lowercase())
+        .is_some_and(|extension| IMAGE_EXTENSIONS.contains(&extension.as_str()))
+}
+
 /// One attached file as resolved attachment content.
 ///
 /// Only an HTTPS image is handed over as an image URL: providers refuse plain
 /// HTTP, and history keeps every attachment for the rest of the session, so
 /// one such link would fail every later turn. Anything else is named in text.
 fn attachment_content(attachment: &PromptAttachment) -> AttachmentContent<'static> {
-    let is_image = attachment
-        .mime_type
-        .as_deref()
-        .is_some_and(|mime| mime.starts_with("image/"));
+    let is_image = is_image(attachment);
     let fetchable = attachment.uri.starts_with("https://");
     let part = if is_image && fetchable {
         AttachmentPart::Image(ImageData::StaticUrl(attachment.uri.clone()))

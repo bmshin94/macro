@@ -92,8 +92,12 @@ export function AgentInput(props: AgentInputProps) {
   const [isDraggedOver, setIsDraggedOver] = createSignal(false);
   let containerRef: HTMLDivElement | undefined;
   const [layout, setLayout] = createSignal<HTMLDivElement>();
+  const [content, setContent] = createSignal<HTMLDivElement>();
   const [height, setHeight] = createSignal<number>();
-  createResizeObserver(layout, (_, element) => {
+  // The surface is pinned to its content's height, so the measured element has
+  // to enclose the attachment chips as well as the editor row — they sit inside
+  // the surface, and a row-only measurement clips them.
+  createResizeObserver(content, (_, element) => {
     setHeight(element.getBoundingClientRect().height);
   });
   useTouchOutsideToDismissKeyboard(() => containerRef);
@@ -269,91 +273,96 @@ export function AgentInput(props: AgentInputProps) {
                 hint="Drop files here to send them to the agent"
               />
             </Show>
-            {/* Chips above the text, media and documents in their own rows,
-                exactly as the channel composer lays them out. */}
-            <Input.Attachments kind="media" class="pb-0" />
-            <Input.Attachments kind="document" class="pb-0" />
-            {/* Desktop: one row, send right of the text. Touch: the text gets
-                the whole width and the controls drop to a footer row (model
-                left, send right) — the chat-tall / channel footer shape. */}
-            <div
-              ref={setLayout}
-              data-composer-compact={isCompact()}
-              class="group/composer flex items-end data-[composer-compact=false]:flex-col data-[composer-compact=false]:items-stretch gap-[3.75px] p-[7.5px] min-h-[48.75px] touch:min-h-0 touch:flex-col touch:items-stretch touch:gap-0 touch:p-0"
-              onPointerDown={focusEditor}
-              onMouseDown={focusEditor}
-            >
+            <div ref={setContent} data-composer-content>
+              {/* Chips above the text, media and documents in their own rows,
+                  exactly as the channel composer lays them out. */}
+              <Input.Attachments kind="media" class="pb-0" />
+              <Input.Attachments kind="document" class="pb-0" />
+              {/* Desktop: one row, send right of the text. Touch: the text gets
+                  the whole width and the controls drop to a footer row (model
+                  left, send right) — the chat-tall / channel footer shape. */}
               <div
-                id={AGENT_INPUT_TEXT_AREA_ID}
-                class="min-w-0 flex-1 group-data-[composer-compact=false]/composer:flex-none text-base text-ink not-touch:px-[9.375px] not-touch:py-[4.6875px] not-touch:leading-[24.375px] not-touch:min-h-[24.375px] not-touch:text-composer-ink touch:px-3 touch:py-2"
-                classList={{
-                  // While empty only the placeholder renders; keep it to one clipped
-                  // line so it doesn't wrap into the single-line height.
-                  'overflow-hidden whitespace-nowrap':
-                    markdown().trim().length === 0,
-                  // Long drafts must not eat the mobile viewport above the dock.
-                  'max-h-[calc(32*var(--dvh,1dvh))] overflow-y-auto':
-                    hasMultilineContent() && isMobile(),
-                }}
+                ref={setLayout}
+                data-composer-compact={isCompact()}
+                class="group/composer flex items-end data-[composer-compact=false]:flex-col data-[composer-compact=false]:items-stretch gap-[3.75px] p-[7.5px] min-h-[48.75px] touch:min-h-0 touch:flex-col touch:items-stretch touch:gap-0 touch:p-0"
+                onPointerDown={focusEditor}
+                onMouseDown={focusEditor}
               >
-                <ComposerEditor
-                  config={editor}
-                  placeholder={
-                    props.placeholder ?? 'Message the agent, @mention anything'
-                  }
-                  autofocus={!isMobile() && !isTouchDevice() && props.autofocus}
-                />
-              </div>
-
-              {/* In-flow — never absolute over the text. */}
-              <div class="flex shrink-0 items-center gap-[3.75px] touch:h-8 touch:gap-2 touch:p-2 touch:mb-2">
-                <Show when={isTouchDevice() && props.modelControl}>
-                  <div class="min-w-0">{props.modelControl}</div>
-                </Show>
-                <Show when={canAttach()}>
-                  <Input.AttachFilesAction />
-                </Show>
-                <div class="ml-auto shrink-0">
-                  <Show
-                    when={props.busy && props.onStop}
-                    fallback={
-                      <SendButton
-                        appearance="composer"
-                        tooltip="Send"
-                        disabled={!canSend()}
-                        onClick={send}
-                      />
+                <div
+                  id={AGENT_INPUT_TEXT_AREA_ID}
+                  class="min-w-0 flex-1 group-data-[composer-compact=false]/composer:flex-none text-base text-ink not-touch:px-[9.375px] not-touch:py-[4.6875px] not-touch:leading-[24.375px] not-touch:min-h-[24.375px] not-touch:text-composer-ink touch:px-3 touch:py-2"
+                  classList={{
+                    // While empty only the placeholder renders; keep it to one clipped
+                    // line so it doesn't wrap into the single-line height.
+                    'overflow-hidden whitespace-nowrap':
+                      markdown().trim().length === 0,
+                    // Long drafts must not eat the mobile viewport above the dock.
+                    'max-h-[calc(32*var(--dvh,1dvh))] overflow-y-auto':
+                      hasMultilineContent() && isMobile(),
+                  }}
+                >
+                  <ComposerEditor
+                    config={editor}
+                    placeholder={
+                      props.placeholder ??
+                      'Message the agent, @mention anything'
                     }
-                  >
+                    autofocus={
+                      !isMobile() && !isTouchDevice() && props.autofocus
+                    }
+                  />
+                </div>
+
+                {/* In-flow — never absolute over the text. */}
+                <div class="flex shrink-0 items-center gap-[3.75px] touch:h-8 touch:gap-2 touch:p-2 touch:mb-2">
+                  <Show when={isTouchDevice() && props.modelControl}>
+                    <div class="min-w-0">{props.modelControl}</div>
+                  </Show>
+                  <Show when={canAttach()}>
+                    <Input.AttachFilesAction />
+                  </Show>
+                  <div class="ml-auto shrink-0">
                     <Show
-                      when={canSendNext()}
+                      when={props.busy && props.onStop}
                       fallback={
-                        <Button
-                          variant={isTouchDevice() ? 'ghost' : 'strong'}
-                          size="icon-composer"
-                          label="Stop"
-                          onClick={() => props.onStop?.()}
-                          class={
-                            isTouchDevice()
-                              ? 'rounded-full size-7.5 text-ink-extra-muted not-disabled:bg-ink/5 not-disabled:hover:bg-ink/10'
-                              : undefined
-                          }
-                        >
-                          <div class="size-3.5 not-touch:size-[13.125px] rounded-sm bg-current" />
-                        </Button>
+                        <SendButton
+                          appearance="composer"
+                          tooltip="Send"
+                          disabled={!canSend()}
+                          onClick={send}
+                        />
                       }
                     >
-                      <SendButton
-                        appearance="composer"
-                        aria-label="Send next queued message"
-                        tooltip="Send next queued message"
-                        shortcut="Enter"
-                        onClick={sendNext}
+                      <Show
+                        when={canSendNext()}
+                        fallback={
+                          <Button
+                            variant={isTouchDevice() ? 'ghost' : 'strong'}
+                            size="icon-composer"
+                            label="Stop"
+                            onClick={() => props.onStop?.()}
+                            class={
+                              isTouchDevice()
+                                ? 'rounded-full size-7.5 text-ink-extra-muted not-disabled:bg-ink/5 not-disabled:hover:bg-ink/10'
+                                : undefined
+                            }
+                          >
+                            <div class="size-3.5 not-touch:size-[13.125px] rounded-sm bg-current" />
+                          </Button>
+                        }
                       >
-                        <EnterIcon />
-                      </SendButton>
+                        <SendButton
+                          appearance="composer"
+                          aria-label="Send next queued message"
+                          tooltip="Send next queued message"
+                          shortcut="Enter"
+                          onClick={sendNext}
+                        >
+                          <EnterIcon />
+                        </SendButton>
+                      </Show>
                     </Show>
-                  </Show>
+                  </div>
                 </div>
               </div>
             </div>
