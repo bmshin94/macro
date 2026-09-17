@@ -54,6 +54,7 @@ import type { UserName } from './generated/schemas/userName';
 import type { UserNames } from './generated/schemas/userNames';
 import type { UserOrganizationResponse } from './generated/schemas/userOrganizationResponse';
 import type { UserTokensResponse } from './generated/schemas/userTokensResponse';
+import type { WorkspacePrivacyStatus } from './privacy';
 
 const authHost = SERVER_HOSTS['auth-service'];
 
@@ -227,6 +228,22 @@ const githubErrorResponseHandler: ErrorResponseHandler<GithubReauthenticationErr
   };
 
 export const authServiceClient = {
+  async getWorkspacePrivacy() {
+    return fetchWithAuth<WorkspacePrivacyStatus>(`${authHost}/privacy`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+  },
+  async setWorkspacePrivacy(request: {
+    enabled: boolean;
+    expected_revision: number;
+  }) {
+    return fetchWithAuth<WorkspacePrivacyStatus>(`${authHost}/privacy`, {
+      method: 'PATCH',
+      body: JSON.stringify(request),
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
   async logout() {
     setAccessTokenData(null);
     return (
