@@ -610,7 +610,7 @@ export function Document() {
   });
 
   if (ENABLE_PDF_MODIFICATION_DATA_AUTOSAVE && !pdf.isNested()) {
-    const isSaving = createDeferred(signals.isSaving[0]);
+    const isSaving = createDeferred(pdf.persistence.isSaving);
     const currentRevision = createDeferred(pdf.model.revision);
     const [savedRevision, setSavedRevision] = createSignal(0);
     createEffect(() => {
@@ -626,7 +626,7 @@ export function Document() {
   // TODO: hacky location autosave that works on page refresh
   // without requiring a confirm dialog
   if (ENABLE_PDF_LOCATION_AUTOSAVE && !pdf.isNested()) {
-    const isSaving = createDeferred(signals.isSaving[0]);
+    const isSaving = createDeferred(pdf.persistence.isSaving);
     const viewChanged = createDeferred(signals.visiblePagesChanged[0]);
     const saveLocation = usePdfSaveLocation();
     const debouncedSaveLocation = debounce(saveLocation, 1000);

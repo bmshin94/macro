@@ -111,9 +111,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
   const activePlaceableId = createSignal<string>();
   const newPlaceable = createSignal<IPlaceable>();
 
-  const savingCount = createSignal(0);
-  const isSaving = createSignal(false);
-
   const tabId = createSignal(0);
   const tabData = createStore<TabInfo[]>([defaultTabData(0)]);
   const activeTabId = createSignal(0);
@@ -256,8 +253,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       showTabBar,
       activePlaceableId,
       newPlaceable,
-      savingCount,
-      isSaving,
       tabId,
       activeTabId,
       tabHistory,

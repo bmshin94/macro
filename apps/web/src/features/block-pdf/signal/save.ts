@@ -14,35 +14,6 @@ export function useDoEdit() {
   return usePdfDocument().model.commands.recordEdit;
 }
 
-const useSaveWrapper = () => {
-  const { isSaving, savingCount } = usePdfDocument().state.signals;
-  const [, setIsSaving] = isSaving;
-  const [getSavingCount, setSavingCount] = savingCount;
-
-  return (save: () => Promise<void>, shouldSave: () => boolean) => {
-    return async () => {
-      let saving = false;
-      try {
-        if (!shouldSave()) return;
-        saving = true;
-        setIsSaving(true);
-        setSavingCount((prev) => prev + 1);
-        await save();
-      } catch (e) {
-        console.error('Error saving PDF', e);
-      } finally {
-        if (saving) {
-          const count = getSavingCount() - 1;
-          setSavingCount(count);
-          if (count === 0) {
-            setIsSaving(false);
-          }
-        }
-      }
-    };
-  };
-};
-
 export function useHasModificationData() {
   const pdf = usePdfDocument();
   const { highlights } = pdf.state.stores;
@@ -55,7 +26,6 @@ export function useHasModificationData() {
 
 export function useSaveModificationData() {
   const pdf = usePdfDocument();
-  const saveWrapper = useSaveWrapper();
   const pdfModificationValue = pdf.model.modificationData;
   const [tableOfContents] = pdf.state.stores.tableOfContents;
 
@@ -101,14 +71,11 @@ export function useSaveModificationData() {
     await Promise.all(serverSaves);
   };
 
-  const wrapped = saveWrapper(save, shouldSave);
-
-  return wrapped;
+  return () => pdf.persistence.runSave(save, shouldSave);
 }
 
 export function usePdfSaveLocation() {
   const pdf = usePdfDocument();
-  const saveWrapper = useSaveWrapper();
   const [viewer] = pdf.state.signals.rootViewer;
   const [prevLocationHash, setPrevLocationHash] =
     pdf.state.signals.viewLocation;
@@ -137,9 +104,7 @@ export function usePdfSaveLocation() {
     }
   };
 
-  const wrapped = saveWrapper(save, shouldSave);
-
-  return wrapped;
+  return () => pdf.persistence.runSave(save, shouldSave);
 }
 
 export const usePdfSave = () => {

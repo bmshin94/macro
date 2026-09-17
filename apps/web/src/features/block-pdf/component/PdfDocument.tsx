@@ -105,7 +105,6 @@ function PdfDocumentState(props: PdfDocumentProps) {
     viewLocation,
     pendingLocationParams,
     locationChanged,
-    isSaving,
   } = pdf.state.signals;
   const tableOfContentsDispatch = useTableOfContentsUpdate();
   const savePdf = usePdfSave();
@@ -171,7 +170,7 @@ function PdfDocumentState(props: PdfDocumentProps) {
   onMount(() => {
     if (pdf.isNested()) return;
     const handleBeforeUnload = (event: Event) => {
-      if (isSaving[0]()) event.preventDefault();
+      if (pdf.persistence.isSaving()) event.preventDefault();
     };
     window.addEventListener('keydown', preventNativePdfShortcuts);
     window.addEventListener('beforeunload', handleBeforeUnload);
