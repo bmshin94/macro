@@ -14,15 +14,17 @@ import { useUserId } from '@core/context/user';
 import { idToDisplayName } from '@core/user/util';
 import { uploadFile } from '@core/util/upload';
 import type { PromptAttachment } from '@service-agent-harness/generated/schemas';
-import { Show } from 'solid-js';
+import { type Component, Show } from 'solid-js';
 import { useAgentSession } from '../context/AgentSessionContext';
 import {
   AgentInput,
+  type AgentInputProps,
   AgentModelSelector,
   ComposerNotice,
   type QueuedPromptItem,
   QueuedPrompts,
 } from '../ui';
+import type { AgentModelSelectorProps } from '../ui/AgentModelSelector';
 
 /**
  * The prompt attachment for an uploaded file: the static file service URL
@@ -43,7 +45,11 @@ export function AgentComposer(props: {
    * split layout and j/k navigation — same contract as Chat and Channel.
    */
   autofocus?: boolean;
+  input?: Component<AgentInputProps>;
+  modelSelector?: Component<AgentModelSelectorProps>;
 }) {
+  const Input = props.input ?? AgentInput;
+  const ModelSelector = props.modelSelector ?? AgentModelSelector;
   const {
     blockedOnUser,
     composer,
@@ -128,7 +134,7 @@ export function AgentComposer(props: {
           }
         />
       </Show>
-      <AgentInput
+      <Input
         placeholder="Message the agent, @mention anything"
         autofocus={props.autofocus}
         busy={composer.busy()}
@@ -157,7 +163,7 @@ export function AgentComposer(props: {
         }}
         registerQuoteInsert={registerQuoteInsert}
         modelControl={
-          <AgentModelSelector
+          <ModelSelector
             model={metadata()?.model ?? null}
             changingTo={composer.changingModel()}
             options={metadata()?.supportedModels ?? []}

@@ -1,13 +1,17 @@
+import { usePreference } from '@app/preferences/use-preference';
 import {
   type BreakpointAccessors,
   type BreakpointThresholds,
   createSizeBreakpoints,
 } from '@app/util/create-size-breakpoints';
 import { Resize } from '@core/component/Resize';
+import ListIcon from '@phosphor/list.svg';
+import SidebarIcon from '@phosphor/sidebar-simple.svg';
 import { createElementSize } from '@solid-primitives/resize-observer';
-import { cn } from '@ui';
+import { Button, cn } from '@ui';
 import {
   type Accessor,
+  batch,
   createContext,
   createSignal,
   createUniqueId,
@@ -42,6 +46,10 @@ export type ViewShellLayout = {
     layout: Accessor<AsideLayout>;
     mode: Accessor<AsideMode>;
     isCollapsed: Accessor<boolean>;
+    canCollapse: Accessor<boolean>;
+    isOverlay: Accessor<boolean>;
+    collapse: () => void;
+    expand: () => void;
   };
   main: {
     layout: Accessor<MainLayout>;
@@ -104,6 +112,8 @@ export type ViewShellRootProps = Omit<
   resizable?: boolean;
   /** Set to false when the workspace has no navigation region. */
   aside?: false | Partial<AsideLayout>;
+  /** Sticky navigation visibility, scoped to this app type rather than an entry. */
+  asidePreferenceKey?: string;
   main?: Partial<MainLayout>;
   detail?: Partial<DetailLayout>;
   /** Controlled detail open state. Omit for uncontrolled. */
@@ -126,6 +136,7 @@ function Root(props: ViewShellRootProps) {
     'layoutBreakpoint',
     'resizable',
     'aside',
+    'asidePreferenceKey',
     'main',
     'detail',
     'detailOpen',
@@ -133,6 +144,13 @@ function Root(props: ViewShellRootProps) {
     'onDetailOpenChange',
   ]);
 
+  const [asideCollapsed, setAsideCollapsed] = local.asidePreferenceKey
+    ? usePreference(
+        `macro:pref:view-sidebar:collapsed:${local.asidePreferenceKey}`,
+        { default: false }
+      )
+    : createSignal(false);
+  const [narrowAsideOpen, setNarrowAsideOpen] = createSignal(false);
   const id = createUniqueId();
   const [root, setRoot] = createSignal<HTMLDivElement>();
   const size = createElementSize(root);
@@ -188,14 +206,20 @@ function Root(props: ViewShellRootProps) {
   };
 
   const asideMode = (): AsideMode =>
-    local.aside === false || atLayoutBreakpoint() ? 'collapsed' : 'docked';
+    local.aside === false ||
+    asideCollapsed() ||
+    (atLayoutBreakpoint() && !narrowAsideOpen())
+      ? 'collapsed'
+      : 'docked';
+  const asideOverlay = () => atLayoutBreakpoint() && asideMode() === 'docked';
 
   const canFitInlineDetail = () => {
     const currentWidth = width();
     if (currentWidth === undefined) return false;
 
-    const asideMin = asideMode() === 'docked' ? asideLayout().min : 0;
-    const panelCount = asideMode() === 'docked' ? 3 : 2;
+    const asideMin =
+      asideMode() === 'docked' && !asideOverlay() ? asideLayout().min : 0;
+    const panelCount = asideMode() === 'docked' && !asideOverlay() ? 3 : 2;
     const minimumWidth =
       asideMin +
       mainLayout().min +
@@ -220,6 +244,17 @@ function Root(props: ViewShellRootProps) {
       layout: asideLayout,
       mode: asideMode,
       isCollapsed: () => asideMode() === 'collapsed',
+      canCollapse: () =>
+        local.asidePreferenceKey !== undefined && local.aside !== false,
+      isOverlay: asideOverlay,
+      collapse: () => {
+        setAsideCollapsed(true);
+        setNarrowAsideOpen(false);
+      },
+      expand: () => {
+        setAsideCollapsed(false);
+        setNarrowAsideOpen(true);
+      },
     },
     main: {
       layout: mainLayout,
@@ -280,9 +315,42 @@ function Aside(props: ViewShellAsideProps) {
     'onWidthChangeEnd',
   ]);
   const ws = useViewShellInternal();
+  const [resizedWidth, setResizedWidth] = createSignal<{
+    configuredWidth: number;
+    width: number;
+    mainWidth?: number;
+  }>();
+  const resizePreference = () => {
+    const resized = resizedWidth();
+    return resized?.configuredWidth === ws.aside.layout().width
+      ? resized
+      : undefined;
+  };
+  const preferredWidth = () => {
+    return resizePreference()?.width ?? ws.aside.layout().width;
+  };
+  const onWidthChangeEnd = (width: number) => {
+    const shellWidth = ws.width();
+    // A drag also chooses how much space Main gives up. Keeping its old soft
+    // preference would immediately undo a drag made in a constrained shell.
+    const mainWidth =
+      shellWidth !== undefined && ws.detail.placement() !== 'inline'
+        ? shellWidth - RESIZE_GUTTER - width
+        : undefined;
+    batch(() => {
+      local.onWidthChangeEnd?.(width);
+      // A consumer may persist the width back into the layout in this callback.
+      setResizedWidth({
+        configuredWidth: ws.aside.layout().width,
+        width,
+        mainWidth,
+      });
+    });
+  };
   const redistributionPreferredSize = () => {
     const layout = ws.aside.layout();
-    if (layout.preserveDuringResize !== false) return layout.width;
+    const width = preferredWidth();
+    if (layout.preserveDuringResize !== false) return width;
 
     const shellWidth = ws.width();
     const mainLayout = ws.main.layout();
@@ -291,36 +359,122 @@ function Aside(props: ViewShellAsideProps) {
       mainLayout.preferredWidth === undefined ||
       ws.detail.placement() === 'inline'
     ) {
-      return layout.width;
+      return width;
     }
 
     const availableForAside =
       shellWidth -
       RESIZE_GUTTER -
-      Math.max(mainLayout.preferredWidth, mainLayout.min);
+      Math.max(
+        Math.min(
+          mainLayout.preferredWidth,
+          resizePreference()?.mainWidth ?? Infinity
+        ),
+        mainLayout.min
+      );
 
-    return Math.min(layout.width, Math.max(layout.min, availableForAside));
+    return Math.min(width, Math.max(layout.min, availableForAside));
   };
 
   return (
-    <Resize.Panel
-      id={`${ws.id}-aside`}
-      index={0}
-      minSize={ws.aside.layout().min}
-      maxSize={ws.aside.layout().max}
-      redistributionPreferredSize={redistributionPreferredSize()}
-      target={{ kind: 'px', px: ws.aside.layout().width }}
-      collapsed={() => ws.aside.isCollapsed()}
-      onSizeChangeEnd={local.onWidthChangeEnd}
+    <Show
+      when={ws.aside.isOverlay()}
+      fallback={
+        <Resize.Panel
+          id={`${ws.id}-aside`}
+          index={0}
+          minSize={ws.aside.layout().min}
+          maxSize={ws.aside.layout().max}
+          redistributionPreferredSize={redistributionPreferredSize()}
+          target={{ kind: 'px', px: preferredWidth() }}
+          collapsed={() => ws.aside.isCollapsed()}
+          onSizeChangeEnd={onWidthChangeEnd}
+        >
+          <div
+            {...rest}
+            class={cn('size-full min-h-0 min-w-0', local.class)}
+            data-view-shell-aside=""
+          >
+            {local.children}
+          </div>
+        </Resize.Panel>
+      }
     >
       <div
-        {...rest}
-        class={cn('size-full min-h-0 min-w-0', local.class)}
-        data-view-shell-aside=""
+        class="absolute inset-0 z-20"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.stopPropagation();
+            ws.aside.collapse();
+          }
+        }}
       >
-        {local.children}
+        <button
+          type="button"
+          aria-label="Close navigation backdrop"
+          class="absolute inset-0 bg-modal-overlay"
+          onClick={ws.aside.collapse}
+        />
+        <div
+          {...rest}
+          class={cn(
+            'relative h-full max-w-full bg-panel shadow-menu',
+            local.class
+          )}
+          style={{ width: `${preferredWidth()}px` }}
+          data-view-shell-aside=""
+        >
+          {local.children}
+        </div>
       </div>
-    </Resize.Panel>
+    </Show>
+  );
+}
+
+/** Safe outside a shell so block preview headers can share this control. */
+export function ViewSidebarToggle(props: { action: 'collapse' | 'expand' }) {
+  const ws = useContext(ViewShellContext);
+  const visible = () =>
+    ws?.aside.canCollapse() &&
+    (props.action === 'expand'
+      ? ws.aside.isCollapsed()
+      : !ws.aside.isCollapsed());
+  return (
+    <Show when={visible()}>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class={cn(
+          'shrink-0 touch:hidden',
+          props.action === 'collapse' && 'ml-auto'
+        )}
+        label={
+          props.action === 'expand' ? 'Show navigation' : 'Hide navigation'
+        }
+        aria-expanded={props.action !== 'expand'}
+        data-view-sidebar-toggle={props.action}
+        onClick={(event) => {
+          const shell = event.currentTarget.closest('[data-view-shell]');
+          if (props.action === 'expand') ws?.aside.expand();
+          else ws?.aside.collapse();
+          const nextAction = props.action === 'expand' ? 'collapse' : 'expand';
+          queueMicrotask(() =>
+            shell
+              ?.querySelector<HTMLButtonElement>(
+                `[data-view-sidebar-toggle="${nextAction}"]`
+              )
+              ?.focus()
+          );
+        }}
+      >
+        <Show
+          when={props.action === 'expand'}
+          fallback={<SidebarIcon class="size-4" />}
+        >
+          <ListIcon class="size-4" />
+        </Show>
+      </Button>
+    </Show>
   );
 }
 
@@ -366,6 +520,7 @@ function TopBar(props: JSX.HTMLAttributes<HTMLDivElement>) {
       )}
       data-view-shell-top-bar=""
     >
+      <ViewSidebarToggle action="expand" />
       {local.children}
     </div>
   );
