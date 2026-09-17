@@ -172,7 +172,7 @@ export function ReplyEnvelope(props: ReplyEnvelopeProps) {
 
                 <RecipientDropRow
                   field="to"
-                  class="w-full gap-2 py-3 border-b border-edge-muted focus-within:border-accent items-center"
+                  class="w-full gap-2 py-3 border-b border-edge-muted focus-within:border-ink/20 items-center"
                   dragState={recipientDragState}
                   onDrop={handleRecipientDrop}
                 >
@@ -185,7 +185,7 @@ export function ReplyEnvelope(props: ReplyEnvelopeProps) {
                 <Show when={showCc() || props.values().cc.length > 0}>
                   <RecipientDropRow
                     field="cc"
-                    class="w-full gap-2 py-3 border-b border-edge-muted focus-within:border-accent items-center"
+                    class="w-full gap-2 py-3 border-b border-edge-muted focus-within:border-ink/20 items-center"
                     dragState={recipientDragState}
                     onDrop={handleRecipientDrop}
                   >
@@ -199,7 +199,7 @@ export function ReplyEnvelope(props: ReplyEnvelopeProps) {
                 <Show when={showBcc() || props.values().bcc.length > 0}>
                   <RecipientDropRow
                     field="bcc"
-                    class="w-full gap-2 py-3 border-b border-edge-muted focus-within:border-accent items-center"
+                    class="w-full gap-2 py-3 border-b border-edge-muted focus-within:border-ink/20 items-center"
                     dragState={recipientDragState}
                     onDrop={handleRecipientDrop}
                   >
@@ -241,7 +241,7 @@ export function ReplyEnvelope(props: ReplyEnvelopeProps) {
         <RecipientDropRow
           field="to"
           class={cn(
-            'w-full gap-2 min-h-16 border-b border-edge-muted/70 focus-within:border-accent',
+            'w-full gap-2 min-h-16 border-b border-edge-muted/70 focus-within:border-ink/20',
             'items-center py-2'
           )}
           dragState={recipientDragState}
@@ -270,7 +270,7 @@ export function ReplyEnvelope(props: ReplyEnvelopeProps) {
           <RecipientDropRow
             field="cc"
             class={cn(
-              'w-full gap-2 min-h-16 border-b border-edge-muted/70 focus-within:border-accent',
+              'w-full gap-2 min-h-16 border-b border-edge-muted/70 focus-within:border-ink/20',
               'items-center py-2'
             )}
             dragState={recipientDragState}
@@ -285,7 +285,7 @@ export function ReplyEnvelope(props: ReplyEnvelopeProps) {
           <RecipientDropRow
             field="bcc"
             class={cn(
-              'w-full gap-2 min-h-16 border-b border-edge-muted/70 focus-within:border-accent',
+              'w-full gap-2 min-h-16 border-b border-edge-muted/70 focus-within:border-ink/20',
               'items-center py-2'
             )}
             dragState={recipientDragState}

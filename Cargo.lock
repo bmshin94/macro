@@ -468,6 +468,7 @@ dependencies = [
  "dashmap",
  "entity_access",
  "entity_access_db_utils",
+ "entity_registry_db_utils",
  "genai_telemetry",
  "harness_id",
  "lazy-regex",
@@ -479,6 +480,7 @@ dependencies = [
  "macro_uuid",
  "mockall",
  "model-entity",
+ "model_owner",
  "model_user",
  "non_empty",
  "opentelemetry",
@@ -3056,7 +3058,7 @@ dependencies = [
 
 [[package]]
 name = "cache-wasm"
-version = "0.6.14"
+version = "0.6.16"
 dependencies = [
  "async-lock",
  "cache-core",
@@ -15337,6 +15339,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "aws-sdk-sesv2",
+ "html-escape",
  "lettre",
  "macro_env_var",
  "mockall",
@@ -15807,7 +15810,6 @@ dependencies = [
  "document_sub_type",
  "item-filter-index",
  "macro_user_id",
- "model_file_type",
  "models_soup",
  "postcard",
  "predicate-index",
@@ -16466,7 +16468,9 @@ dependencies = [
 name = "sync_service"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "bebop",
+ "futures",
  "getrandom 0.3.4",
  "loro",
  "macro_sync_service_jwt",
@@ -16475,6 +16479,7 @@ dependencies = [
  "serde_json",
  "subtle",
  "sync_service_bebop_schema",
+ "thiserror 2.0.18",
  "time",
  "tracing",
  "tracing-subscriber",
