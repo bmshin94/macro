@@ -231,8 +231,7 @@ fn run_collaboration_biome() -> Step<Run> {
 
 fn run_tests() -> Step<Run> {
     Step::new("Test")
-        // Use Node even when setup-reqs-web configures Bun as the script runtime.
-        .run("node ../../node_modules/vitest/vitest.mjs run")
+        .run("bunx vitest")
         .working_directory(xtask_paths::repo_dir!("apps/web"))
 }
 
