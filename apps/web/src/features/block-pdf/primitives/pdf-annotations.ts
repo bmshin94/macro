@@ -12,6 +12,7 @@ import {
   createEffect,
   createMemo,
   createResource,
+  createSignal,
 } from 'solid-js';
 import { createStore, produce, reconcile } from 'solid-js/store';
 import type { IHighlight } from '../model/Highlight';
@@ -24,6 +25,8 @@ export function createPdfAnnotations(documentId: Accessor<string>) {
   const [highlightsByPage, setHighlightsByPage] = createStore<HighlightPageMap>(
     {}
   );
+  const [convertedHighlightDraftId, setConvertedHighlightDraftId] =
+    createSignal<string>();
   const [commentThreadsResource, { mutate: mutateCommentThreads }] =
     createResource(documentId, getPdfComments);
   const [anchorsResource, { mutate: mutateAnchors }] = createResource(
@@ -204,10 +207,13 @@ export function createPdfAnnotations(documentId: Accessor<string>) {
       });
     },
     beginExistingHighlightCommentDraft(highlight: IHighlight) {
-      setHighlightsByPage(highlight.pageNum, highlight.uuid, (previous) => ({
-        ...previous,
-        hasTempThread: true,
-      }));
+      batch(() => {
+        setConvertedHighlightDraftId(highlight.uuid);
+        setHighlightsByPage(highlight.pageNum, highlight.uuid, (previous) => ({
+          ...previous,
+          hasTempThread: true,
+        }));
+      });
     },
     beginNewHighlightCommentDrafts(highlights: IHighlight[]) {
       setHighlightsByPage(
@@ -229,23 +235,31 @@ export function createPdfAnnotations(documentId: Accessor<string>) {
         })
       );
     },
-    revertTemporaryHighlightCommentDraft(uuid: string) {
+    cancelTemporaryHighlightCommentDraft(uuid: string) {
       const highlight = highlightsByUuid()[uuid];
-      if (!highlight) return;
-      setHighlightsByPage(
-        highlight.pageNum,
-        uuid,
-        (previous) =>
-          previous && {
-            ...previous,
-            thread: null,
-            hasTempThread: false,
-          }
-      );
-    },
-    removeTemporaryHighlightCommentDraft(uuid: string) {
-      const highlight = highlightsByUuid()[uuid];
-      if (!highlight) return;
+      const convertedExistingHighlight = convertedHighlightDraftId() === uuid;
+      if (!highlight) {
+        if (convertedExistingHighlight) setConvertedHighlightDraftId(undefined);
+        return convertedExistingHighlight;
+      }
+
+      if (convertedExistingHighlight) {
+        batch(() => {
+          setConvertedHighlightDraftId(undefined);
+          setHighlightsByPage(
+            highlight.pageNum,
+            uuid,
+            (previous) =>
+              previous && {
+                ...previous,
+                thread: null,
+                hasTempThread: false,
+              }
+          );
+        });
+        return true;
+      }
+
       setHighlightsByPage(
         highlight.pageNum,
         produce((pageHighlights) => {
@@ -253,6 +267,7 @@ export function createPdfAnnotations(documentId: Accessor<string>) {
           delete pageHighlights[uuid];
         })
       );
+      return false;
     },
   };
 

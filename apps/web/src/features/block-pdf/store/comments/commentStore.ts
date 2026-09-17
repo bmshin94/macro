@@ -1,4 +1,3 @@
-import { usePdfDocument } from '@block-pdf/context/pdf-document-context';
 import type { ThreadId } from '@core/comments/commentType';
 import { createMemo, createSelector } from 'solid-js';
 import { usePdfComments } from '../../context/pdf-comments-context';
@@ -7,7 +6,7 @@ import { useHighlightComments } from './highlightComments';
 
 export const useIsActiveThreadSelector = () => {
   const isSelected = createSelector(
-    usePdfDocument().activeCommentThreadId,
+    usePdfComments().activeThreadId,
     (id: ThreadId | null, activeId) => {
       if (id == null) return false;
       return id === activeId;

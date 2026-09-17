@@ -19,6 +19,7 @@ import {
   Switch,
   untrack,
 } from 'solid-js';
+import { usePdfComments } from '../context/pdf-comments-context';
 import { usePdfDocument } from '../context/pdf-document-context';
 import { usePdfViewer } from '../context/pdf-viewer-context';
 import {
@@ -37,6 +38,7 @@ export const Placeable: Component<{
   canEdit: boolean;
 }> = (props) => {
   const pdf = usePdfDocument();
+  const comments = usePdfComments();
   const pdfViewer = usePdfViewer();
   const isPopup = useIsPopup();
   const viewer = isPopup ? pdfViewer.popup : pdfViewer.root;
@@ -379,7 +381,7 @@ export const Placeable: Component<{
         if (!props.canEdit) return;
 
         if (!isThreadPlaceable(props.placeable)) {
-          pdf.clearActiveCommentThread();
+          comments.clearActiveThread();
         }
         setMouseDown(e);
       }}

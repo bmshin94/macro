@@ -2,19 +2,19 @@ import { useIsActiveThreadSelector } from '@block-pdf/store/comments/commentStor
 import type { IThreadPlaceable } from '@block-pdf/type/placeables';
 import { cn } from '@ui';
 import type { Component } from 'solid-js';
-import { usePdfDocument } from '../../context/pdf-document-context';
+import { usePdfComments } from '../../context/pdf-comments-context';
 
 export const FreeCommentPlaceable: Component<{
   payload: NonNullable<IThreadPlaceable['payload']>;
 }> = (props) => {
   const isActiveThreadSelector = useIsActiveThreadSelector();
-  const pdf = usePdfDocument();
+  const comments = usePdfComments();
 
   return (
     <CommentIndicator
       threadId={props.payload.threadId}
       isActive={isActiveThreadSelector(props.payload.threadId)}
-      setActive={() => pdf.activateCommentThread(props.payload.threadId)}
+      setActive={() => comments.activateThread(props.payload.threadId)}
       numComments={props.payload.comments.length}
     />
   );
@@ -30,7 +30,7 @@ function CommentIndicator(props: {
   isActive: boolean;
   setActive?: () => void;
 }) {
-  const pdf = usePdfDocument();
+  const comments = usePdfComments();
 
   return (
     <div
@@ -41,11 +41,11 @@ function CommentIndicator(props: {
           : 'bg-[oklch(0.93_0.034_272.788)] text-[oklch(0.585_0.233_277.117)] hover:bg-[oklch(0.87_0.065_274.039)] hover:text-[oklch(0.511_0.262_276.966)]'
       )}
       on:mousedown={() => {
-        pdf.suppressActiveThreadScrolling();
+        comments.suppressScrolling();
         props.setActive?.();
       }}
       on:mouseup={() => {
-        pdf.restoreActiveThreadScrolling();
+        comments.restoreScrolling();
       }}
     >
       {props.numComments > 1 && !props.isActive && (

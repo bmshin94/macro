@@ -157,20 +157,18 @@ export const useDeleteNewHighlightComment = () => {
       return;
     }
 
-    if (highlight.uuid === pdf.convertedHighlightThreadDraftId()) {
-      annotations.commands.revertTemporaryHighlightCommentDraft(highlight.uuid);
-      pdf.clearConvertedHighlightDraft();
+    const restoredExistingHighlight =
+      annotations.commands.cancelTemporaryHighlightCommentDraft(highlight.uuid);
+    if (restoredExistingHighlight) {
       setTimeout(() => handleHighlightSelection(highlight.uuid));
-      return;
     }
-
-    annotations.commands.removeTemporaryHighlightCommentDraft(highlightUuid);
   };
 };
 
 export function useCreateHighlightCommentAtSelection() {
   const pdf = usePdfDocument();
   const pdfViewer = usePdfViewer();
+  const comments = usePdfComments();
   const annotationSelection = pdf.annotationSelection;
   const currentPageViewport = useCurrentPageViewport();
   const deleteNewComments = useDeleteNewComments();
@@ -184,8 +182,7 @@ export function useCreateHighlightCommentAtSelection() {
         annotationSelection().selectedHighlights.at(0);
       if (highlightUnderSelection) {
         batch(() => {
-          pdf.markConvertedHighlightDraft(highlightUnderSelection.uuid);
-          pdf.activateCommentThread(-1);
+          comments.activateThread(-1);
           pdf.annotations.commands.beginExistingHighlightCommentDraft(
             highlightUnderSelection
           );
@@ -217,7 +214,7 @@ export function useCreateHighlightCommentAtSelection() {
       }
 
       pdf.annotations.commands.beginNewHighlightCommentDrafts(highlights);
-      pdf.activateCommentThread(-1);
+      comments.activateThread(-1);
     });
   });
 }

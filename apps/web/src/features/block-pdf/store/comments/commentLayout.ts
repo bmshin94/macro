@@ -10,7 +10,6 @@ import { isRoot, type Root } from '@core/comments/commentType';
 import { type Accessor, createMemo } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { usePdfComments } from '../../context/pdf-comments-context';
-import { usePdfDocument } from '../../context/pdf-document-context';
 import { usePdfViewer } from '../../context/pdf-viewer-context';
 
 // how much to pad the container for the "show more" buttons
@@ -148,10 +147,10 @@ export function computePageCommentLayout({
 }
 
 export function usePageCommentLayout(pageIndex: Accessor<number>) {
-  const pdf = usePdfDocument();
   const pdfViewer = usePdfViewer();
-  const activeCommentThreadId = pdf.activeCommentThreadId;
-  const comments = usePdfComments().all;
+  const commentsContext = usePdfComments();
+  const activeCommentThreadId = commentsContext.activeThreadId;
+  const comments = commentsContext.all;
   const pageHeights = pdfViewer.root.pageHeights;
   const [threadHeights, setThreadHeights] = createStore<Partial<ThreadHeights>>(
     {}

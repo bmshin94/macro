@@ -267,8 +267,12 @@ describe('createPdfAnnotations', () => {
       true
     );
 
-    annotations.commands.revertTemporaryHighlightCommentDraft(existing.uuid);
-    annotations.commands.removeTemporaryHighlightCommentDraft(created.uuid);
+    expect(
+      annotations.commands.cancelTemporaryHighlightCommentDraft(existing.uuid)
+    ).toBe(true);
+    expect(
+      annotations.commands.cancelTemporaryHighlightCommentDraft(created.uuid)
+    ).toBe(false);
 
     expect({
       existing: annotations.highlightsByUuid()[existing.uuid],
@@ -284,7 +288,7 @@ describe('createPdfAnnotations', () => {
       hasHighlights: true,
     });
 
-    annotations.commands.removeTemporaryHighlightCommentDraft(existing.uuid);
+    annotations.commands.cancelTemporaryHighlightCommentDraft(existing.uuid);
     expect(annotations.hasHighlights()).toBe(false);
     dispose();
   });

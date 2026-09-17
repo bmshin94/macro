@@ -37,4 +37,61 @@ describe('PdfCommentsProvider', () => {
       replacement,
     });
   });
+
+  it('owns and isolates comment focus state', () => {
+    const [comments] = createSignal<CommentStore>([]);
+    let first!: ReturnType<typeof usePdfComments>;
+    let second!: ReturnType<typeof usePdfComments>;
+
+    function Probe(props: {
+      capture: (value: ReturnType<typeof usePdfComments>) => void;
+    }) {
+      props.capture(usePdfComments());
+      return null;
+    }
+
+    render(() => (
+      <>
+        <PdfCommentsProvider comments={comments}>
+          <Probe capture={(value) => (first = value)} />
+        </PdfCommentsProvider>
+        <PdfCommentsProvider comments={comments}>
+          <Probe capture={(value) => (second = value)} />
+        </PdfCommentsProvider>
+      </>
+    ));
+
+    first.activateThread(42);
+    first.selectThread(7);
+    first.suppressScrolling();
+
+    expect({
+      firstActive: first.activeThreadId(),
+      firstSelected: first.selectedThreadId(),
+      firstSuppressed: first.scrollingSuppressed(),
+      secondActive: second.activeThreadId(),
+      secondSelected: second.selectedThreadId(),
+      secondSuppressed: second.scrollingSuppressed(),
+    }).toEqual({
+      firstActive: 42,
+      firstSelected: 7,
+      firstSuppressed: true,
+      secondActive: null,
+      secondSelected: null,
+      secondSuppressed: false,
+    });
+
+    first.clearActiveThread();
+    first.clearSelectedThread();
+    first.restoreScrolling();
+    expect({
+      active: first.activeThreadId(),
+      selected: first.selectedThreadId(),
+      suppressed: first.scrollingSuppressed(),
+    }).toEqual({
+      active: null,
+      selected: null,
+      suppressed: false,
+    });
+  });
 });

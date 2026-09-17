@@ -3,11 +3,13 @@ import type { GetDocumentResponseDataViewLocation } from '@service-storage/gener
 import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 import {
   type Accessor,
+  batch,
   createContext,
   createSignal,
   type FlowComponent,
   useContext,
 } from 'solid-js';
+import type { IHighlight } from '../model/Highlight';
 import {
   createPdfAnnotations,
   type PdfAnnotations,
@@ -20,10 +22,6 @@ import {
   createPdfDocumentModel,
   type PdfDocumentModel,
 } from '../primitives/pdf-document-model';
-import {
-  createPdfInteraction,
-  type PdfInteraction,
-} from '../primitives/pdf-interaction';
 import { createPdfMarkup, type PdfMarkup } from '../primitives/pdf-markup';
 import { createPdfOutline, type PdfOutline } from '../primitives/pdf-outline';
 import {
@@ -42,7 +40,17 @@ export type PdfDocumentPermissions = {
   isOwner: boolean;
 };
 
-export type PdfDocumentContextValue = PdfInteraction & {
+export type PdfSelectionMenuLocation = {
+  pageIndex: number;
+  element: HTMLElement;
+};
+
+export type PdfAnnotationSelection = {
+  nativeSelection: Selection | null;
+  selectedHighlights: IHighlight[];
+};
+
+export type PdfDocumentContextValue = {
   documentId: Accessor<string>;
   documentProxy: Accessor<PDFDocumentProxy | undefined>;
   documentVersionId: Accessor<number | undefined>;
@@ -63,6 +71,19 @@ export type PdfDocumentContextValue = PdfInteraction & {
   ) => void;
   shareLocation: Accessor<PdfShareLocation | undefined>;
   setShareLocation: (location: PdfShareLocation | undefined) => void;
+  selectionMenuLocation: Accessor<PdfSelectionMenuLocation | null>;
+  annotationSelection: Accessor<PdfAnnotationSelection>;
+  activeHighlightId: Accessor<string | null>;
+  hoveredHighlightId: Accessor<string | null>;
+  openSelectionMenu: (location: PdfSelectionMenuLocation) => void;
+  closeSelectionMenu: () => void;
+  setNativeSelection: (selection: Selection) => void;
+  replaceSelectedHighlights: (highlights: IHighlight[]) => void;
+  resetSelection: () => void;
+  activateHighlight: (uuid: string) => void;
+  clearActiveHighlight: () => void;
+  hoverHighlight: (uuid: string) => void;
+  clearHoveredHighlight: () => void;
   annotations: PdfAnnotations;
   definitions: PdfDefinitions;
   markup: PdfMarkup;
@@ -91,11 +112,23 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
   const documentId = () => props.documentId;
   const definitions = createPdfDefinitions();
   const markup = createPdfMarkup();
-  const interaction = createPdfInteraction();
   const model = createPdfDocumentModel();
   const [persistedViewLocation, setPersistedViewLocation] =
     createSignal<GetDocumentResponseDataViewLocation>();
   const [shareLocation, setShareLocation] = createSignal<PdfShareLocation>();
+  const [selectionMenuLocation, setSelectionMenuLocation] =
+    createSignal<PdfSelectionMenuLocation | null>(null);
+  const [annotationSelection, setAnnotationSelection] =
+    createSignal<PdfAnnotationSelection>({
+      nativeSelection: null,
+      selectedHighlights: [],
+    });
+  const [activeHighlightId, setActiveHighlightId] = createSignal<string | null>(
+    null
+  );
+  const [hoveredHighlightId, setHoveredHighlightId] = createSignal<
+    string | null
+  >(null);
   const persistence = createPdfPersistence();
   const tabs = createPdfTabs();
   const outline = createPdfOutline();
@@ -117,7 +150,36 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
     setPersistedViewLocation,
     shareLocation,
     setShareLocation,
-    ...interaction,
+    selectionMenuLocation,
+    annotationSelection,
+    activeHighlightId,
+    hoveredHighlightId,
+    openSelectionMenu: setSelectionMenuLocation,
+    closeSelectionMenu: () => setSelectionMenuLocation(null),
+    setNativeSelection: (nativeSelection) =>
+      setAnnotationSelection({
+        nativeSelection,
+        selectedHighlights: [],
+      }),
+    replaceSelectedHighlights: (selectedHighlights) =>
+      setAnnotationSelection((previous) => ({
+        ...previous,
+        selectedHighlights,
+      })),
+    resetSelection: () => {
+      batch(() => {
+        setSelectionMenuLocation(null);
+        setAnnotationSelection({
+          nativeSelection: null,
+          selectedHighlights: [],
+        });
+        setActiveHighlightId(null);
+      });
+    },
+    activateHighlight: setActiveHighlightId,
+    clearActiveHighlight: () => setActiveHighlightId(null),
+    hoverHighlight: setHoveredHighlightId,
+    clearHoveredHighlight: () => setHoveredHighlightId(null),
     annotations,
     definitions,
     markup,

@@ -37,6 +37,7 @@ import {
   untrack,
 } from 'solid-js';
 import { Portal } from 'solid-js/web';
+import { usePdfComments } from '../context/pdf-comments-context';
 import { usePdfDocument } from '../context/pdf-document-context';
 import { usePdfViewer } from '../context/pdf-viewer-context';
 import { PageModel } from '../model/Page';
@@ -176,6 +177,7 @@ function LoadingDocumentSpinnerEffect() {
 export function Document() {
   const pdf = usePdfDocument();
   const pdfViewer = usePdfViewer();
+  const comments = usePdfComments();
   const [documentSize, setDocumentSize] = createSignal<DOMRect>();
   const [documentContainerRef, setDocumentContainerRef] =
     createSignal<HTMLDivElement>();
@@ -187,7 +189,7 @@ export function Document() {
   const beginViewerTextSelection = () => {
     if (pdfViewer.textSelectionActive()) return;
     batch(() => {
-      pdf.clearSelectedCommentThread();
+      comments.clearSelectedThread();
       pdfViewer.beginTextSelection();
     });
   };

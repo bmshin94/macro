@@ -23,6 +23,7 @@ import { createCallback } from '@solid-primitives/rootless';
 import type { PageViewport } from 'pdfjs-dist';
 import { batch, createEffect, createMemo } from 'solid-js';
 import { v7 as uuid7 } from 'uuid';
+import { usePdfComments } from '../context/pdf-comments-context';
 import { usePdfDocument } from '../context/pdf-document-context';
 import { usePdfViewer } from '../context/pdf-viewer-context';
 import {
@@ -553,8 +554,9 @@ function useMakeTextAnnotation() {
 export function useSyncActivePlaceableWithCommentThread() {
   const placeableIdMap = usePlaceableIdMap();
   const pdf = usePdfDocument();
+  const comments = usePdfComments();
   const activeId = pdf.markup.activeId;
-  const activeCommentThreadId = pdf.activeCommentThreadId;
+  const activeCommentThreadId = comments.activeThreadId;
 
   createEffect(() => {
     const activeThreadId = activeCommentThreadId();
@@ -589,6 +591,7 @@ export function useCreatePlaceable() {
   const makeTextAnnotation = useMakeTextAnnotation();
   const makeSignature = useMakeSignature();
   const pdf = usePdfDocument();
+  const comments = usePdfComments();
 
   return async (e: MouseEvent) => {
     let placeable: IPlaceable | null;
@@ -617,7 +620,7 @@ export function useCreatePlaceable() {
       if (!isThreadPlaceable(placeable)) {
         pdf.model.commands.appendPlaceable(placeable);
       } else {
-        pdf.activateCommentThread(-1);
+        comments.activateThread(-1);
       }
       pdf.markup.commands.activate(placeable.internalId);
       pdf.markup.commands.setDraft(placeable);

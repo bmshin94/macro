@@ -94,6 +94,8 @@ export function PdfDocument(props: PdfDocumentProps) {
 }
 
 export function PdfDocumentContent() {
+  useSyncActivePlaceableWithCommentThread();
+
   return (
     <div class="flex size-full relative justify-end overflow-visible z-main-view-layout">
       <Document />
@@ -105,7 +107,6 @@ function PdfDocumentBehavior(props: PdfDocumentProps) {
   const pdf = usePdfDocument();
   const pdfViewer = usePdfViewer();
   const comments = usePdfCommentProjection();
-  useSyncActivePlaceableWithCommentThread();
   const savePdf = usePdfSave();
   const [pendingLocationParams, setPendingLocationParams] =
     createSignal<LocationBlockParams>();

@@ -1,12 +1,14 @@
 import { createCallback } from '@solid-primitives/rootless';
 import { cn } from '@ui';
 import {
+  batch,
   createMemo,
   type JSX,
   onCleanup,
   onMount,
   type VoidProps,
 } from 'solid-js';
+import { usePdfComments } from '../context/pdf-comments-context';
 import { usePdfDocument } from '../context/pdf-document-context';
 import { usePdfViewer } from '../context/pdf-viewer-context';
 import { Color, type IColor } from '../model/Color';
@@ -20,9 +22,14 @@ export const highlightIdSelector = (highlightId: string) =>
 
 export const useResetUserHighlights = () => {
   const pdf = usePdfDocument();
+  const comments = usePdfComments();
 
   return createCallback(() => {
-    pdf.clearUserHighlightFocus();
+    batch(() => {
+      comments.clearActiveThread();
+      pdf.clearActiveHighlight();
+      pdf.clearHoveredHighlight();
+    });
   });
 };
 
@@ -32,6 +39,7 @@ const isHighlightComment = (highlight: IHighlight) =>
 // TODO: handle highlight selection in a different document
 export const useHighlightSelection = () => {
   const pdf = usePdfDocument();
+  const comments = usePdfComments();
   const rootElement = usePdfViewer().rootElement;
 
   return (highlightId: string, element?: HTMLElement) => {
@@ -41,13 +49,13 @@ export const useHighlightSelection = () => {
     if (isHighlightComment(highlight)) {
       const threadId = highlight.thread?.threadId;
       if (threadId == null) {
-        pdf.clearActiveCommentThread();
+        comments.clearActiveThread();
       } else {
-        pdf.activateCommentThread(threadId);
+        comments.activateThread(threadId);
       }
     } else {
       pdf.activateHighlight(highlightId);
-      pdf.clearActiveCommentThread();
+      comments.clearActiveThread();
     }
 
     const highlightElement =
@@ -96,6 +104,7 @@ export function UserHighlight(props: VoidProps<IHighlightObj>) {
   let textRef!: HTMLDivElement;
 
   const pdf = usePdfDocument();
+  const comments = usePdfComments();
   const isPopup = useIsPopup();
   const popupDispatchCtx = usePopupContextUpdate(isPopup);
   const highlightSelection = useHighlightSelection();
@@ -165,15 +174,15 @@ export function UserHighlight(props: VoidProps<IHighlightObj>) {
       pdf.closeSelectionMenu();
 
       if (props.threadId) {
-        pdf.suppressActiveThreadScrolling();
+        comments.suppressScrolling();
         if (props.isActive) {
-          pdf.clearActiveCommentThread();
+          comments.clearActiveThread();
         } else {
-          pdf.activateCommentThread(props.threadId);
+          comments.activateThread(props.threadId);
         }
-        setTimeout(() => pdf.restoreActiveThreadScrolling(), 10);
+        setTimeout(() => comments.restoreScrolling(), 10);
       } else {
-        pdf.clearActiveCommentThread();
+        comments.clearActiveThread();
         highlightSelection(
           props.highlightId,
           e.target instanceof HTMLElement ? e.target : undefined

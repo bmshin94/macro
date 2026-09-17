@@ -139,10 +139,13 @@ describe('PdfDocumentProvider', () => {
     expect(second.shareLocation()).toBeUndefined();
   });
 
-  it('isolates markup and interaction between document providers', () => {
+  it('owns selection and highlight focus directly on each document', () => {
     const contexts = setup('document-1', 'document-2');
     const first = contexts.get('document-1')!;
     const second = contexts.get('document-2')!;
+    const nativeSelection = {} as Selection;
+    const highlight = { uuid: 'highlight-1' } as IHighlight;
+    const menuElement = document.createElement('div');
 
     expect('viewer' in first).toBe(false);
     expect('rootElement' in first).toBe(false);
@@ -150,22 +153,60 @@ describe('PdfDocumentProvider', () => {
 
     first.markup.commands.beginPlacement(PayloadMode.Signature);
     first.markup.commands.activate('placeable-1');
-    first.selectCommentThread(42);
+    first.setNativeSelection(nativeSelection);
+    first.replaceSelectedHighlights([highlight]);
+    first.openSelectionMenu({ pageIndex: 2, element: menuElement });
+    first.activateHighlight(highlight.uuid);
+    first.hoverHighlight(highlight.uuid);
 
     expect({
       firstMode: first.markup.mode(),
       firstActiveId: first.markup.activeId(),
-      firstSelectedThread: first.selectedCommentThread(),
+      firstSelection: first.annotationSelection(),
+      firstMenu: first.selectionMenuLocation(),
+      firstHighlight: first.activeHighlightId(),
+      firstHoveredHighlight: first.hoveredHighlightId(),
       secondMode: second.markup.mode(),
       secondActiveId: second.markup.activeId(),
-      secondSelectedThread: second.selectedCommentThread(),
+      secondSelection: second.annotationSelection(),
+      secondMenu: second.selectionMenuLocation(),
+      secondHighlight: second.activeHighlightId(),
+      secondHoveredHighlight: second.hoveredHighlightId(),
     }).toEqual({
       firstMode: PayloadMode.Signature,
       firstActiveId: 'placeable-1',
-      firstSelectedThread: 42,
+      firstSelection: {
+        nativeSelection,
+        selectedHighlights: [highlight],
+      },
+      firstMenu: { pageIndex: 2, element: menuElement },
+      firstHighlight: 'highlight-1',
+      firstHoveredHighlight: 'highlight-1',
       secondMode: PayloadMode.NoMode,
       secondActiveId: undefined,
-      secondSelectedThread: null,
+      secondSelection: {
+        nativeSelection: null,
+        selectedHighlights: [],
+      },
+      secondMenu: null,
+      secondHighlight: null,
+      secondHoveredHighlight: null,
+    });
+
+    first.resetSelection();
+    expect({
+      selection: first.annotationSelection(),
+      menu: first.selectionMenuLocation(),
+      activeHighlight: first.activeHighlightId(),
+      hoveredHighlight: first.hoveredHighlightId(),
+    }).toEqual({
+      selection: {
+        nativeSelection: null,
+        selectedHighlights: [],
+      },
+      menu: null,
+      activeHighlight: null,
+      hoveredHighlight: 'highlight-1',
     });
   });
 

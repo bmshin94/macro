@@ -26,6 +26,7 @@ import {
   onMount,
   Show,
 } from 'solid-js';
+import { usePdfComments } from '../context/pdf-comments-context';
 import { usePdfDocument } from '../context/pdf-document-context';
 import { usePdfViewer } from '../context/pdf-viewer-context';
 import type { IColor } from '../model/Color';
@@ -69,6 +70,7 @@ export function PageOverlay(props: IPageOverlayProps) {
 
   const pdf = usePdfDocument();
   const pdfViewer = usePdfViewer();
+  const comments = usePdfComments();
   let pageOverlayRef!: HTMLDivElement;
   const pageViewDivProp = () => props.pageViewDiv;
 
@@ -237,7 +239,7 @@ export function PageOverlay(props: IPageOverlayProps) {
     });
   });
 
-  const disableSelect = () => pdf.selectedCommentThread() != null;
+  const disableSelect = () => comments.selectedThreadId() != null;
   createEffect(() => {
     const pageViewDiv = pageViewDivProp();
     if (!pageViewDiv) return;
@@ -250,7 +252,7 @@ export function PageOverlay(props: IPageOverlayProps) {
 
   onMount(() => {
     const resetMode = (_e: MouseEvent) => {
-      pdf.clearActiveCommentThread();
+      comments.clearActiveThread();
       pdf.markup.commands.cancelPlacement();
     };
     const el = pdfViewer.rootElement();
@@ -526,6 +528,7 @@ function UserHighlightNodes(props: {
   viewport: PageViewport;
 }) {
   const pdf = usePdfDocument();
+  const comments = usePdfComments();
   const thisPageHighlights = createMemo(() =>
     Object.values(
       pdf.annotations.highlightsByPage[props.pageIndex] ?? {}
@@ -535,7 +538,7 @@ function UserHighlightNodes(props: {
   const viewportHeight = createMemo(() => props.viewport.height);
   const viewportWidth = createMemo(() => props.viewport.width);
   const isActiveHighlightSelector = createSelector(pdf.activeHighlightId);
-  const isActiveThreadSelector = createSelector(pdf.activeCommentThreadId);
+  const isActiveThreadSelector = createSelector(comments.activeThreadId);
 
   return (
     <For each={thisPageHighlights()}>

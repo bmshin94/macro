@@ -41,12 +41,13 @@ const useCommentsContext = (
   setThreadHeight: CommentsContextType['setThreadHeight']
 ): CommentsContextType => {
   const pdf = usePdfDocument();
-  const commentsById = usePdfComments().byId;
+  const comments = usePdfComments();
+  const commentsById = comments.byId;
   const setActiveThread = (threadId: number | null) => {
     if (threadId == null) {
-      pdf.clearActiveCommentThread();
+      comments.clearActiveThread();
     } else {
-      pdf.activateCommentThread(threadId);
+      comments.activateThread(threadId);
     }
   };
 
@@ -84,14 +85,14 @@ const useCommentsContext = (
 };
 
 function CommentsAndSuggestions(props: { pageIndex: number }) {
-  const pdf = usePdfDocument();
+  const comments = usePdfComments();
   const { threads, setThreadHeight } = usePageCommentLayout(
     () => props.pageIndex
   );
 
-  const isActiveThreadSelector = createSelector(pdf.activeCommentThreadId);
+  const isActiveThreadSelector = createSelector(comments.activeThreadId);
 
-  const isSelectingThreadSelector = createSelector(pdf.selectedCommentThread);
+  const isSelectingThreadSelector = createSelector(comments.selectedThreadId);
 
   const commentTheme = (threadId: number | null) => {
     const isSelecting = isSelectingThreadSelector(threadId);
@@ -107,11 +108,11 @@ function CommentsAndSuggestions(props: { pageIndex: number }) {
 
   const handleThreadMouseDown = (threadId: number) => (e: MouseEvent) => {
     e.stopPropagation();
-    pdf.selectCommentThread(threadId);
+    comments.selectThread(threadId);
 
     const handleMouseUp = (e: MouseEvent) => {
       e.stopPropagation();
-      pdf.activateCommentThread(threadId);
+      comments.activateThread(threadId);
       document.removeEventListener('mouseup', handleMouseUp, true);
     };
     document.addEventListener('mouseup', handleMouseUp, true);

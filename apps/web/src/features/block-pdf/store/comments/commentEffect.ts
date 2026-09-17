@@ -1,4 +1,3 @@
-import { usePdfDocument } from '@block-pdf/context/pdf-document-context';
 import { usePdfCommentRealtimeBehavior } from '@block-pdf/store/commentsResource';
 import { createEffect } from 'solid-js';
 import { usePdfComments } from '../../context/pdf-comments-context';
@@ -9,7 +8,7 @@ import {
 
 const useDeleteNewCommentEffect = () => {
   const deleteNewComments = useDeleteNewComments();
-  const activeCommentThreadId = usePdfDocument().activeCommentThreadId;
+  const activeCommentThreadId = usePdfComments().activeThreadId;
 
   createEffect(() => {
     const activeThreadId = activeCommentThreadId();
@@ -21,10 +20,10 @@ const useDeleteNewCommentEffect = () => {
 
 const useScrollToActiveThreadEffect = () => {
   const scrollToCommentThread = useScrollToCommentThread();
-  const pdf = usePdfDocument();
-  const comments = usePdfComments().all;
-  const activeCommentThreadId = pdf.activeCommentThreadId;
-  const activeThreadScrollingSuppressed = pdf.activeThreadScrollingSuppressed;
+  const commentsContext = usePdfComments();
+  const comments = commentsContext.all;
+  const activeCommentThreadId = commentsContext.activeThreadId;
+  const activeThreadScrollingSuppressed = commentsContext.scrollingSuppressed;
 
   createEffect(() => {
     if (activeThreadScrollingSuppressed()) return;
