@@ -1,10 +1,10 @@
+import { useCodexAgentsAccess } from '@core/codex/flag';
 import { isCodexBotId } from '@core/constant/codexAgent';
 import { isCursorBotId } from '@core/constant/cursorAgent';
 import {
   enableChatV3Agents,
   isFeatureEnabled,
 } from '@core/constant/featureFlags';
-import { useCodexAgentsAccess } from '@core/codex/flag';
 import { useCursorAgentsAccess } from '@core/cursor/flag';
 import type { IUser } from '@core/user/types';
 import { uniqueByKey } from '@core/util/compareUtils';

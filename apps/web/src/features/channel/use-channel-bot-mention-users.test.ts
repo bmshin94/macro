@@ -9,7 +9,7 @@ import { createRoot } from 'solid-js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   availableBotMentionUsers,
-  useChannelBotMentionUsers,
+  useMessageBotMentionUsers,
 } from './use-channel-bot-mention-users';
 
 const readiness = vi.hoisted(() => ({
@@ -75,7 +75,12 @@ describe('availableBotMentionUsers', () => {
     codexAccess.enabled = false;
     readiness.environmentId = 'env-saved';
     createRoot((dispose) => {
-      expect(useChannelBotMentionUsers(() => 'channel-1')()).toEqual([]);
+      expect(
+        useMessageBotMentionUsers(() => ({
+          type: 'channel' as const,
+          id: 'channel-1',
+        }))()
+      ).toEqual([]);
       dispose();
     });
   });
@@ -84,8 +89,11 @@ describe('availableBotMentionUsers', () => {
     (environmentId) => {
       readiness.environmentId = environmentId;
       createRoot((dispose) => {
-        const users = useChannelBotMentionUsers(() => 'channel-1');
-        expect(users().map((user) => user.id)).toEqual(
+        const users = useMessageBotMentionUsers(() => ({
+          type: 'channel' as const,
+          id: 'channel-1',
+        }));
+        expect(users().map((user: { id: string }) => user.id)).toEqual(
           environmentId === 'env-saved' ? ['bot|codex-agent'] : []
         );
         dispose();
