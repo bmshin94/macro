@@ -9,7 +9,7 @@ import { useReferralCode } from '@core/context/user';
 import { buildSimpleEntityUrl } from '@core/util/url';
 import { waitForSignal } from '@core/util/waitForSignal';
 import { createCallback } from '@solid-primitives/rootless';
-import { type Accessor, createEffect, createMemo } from 'solid-js';
+import { type Accessor, createEffect } from 'solid-js';
 import { z } from 'zod';
 import { usePdfDocument } from '../context/pdf-document-context';
 
@@ -104,16 +104,12 @@ export type PdfOrderInfo = z.infer<typeof PdfOrderInfoSchema>;
 
 const useIsViewerReadyForScroll = () => {
   const pdf = usePdfDocument();
-  return createMemo(
-    () =>
-      pdf.state.derived.viewerReady() &&
-      pdf.state.derived.viewerHasVisiblePages()
-  );
+  return () => pdf.viewer.root.isReady() && pdf.viewer.root.hasVisiblePages();
 };
 
 export function usePendingLocationNavigationEffect() {
   const pdf = usePdfDocument();
-  const rootViewer = pdf.viewer.root;
+  const rootViewer = pdf.viewer.root.instance;
   const goToLinkLocationFromParams = useGoToLinkLocationFromParams();
   const isViewerReady = useIsViewerReadyForScroll();
 
@@ -465,9 +461,8 @@ async function applyCustomHighlights(
 
 function useGoToPdfLocation() {
   const pdf = usePdfDocument();
-  const rootViewer = pdf.viewer.root;
-  const [findControllerStateEventSignal] =
-    pdf.state.signals.updateFindControlState;
+  const rootViewer = pdf.viewer.root.instance;
+  const findControllerStateEventSignal = pdf.viewer.root.findControlState;
 
   const go = async (location: PdfLocation): Promise<void> => {
     const viewer = rootViewer();
@@ -613,7 +608,7 @@ function useGoToPdfLocation() {
 
 const useGoToPreviousLocation = () => {
   const pdf = usePdfDocument();
-  const viewer = pdf.viewer.root;
+  const viewer = pdf.viewer.root.instance;
   const isViewerReady = useIsViewerReadyForScroll();
 
   return async () => {

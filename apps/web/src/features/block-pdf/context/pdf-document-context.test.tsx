@@ -2,7 +2,12 @@ import { cleanup, render } from '@solidjs/testing-library';
 import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 import { createSignal, For } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { IVisiblePage, TEvents } from '../PdfViewer/EventBus';
+import type { PDFViewer } from '../PdfViewer';
+import {
+  createEventBus,
+  type IVisiblePage,
+  type TEvents,
+} from '../PdfViewer/EventBus';
 import type { IModificationDataOnServer } from '../type/coParse';
 import { PayloadMode } from '../type/placeables';
 import {
@@ -47,17 +52,24 @@ function setup(...documentIds: string[]) {
 
 function viewerSnapshot(context: PdfDocumentContextValue) {
   return {
-    popupOpen: context.state.derived.popupOpen(),
-    currentPageNumber: context.state.derived.currentPageNumber(),
-    currentScale: context.state.derived.currentScale() ?? null,
-    canZoomIn: context.state.derived.canZoomIn(),
-    canZoomOut: context.state.derived.canZoomOut(),
-    pageCount: context.state.derived.pageCount() ?? null,
-    popupCurrentPageNumber: context.state.derived.popupCurrentPageNumber(),
-    popupCurrentScale: context.state.derived.popupCurrentScale() ?? null,
-    viewerReady: context.state.derived.viewerReady(),
-    viewerHasVisiblePages: context.state.derived.viewerHasVisiblePages(),
+    popupOpen: context.viewer.isPopupOpen(),
+    currentPageNumber: context.viewer.root.currentPageNumber(),
+    currentScale: context.viewer.root.currentScale() ?? null,
+    canZoomIn: context.viewer.root.canZoomIn(),
+    canZoomOut: context.viewer.root.canZoomOut(),
+    pageCount: context.viewer.root.pageCount() ?? null,
+    popupCurrentPageNumber: context.viewer.popup.currentPageNumber(),
+    popupCurrentScale: context.viewer.popup.currentScale() ?? null,
+    viewerReady: context.viewer.root.isReady(),
+    viewerHasVisiblePages: context.viewer.root.hasVisiblePages(),
   };
+}
+
+function installViewers(context: PdfDocumentContextValue) {
+  const root = { event: createEventBus() } as unknown as PDFViewer;
+  const popup = { event: createEventBus() } as unknown as PDFViewer;
+  context.viewer.commands.installPair({ root, popup });
+  return { root, popup };
 }
 
 const updateViewArea = (pageNumber: number): TEvents['updateviewarea'] => {
@@ -147,18 +159,19 @@ describe('PdfDocumentProvider state', () => {
     const contexts = setup('document-1', 'document-2');
     const first = contexts.get('document-1')!;
     const second = contexts.get('document-2')!;
+    const { root } = installViewers(first);
 
-    first.state.signals.pagesLoaded[1]({
+    root.event.dispatch('pagesloaded', {
       source: {},
       pagesCount: 12,
     } satisfies TEvents['pagesloaded']);
-    first.state.signals.pageChanging[1]({
+    root.event.dispatch('pagechanging', {
       source: {},
       pageNumber: 4,
       previous: 3,
       pageLabel: null,
     } satisfies TEvents['pagechanging']);
-    first.state.signals.visiblePagesChanged[1](updateViewArea(4));
+    root.event.dispatch('updateviewarea', updateViewArea(4));
 
     expect(viewerSnapshot(first)).toEqual({
       popupOpen: false,
@@ -188,33 +201,34 @@ describe('PdfDocumentProvider state', () => {
 
   it('projects root and popup viewer events into observable state', () => {
     const context = setup('document-1').get('document-1')!;
+    const { root, popup } = installViewers(context);
 
-    context.state.signals.pagesLoaded[1]({
+    root.event.dispatch('pagesloaded', {
       source: {},
       pagesCount: 8,
     } satisfies TEvents['pagesloaded']);
-    context.state.signals.scaleChanging[1]({
+    root.event.dispatch('scalechanging', {
       source: {},
       scale: 1,
       presetValue: undefined,
     } satisfies TEvents['scalechanging']);
-    context.state.signals.pageChanging[1]({
+    root.event.dispatch('pagechanging', {
       source: {},
       pageNumber: 3,
       previous: 2,
       pageLabel: null,
     } satisfies TEvents['pagechanging']);
-    context.state.signals.popupVisibilityChanged[1]({
+    root.event.dispatch('popupvisibilitychanged', {
       source: {},
       isOpen: true,
       target: document.createElement('div'),
     } satisfies TEvents['popupvisibilitychanged']);
-    context.state.signals.scaleChangingPopup[1]({
+    popup.event.dispatch('scalechanging', {
       source: {},
       scale: 1.5,
       presetValue: undefined,
     } satisfies TEvents['scalechanging']);
-    context.state.signals.pageChangingPopup[1]({
+    popup.event.dispatch('pagechanging', {
       source: {},
       pageNumber: 6,
       previous: 5,

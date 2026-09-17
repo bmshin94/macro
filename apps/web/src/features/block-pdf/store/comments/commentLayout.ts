@@ -81,10 +81,11 @@ function computeLayout<T>({
 // TODO: make this dependent on current page only
 // i.e. move this logic into a page specific component so it only runs on for the selected page
 export function useCommentLayoutBehavior() {
-  const { signals, stores } = usePdfDocument().state;
+  const pdf = usePdfDocument();
+  const { signals, stores } = pdf.state;
   const [activeCommentThread] = signals.activeCommentThread;
   const [comments] = stores.comments;
-  const [pageHeights] = stores.pageHeight;
+  const pageHeights = pdf.viewer.root.pageHeights;
   const [threadHeights] = stores.threadHeight;
   const [, setThreadPositions] = stores.threadsOnPagePosition;
 

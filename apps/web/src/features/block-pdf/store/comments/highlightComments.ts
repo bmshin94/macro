@@ -82,12 +82,13 @@ const getHighlightThread = (
 
 export const useHighlightComments = () => {
   const userId = useUserId();
-  const { stores, derived } = usePdfDocument().state;
-  const [pageHeights] = stores.pageHeight;
+  const pdf = usePdfDocument();
+  const { stores } = pdf.state;
+  const pageHeights = pdf.viewer.root.pageHeights;
   const [highlights] = stores.highlights;
 
   return createMemo(() => {
-    if (!derived.viewerReady()) return [];
+    if (!pdf.viewer.root.isReady()) return [];
 
     const out: PdfComment[] = [];
     for (const [pageIndexStr, pageHighlights] of Object.entries(highlights)) {

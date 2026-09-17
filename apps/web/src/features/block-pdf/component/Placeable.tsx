@@ -37,8 +37,9 @@ export const Placeable: Component<{
 }> = (props) => {
   const pdf = usePdfDocument();
   const isPopup = useIsPopup();
-  const { signals, derived } = pdf.state;
-  const getViewer = () => (isPopup ? pdf.viewer.popup() : pdf.viewer.root());
+  const { signals } = pdf.state;
+  const viewer = isPopup ? pdf.viewer.popup : pdf.viewer.root;
+  const getViewer = viewer.instance;
 
   const [textAreaRef, setTextAreaRef] = createSignal<HTMLTextAreaElement>();
   let placeableRef!: HTMLDivElement;
@@ -47,11 +48,7 @@ export const Placeable: Component<{
 
   const parentId = () => props.pageNum + 1;
 
-  const visiblePages = () =>
-    (isPopup
-      ? signals.visiblePagesChangedPopup[0]()
-      : signals.visiblePagesChanged[0]()
-    )?.visiblePages;
+  const visiblePages = () => viewer.viewArea()?.visiblePages;
   const visiblePageNumbers = createMemo((prev: Set<number>) => {
     const visiblePageIds = visiblePages()?.ids ?? new Set();
     const equals = setEquals(prev, visiblePageIds);
@@ -325,8 +322,7 @@ export const Placeable: Component<{
     });
   });
 
-  const currentScale = () =>
-    (isPopup ? derived.popupCurrentScale() : derived.currentScale()) ?? 1;
+  const currentScale = () => viewer.currentScale() ?? 1;
   const scale = createMemo(
     () =>
       getViewer()?.getScale({ pageNumber: 1 })?.scale ??

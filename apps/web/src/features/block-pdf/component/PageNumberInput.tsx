@@ -16,7 +16,7 @@ export function PageNumberInput() {
   const [intermediateVal, setIntermediate] = createSignal<string>('');
 
   const inputValue = () => intermediateVal() || currentPageNumber();
-  const getPageCount = () => pdf.state.derived.pageCount() ?? 1;
+  const getPageCount = () => pdf.viewer.root.pageCount() ?? 1;
 
   const getWidthClass = (value: number | string) => {
     const strLength = value.toString().length;

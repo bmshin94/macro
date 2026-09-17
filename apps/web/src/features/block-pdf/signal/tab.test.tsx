@@ -6,7 +6,7 @@ import {
   usePdfDocument,
 } from '../context/pdf-document-context';
 import type { PDFViewer } from '../PdfViewer';
-import type { TEvents } from '../PdfViewer/EventBus';
+import { createEventBus, type TEvents } from '../PdfViewer/EventBus';
 import { useCreateTab, useNavigateToTab } from './tab';
 
 vi.mock('../queries/annotations', () => ({
@@ -50,8 +50,15 @@ function setup(isNested = false): TabTestApi {
   return api;
 }
 
-function setCurrentPage(context: PdfDocumentContextValue, pageNumber: number) {
-  context.state.signals.pageChanging[1]({
+function createViewer(overrides: Partial<PDFViewer> = {}) {
+  return {
+    event: createEventBus(),
+    ...overrides,
+  } as PDFViewer;
+}
+
+function setCurrentPage(viewer: PDFViewer, pageNumber: number) {
+  viewer.event.dispatch('pagechanging', {
     source: {},
     pageNumber,
     previous: pageNumber - 1,
@@ -66,8 +73,8 @@ describe('PDF tab hooks', () => {
 
     const nested = setup(true);
     nested.context.viewer.commands.installPair({
-      root: {} as PDFViewer,
-      popup: {} as PDFViewer,
+      root: createViewer(),
+      popup: createViewer(),
     });
     nested.createTab();
 
@@ -88,14 +95,15 @@ describe('PDF tab hooks', () => {
     const { context, createTab, navigateToTab } = setup();
     const getLocationHash = vi.fn(() => '#page=3');
     const goToLocationHash = vi.fn();
-    context.viewer.commands.installPair({
-      root: {
-        getLocationHash,
-        goToLocationHash,
-      } as unknown as PDFViewer,
-      popup: {} as PDFViewer,
+    const rootViewer = createViewer({
+      getLocationHash,
+      goToLocationHash,
     });
-    setCurrentPage(context, 3);
+    context.viewer.commands.installPair({
+      root: rootViewer,
+      popup: createViewer(),
+    });
+    setCurrentPage(rootViewer, 3);
 
     createTab();
     createTab({ label: 'Saved location', locationHash: '#page=8' });
@@ -109,7 +117,7 @@ describe('PDF tab hooks', () => {
     expect(goToLocationHash.mock.calls).toEqual([['#page=3'], ['#page=8']]);
 
     getLocationHash.mockReturnValue('#page=4');
-    setCurrentPage(context, 4);
+    setCurrentPage(rootViewer, 4);
     navigateToTab(0);
 
     expect(context.tabs.items[2]).toEqual({

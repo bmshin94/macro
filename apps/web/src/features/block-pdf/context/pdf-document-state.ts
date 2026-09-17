@@ -7,11 +7,9 @@ import {
   createResource,
   createSignal,
 } from 'solid-js';
-import { createStore, reconcile } from 'solid-js/store';
+import { createStore } from 'solid-js/store';
 import type { IHighlight } from '../model/Highlight';
-import type { TEvents } from '../PdfViewer/EventBus';
 import { TermDataStore } from '../PdfViewer/TermDataStore';
-import { ZOOM_MAX, ZOOM_MIN } from '../PdfViewer/zoom';
 import { getPdfAnchors, getPdfComments } from '../queries/annotations';
 import type {
   ThreadHeights,
@@ -78,24 +76,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
   const activePlaceableId = createSignal<string>();
   const newPlaceable = createSignal<IPlaceable>();
 
-  const pagesLoaded = createSignal<TEvents['pagesloaded']>();
-  const scaleChanging = createSignal<TEvents['scalechanging']>();
-  const pageChanging = createSignal<TEvents['pagechanging']>();
-  const overlayViewsChanged = createSignal<TEvents['overlayViewsChanged']>();
-  const popupVisibilityChanged =
-    createSignal<TEvents['popupvisibilitychanged']>();
-  const visiblePagesChanged = createSignal<TEvents['updateviewarea']>();
-  const updateFindControlState =
-    createSignal<TEvents['updatefindcontrolstate']>();
-  const updateFindMatchesCount =
-    createSignal<TEvents['updatefindmatchescount']>();
-  const scaleChangingPopup = createSignal<TEvents['scalechanging']>();
-  const pageChangingPopup = createSignal<TEvents['pagechanging']>();
-  const overlayViewsChangedPopup =
-    createSignal<TEvents['overlayViewsChanged']>();
-  const visiblePagesChangedPopup = createSignal<TEvents['updateviewarea']>();
-  const pageHeight = createStore<Partial<Record<number, number>>>({});
-
   const highlights = createStore<HighlightPageMap>({});
   const selection = createStore<{
     highlightsUnderSelection: IHighlight[];
@@ -130,34 +110,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
   const commentThreads = createResource(documentId, getPdfComments);
   const anchors = createResource(documentId, getPdfAnchors);
 
-  const popupOpen = createMemo(
-    () => popupVisibilityChanged[0]()?.isOpen ?? false
-  );
-  const currentPageNumber = createMemo(
-    () => pageChanging[0]()?.pageNumber ?? 1
-  );
-  const currentScale = createMemo(() => scaleChanging[0]()?.scale);
-  const canZoomIn = createMemo(() => {
-    const scale = currentScale();
-    return !!(scale && scale < ZOOM_MAX);
-  });
-  const canZoomOut = createMemo(() => {
-    const scale = currentScale();
-    return !!(scale && scale > ZOOM_MIN);
-  });
-  const pageCount = createMemo(() => pagesLoaded[0]()?.pagesCount);
-  const popupCurrentPageNumber = createMemo(
-    () => pageChangingPopup[0]()?.pageNumber ?? 1
-  );
-  const popupCurrentScale = createMemo(() => scaleChangingPopup[0]()?.scale);
-  const viewerReady = createMemo(() => {
-    const loaded = pagesLoaded[0]();
-    return !!loaded && loaded.pagesCount > 0;
-  });
-  const viewerHasVisiblePages = () => {
-    const ids = visiblePagesChanged[0]()?.visiblePages.ids;
-    return !!ids && ids.size > 0;
-  };
   const highlightsUuidMap = createMemo(() => {
     const result: HighlightUuidMap = {};
     for (const pageHighlights of Object.values(highlights[0] ?? {})) {
@@ -185,16 +137,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
   createEffect(() => {
     disableViewerTextSelection[1](selectingCommentThread[0]() != null);
   });
-  createEffect(() => {
-    const event = overlayViewsChanged[0]();
-    if (!event) return;
-    const updated: Partial<Record<number, number>> = {};
-    for (const pageView of Object.values(event.views)) {
-      updated[pageView.id - 1] = pageView.viewport.height;
-    }
-    pageHeight[1](reconcile(updated));
-  });
-
   return {
     signals: {
       generalPopupLocation,
@@ -206,18 +148,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       placeableMode,
       activePlaceableId,
       newPlaceable,
-      pagesLoaded,
-      scaleChanging,
-      pageChanging,
-      overlayViewsChanged,
-      popupVisibilityChanged,
-      visiblePagesChanged,
-      updateFindControlState,
-      updateFindMatchesCount,
-      scaleChangingPopup,
-      pageChangingPopup,
-      overlayViewsChangedPopup,
-      visiblePagesChangedPopup,
       activeHighlight,
       hoverHighlight,
       popupSelectedText,
@@ -228,7 +158,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       noScrollToActiveCommentThread,
     },
     stores: {
-      pageHeight,
       highlights,
       selection,
       comments,
@@ -243,16 +172,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       anchors,
     },
     derived: {
-      popupOpen,
-      currentPageNumber,
-      currentScale,
-      canZoomIn,
-      canZoomOut,
-      pageCount,
-      popupCurrentPageNumber,
-      popupCurrentScale,
-      viewerReady,
-      viewerHasVisiblePages,
       highlightsUuidMap,
       commentMap,
     },

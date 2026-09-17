@@ -76,7 +76,7 @@ export function useSaveModificationData() {
 
 export function usePdfSaveLocation() {
   const pdf = usePdfDocument();
-  const viewer = pdf.viewer.root;
+  const viewer = pdf.viewer.root.instance;
   const prevLocationHash = pdf.navigation.persistedViewLocation;
   const userId = useUserId();
 

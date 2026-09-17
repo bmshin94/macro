@@ -65,7 +65,7 @@ export function PageOverlay(props: IPageOverlayProps) {
   const analytics = useAnalytics();
 
   const pdf = usePdfDocument();
-  const { signals, stores, derived } = pdf.state;
+  const { signals, stores } = pdf.state;
   let pageOverlayRef!: HTMLDivElement;
   const pageViewDivProp = () => props.pageViewDiv;
 
@@ -74,8 +74,8 @@ export function PageOverlay(props: IPageOverlayProps) {
   const isDocumentOwner = pdf.permissions.isOwner;
 
   const [mode, setMode] = signals.placeableMode;
-  const getPopupViewer = pdf.viewer.popup;
-  const getRootViewer = pdf.viewer.root;
+  const getPopupViewer = pdf.viewer.popup.instance;
+  const getRootViewer = pdf.viewer.root.instance;
   const getIdToSectionMap = useGetIdToSectionMap();
   const isPopup = useIsPopup();
   const popupDispatchCtx = usePopupContextUpdate(isPopup);
@@ -281,9 +281,9 @@ export function PageOverlay(props: IPageOverlayProps) {
   const doEdit = useDoEdit();
   const setActiveHighlightId = signals.activeHighlight[1];
   const currentPageViewport = () => {
-    const pageNumber = isPopup
-      ? derived.popupCurrentPageNumber()
-      : derived.currentPageNumber();
+    const pageNumber = (
+      isPopup ? pdf.viewer.popup : pdf.viewer.root
+    ).currentPageNumber();
     const viewer = isPopup ? getPopupViewer() : getRootViewer();
     return (
       viewer?.pageViewport(pageNumber - 1) ?? {
@@ -404,7 +404,9 @@ export function PageOverlay(props: IPageOverlayProps) {
 
   const showPopup = createMemo(() => {
     const shouldshow =
-      !isPopup && !derived.popupOpen() && !!signals.generalPopupLocation[0]();
+      !isPopup &&
+      !pdf.viewer.isPopupOpen() &&
+      !!signals.generalPopupLocation[0]();
     if (!shouldshow) {
       signals.popupSelectedText[1](undefined);
       signals.popupCompletion[1](undefined);

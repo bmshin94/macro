@@ -65,16 +65,19 @@ export function usePlaceableIdMap() {
 
 function useCurrentScale() {
   const isPopup = useIsPopup();
-  const { currentScale, popupCurrentScale } = usePdfDocument().state.derived;
+  const viewer = usePdfDocument().viewer;
+  const currentScale = isPopup
+    ? viewer.popup.currentScale
+    : viewer.root.currentScale;
 
-  return () => (isPopup ? popupCurrentScale() : currentScale()) ?? 1;
+  return () => currentScale() ?? 1;
 }
 
 function useGetPopupContextViewer() {
   const isPopup = useIsPopup();
   const viewer = usePdfDocument().viewer;
 
-  return () => (isPopup ? viewer.popup() : viewer.root());
+  return (isPopup ? viewer.popup : viewer.root).instance;
 }
 
 // function convertTextAnnotationToThread(

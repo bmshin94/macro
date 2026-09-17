@@ -51,7 +51,7 @@ function Tab(props: IInternalTabProps) {
 export function Tabs() {
   const pdf = usePdfDocument();
   const tabs = pdf.tabs.items;
-  const viewerHasVisiblePages = pdf.state.derived.viewerHasVisiblePages;
+  const viewerHasVisiblePages = pdf.viewer.root.hasVisiblePages;
   const createTab = useCreateTab();
   const deleteTab = useDeleteTab();
   const navigate = useNavigateToTab();

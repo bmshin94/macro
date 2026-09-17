@@ -150,7 +150,7 @@ export function useDeleteNewComments() {
 export function useScrollToCommentThread() {
   const pdf = usePdfDocument();
   const { documentId, rootElement, state } = pdf;
-  const viewer = pdf.viewer.root;
+  const viewer = pdf.viewer.root.instance;
   const [comments] = state.stores.comments;
 
   const scrollIntoView = (el: HTMLElement) => {

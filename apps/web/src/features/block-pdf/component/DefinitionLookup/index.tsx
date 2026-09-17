@@ -110,7 +110,7 @@ export interface IState {
 }
 
 export function DefinitionLookup(props: IProps) {
-  const popupOpen = usePdfDocument().state.derived.popupOpen;
+  const popupOpen = usePdfDocument().viewer.isPopupOpen;
   const isPopup = useIsPopup();
   const getIdToSectionMap = useGetIdToSectionMap();
   // popupAtoms => popupStore

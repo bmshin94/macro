@@ -150,12 +150,12 @@ export const useCommentPlaceables = () => {
 
 export const useFreeComments = () => {
   const userId = useUserId();
-  const { stores, derived } = usePdfDocument().state;
-  const [pageHeights] = stores.pageHeight;
+  const pdf = usePdfDocument();
+  const pageHeights = pdf.viewer.root.pageHeights;
   const commentPlaceables = useCommentPlaceables();
 
   return createMemo(() => {
-    if (!derived.viewerReady()) return [];
+    if (!pdf.viewer.root.isReady()) return [];
 
     const out: PdfComment[] = [];
     for (const commentPlaceable of commentPlaceables()) {

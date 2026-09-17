@@ -41,12 +41,11 @@ type WordMatch = BaseMatch & {
 type Match = EntityMatch | WordMatch;
 
 function useMergedEventSignal() {
-  const { updateFindControlState, updateFindMatchesCount } =
-    usePdfDocument().state.signals;
+  const { findControlState, findMatchesCount } = usePdfDocument().viewer.root;
 
   return (): IUpdateFindControlStateEvent | null => {
-    const controlStateEvent = updateFindControlState[0]();
-    const matchesCount = updateFindMatchesCount[0]();
+    const controlStateEvent = findControlState();
+    const matchesCount = findMatchesCount();
 
     if (!controlStateEvent) return null;
 
@@ -177,7 +176,7 @@ function getWordMatches(
 }
 
 export function useSearchStart() {
-  const rootViewer = usePdfDocument().viewer.root;
+  const rootViewer = usePdfDocument().viewer.root.instance;
   return (args: Parameters<PDFViewer['search']>[0]) => {
     rootViewer()?.search(args);
   };
@@ -222,7 +221,7 @@ export function useSearchResults() {
 }
 
 export function useJumpToResult() {
-  const rootViewer = usePdfDocument().viewer.root;
+  const rootViewer = usePdfDocument().viewer.root.instance;
   const mergedEvent = useMergedEventSignal();
 
   return (match: Match) => {
@@ -241,7 +240,7 @@ export function useJumpToResult() {
 }
 
 export function useSearchClose() {
-  const rootViewer = usePdfDocument().viewer.root;
+  const rootViewer = usePdfDocument().viewer.root.instance;
   return () => {
     rootViewer()?.findBarClose();
   };
