@@ -111,9 +111,16 @@ async fn serve(
     }
 }
 
-/// A 4xx is the gateway's verdict on this harness; retrying cannot fix it.
+/// Retry transport failures, server errors, and temporary HTTP refusals.
+/// Other 4xx responses require an operator to fix configuration or credentials.
 fn worth_redialing(error: &tungstenite::Error) -> bool {
-    !matches!(error, tungstenite::Error::Http(response) if response.status().is_client_error())
+    let tungstenite::Error::Http(response) = error else {
+        return true;
+    };
+    let status = response.status();
+    !status.is_client_error()
+        || status == tungstenite::http::StatusCode::REQUEST_TIMEOUT
+        || status == tungstenite::http::StatusCode::TOO_MANY_REQUESTS
 }
 
 fn reconnect_strategy() -> ExponentialBackoff {

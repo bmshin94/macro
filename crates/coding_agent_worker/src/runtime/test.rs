@@ -34,7 +34,7 @@ async fn retries_transient_failure_and_closed_connection_without_triggers() {
         socket,
         |_: &tungstenite::handshake::server::Request, _| {
             Err(tungstenite::http::Response::builder()
-                .status(503)
+                .status(429)
                 .body(None)
                 .unwrap())
         },
@@ -102,4 +102,25 @@ async fn dispatch_does_not_wait_forever_for_a_connection() {
     assert!(
         matches!(error, tungstenite::Error::Io(error) if error.kind() == std::io::ErrorKind::TimedOut)
     );
+}
+
+#[test]
+fn retry_policy_distinguishes_temporary_refusals_from_invalid_credentials() {
+    for (status, retry) in [
+        (401, false),
+        (403, false),
+        (404, false),
+        (408, true),
+        (429, true),
+        (503, true),
+    ] {
+        let error = tungstenite::Error::Http(Box::new(
+            tungstenite::http::Response::builder()
+                .status(status)
+                .body(None)
+                .unwrap(),
+        ));
+        assert_eq!(worth_redialing(&error), retry, "HTTP {status}");
+    }
+    assert!(worth_redialing(&tungstenite::Error::ConnectionClosed));
 }
