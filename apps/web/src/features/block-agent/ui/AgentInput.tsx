@@ -1,3 +1,4 @@
+import { createResizeObserver } from '@solid-primitives/resize-observer';
 /**
  * The agent block's composer: the chat input's look and its markdown editing
  * surface (`MarkdownShell` over a lean `EditorConfigBuilder`), including `@`
@@ -15,6 +16,7 @@ import type { InputAttachmentData, InputCommands } from '@channel/Input/types';
 import { buildConfig } from '@core/component/LexicalMarkdown/builder/MarkdownConfigBuilder';
 import { ComposerEditor } from '@core/component/LexicalMarkdown/component/ComposerEditor';
 import type { AgentCommandItem } from '@core/component/LexicalMarkdown/plugins';
+import { createComposerLayout } from '@core/component/LexicalMarkdown/utils/create-composer-layout';
 import { isMobile } from '@core/mobile/isMobile';
 import { isTouchDevice } from '@core/mobile/isTouchDevice';
 import { useTouchOutsideToDismissKeyboard } from '@core/mobile/useTouchOutsideToDismissKeyboard';
@@ -85,14 +87,15 @@ export interface AgentInputProps {
   registerFocus?: (focus: (() => void) | undefined) => void;
 }
 
-/** Past this height a phone draft is scroll-capped so it cannot eat the dock. */
-const SINGLE_LINE_HEIGHT = 40;
-
 export function AgentInput(props: AgentInputProps) {
   const [markdown, setMarkdown] = createSignal('');
   const [isDraggedOver, setIsDraggedOver] = createSignal(false);
   let containerRef: HTMLDivElement | undefined;
-  let bodyRef: HTMLDivElement | undefined;
+  const [layout, setLayout] = createSignal<HTMLDivElement>();
+  const [height, setHeight] = createSignal<number>();
+  createResizeObserver(layout, (_, element) => {
+    setHeight(element.getBoundingClientRect().height);
+  });
   useTouchOutsideToDismissKeyboard(() => containerRef);
 
   const attachments = () => props.attachments ?? [];
@@ -122,14 +125,6 @@ export function AgentInput(props: AgentInputProps) {
     toggleFormatRibbon: () => {},
     close: () => {},
     removeAttachment: (attachment) => props.onRemoveAttachment?.(attachment),
-  };
-
-  // Caps tall drafts on a phone so the editor cannot eat the viewport
-  // above the dock. Controls live in a footer row, not over the text.
-  const isMultiline = () => {
-    if (markdown().trim().length === 0) return false;
-    if (!bodyRef) return false;
-    return bodyRef.scrollHeight > SINGLE_LINE_HEIGHT;
   };
 
   const send = () => {
@@ -195,6 +190,14 @@ export function AgentInput(props: AgentInputProps) {
     })
     .onChange(setMarkdown);
 
+  const { isCompact, hasMultilineContent } = createComposerLayout(
+    editor.buildHandle().lexical,
+    {
+      container: layout,
+      mode: () => (isTouchDevice() ? 'expanded' : 'auto'),
+    }
+  );
+
   onMount(() => {
     props.registerFocus?.(() => editor.controls.focus());
     onCleanup(() => props.registerFocus?.(undefined));
@@ -248,7 +251,10 @@ export function AgentInput(props: AgentInputProps) {
         </Show>
         {/* h-auto beats Surface's size-full so the in-flow controls are not
             clipped over the editor (that was Auto sitting on the placeholder). */}
-        <ComposerSurface class="h-auto">
+        <ComposerSurface
+          class="h-auto transition-[height] duration-150 ease-out motion-reduce:transition-none"
+          style={{ height: height() === undefined ? undefined : `${height()}px` }}
+        >
           <Input.DropZone
             onDragStart={(valid) => canAttach() && setIsDraggedOver(valid)}
             onDragEnd={() => setIsDraggedOver(false)}
@@ -269,14 +275,15 @@ export function AgentInput(props: AgentInputProps) {
                 the whole width and the controls drop to a footer row (model
                 left, send right) — the chat-tall / channel footer shape. */}
             <div
-              class="flex items-end gap-[3.75px] p-[7.5px] min-h-[48.75px] touch:min-h-0 touch:flex-col touch:items-stretch touch:gap-0 touch:p-0"
+              ref={setLayout}
+              data-composer-compact={isCompact()}
+              class="group/composer flex items-end data-[composer-compact=false]:flex-col data-[composer-compact=false]:items-stretch gap-[3.75px] p-[7.5px] min-h-[48.75px] touch:min-h-0 touch:flex-col touch:items-stretch touch:gap-0 touch:p-0"
               onPointerDown={focusEditor}
               onMouseDown={focusEditor}
             >
               <div
                 id={AGENT_INPUT_TEXT_AREA_ID}
-                ref={bodyRef}
-                class="min-w-0 flex-1 text-base text-ink not-touch:px-[9.375px] not-touch:py-[4.6875px] not-touch:leading-[24.375px] not-touch:min-h-[24.375px] not-touch:text-composer-ink touch:px-3 touch:py-2"
+                class="min-w-0 flex-1 group-data-[composer-compact=false]/composer:flex-none text-base text-ink not-touch:px-[9.375px] not-touch:py-[4.6875px] not-touch:leading-[24.375px] not-touch:min-h-[24.375px] not-touch:text-composer-ink touch:px-3 touch:py-2"
                 classList={{
                   // While empty only the placeholder renders; keep it to one clipped
                   // line so it doesn't wrap into the single-line height.
@@ -284,7 +291,7 @@ export function AgentInput(props: AgentInputProps) {
                     markdown().trim().length === 0,
                   // Long drafts must not eat the mobile viewport above the dock.
                   'max-h-[calc(32*var(--dvh,1dvh))] overflow-y-auto':
-                    isMultiline() && isMobile(),
+                    hasMultilineContent() && isMobile(),
                 }}
               >
                 <ComposerEditor

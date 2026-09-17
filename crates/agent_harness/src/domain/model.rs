@@ -7,14 +7,14 @@ use agent_runtime_protocol::domain::action::{AgentAction, AgentActionId, PromptA
 use agent_session::domain::model::{AgentMcpServers, AgentSessionId, MessageId, SandboxSize};
 use agent_session::domain::ports::ControlEvent;
 use bot_id::BotId;
-use channels::domain::broker_events::ChannelEventAttachment;
 use macro_user_id::user_id::MacroUserIdStr;
 use macro_uuid::Uuid;
+use messages::domain::events::MessageEventAttachment;
 /// Where a mention happened.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MentionOrigin {
-    /// Channel the mentioning message was posted in.
-    pub channel_id: Uuid,
+    /// Channel or document the mentioning message was posted in.
+    pub parent: messages::domain::models::MessageParent,
     /// Thread the announcement replies into: the mention's thread root.
     pub thread_id: Uuid,
     /// The mentioning message itself.
@@ -63,7 +63,7 @@ impl StaticFileLinks {
     #[must_use]
     pub fn prompt_attachment(
         &self,
-        attachment: &ChannelEventAttachment,
+        attachment: &MessageEventAttachment,
     ) -> Option<PromptAttachment> {
         let (kind, mime_type) = match attachment.entity_type.as_str() {
             Self::STATIC_IMAGE => ("image", "image/*"),
@@ -78,7 +78,7 @@ impl StaticFileLinks {
     #[must_use]
     pub fn prompt_attachments(
         &self,
-        attachments: &[ChannelEventAttachment],
+        attachments: &[MessageEventAttachment],
     ) -> Vec<PromptAttachment> {
         attachments
             .iter()
@@ -215,18 +215,18 @@ pub(crate) use agent_egress::domain::model::is_macro_staff;
 /// answer back into.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AnnounceOrigin {
-    /// Channel the prompt was posted in.
-    pub channel_id: Uuid,
+    /// Channel or document the prompt was posted in.
+    pub parent: messages::domain::models::MessageParent,
     /// Thread the announcement replies into.
     pub thread_id: Uuid,
-    /// The channel message that triggered the prompt.
+    /// The message that triggered the prompt.
     pub message_id: Uuid,
 }
 
-/// One channel message supplied as untrusted prompt context.
+/// One prior message supplied as untrusted prompt context.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PriorChannelMessage {
-    /// Sender identifier as represented by the channels service.
+pub struct PriorMessage {
+    /// Sender identifier as the message service represents it.
     pub sender: String,
     /// Message body.
     pub content: String,
@@ -351,7 +351,7 @@ impl DeliverAction {
 /// the control endpoint, and this posts the magic-chip message the replies
 /// render into. Split that way because each side is the only one that can
 /// do its half honestly: only the runtime can reach its harness, and only
-/// the observed trigger event can vouch for the channel context.
+/// the observed trigger event can vouch for the conversation context.
 #[derive(Debug, Clone)]
 pub struct AnnouncePrompt {
     /// The bot the trigger named; must match the session row before posting.
@@ -371,8 +371,8 @@ pub struct SessionAnnouncement {
     pub session_id: AgentSessionId,
     /// The bot the session runs for; the announcement posts as it.
     pub bot_id: BotId,
-    /// Channel containing the mention that opened the session.
-    pub origin_channel_id: Uuid,
+    /// Channel or document containing the mention that opened the session.
+    pub origin_parent: messages::domain::models::MessageParent,
     /// Thread where the announcement should be posted.
     pub origin_thread_id: Uuid,
     /// Channel message targeted by the announcement.
@@ -385,7 +385,7 @@ pub struct SessionAnnouncement {
     pub triggered_by: MacroUserIdStr<'static>,
 }
 
-/// The channel message an announcement became.
+/// The message an announcement became.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AnnouncedMessage {
     /// The posted message: the magic chip its turn renders into.
