@@ -316,6 +316,14 @@ Existing announcement chips remain locked to the turn they announced.
 
 ### Transcript navigation
 
+Streamed markdown keeps existing mentions mounted as text is appended, including
+mentions in a paragraph that is still growing. Offscreen document mentions stay
+lazy until approached; a revealed mention should not return to a loading
+placeholder just because another chunk arrives. The same renderer stays mounted
+when a response completes. Whole-message virtualization can still unmount rows.
+See the [streaming markdown guide](../../apps/web/docs/streaming-markdown.md)
+for renderer usage and regression tests.
+
 Agent sessions reuse the channel's TanStack `ThreadList`. Opening a session lands
 at the latest message, including when history arrives after the empty view. Short
 transcripts sit at the bottom, above the composer. Only the visible rows and an

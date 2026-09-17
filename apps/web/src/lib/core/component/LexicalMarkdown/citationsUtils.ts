@@ -156,10 +156,12 @@ const getPdfCitationInfo = async (citationId: string) => {
         return '';
       }
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error(err);
   }
-  return '';
+  // Failed requests may recover on the next streamed update. Unlike an invalid
+  // citation, they must not become a permanent empty entry in the message cache.
+  return undefined;
 };
 
 const getMdNodeCitationInfo = async (documentId: string, nodeId: string) => {
@@ -241,12 +243,14 @@ const splitMdCitation = (
   return { documentId, nodeId };
 };
 
-export const replaceCitations = async (input: string): Promise<string> => {
+export const replaceCitations = async (
+  input: string,
+  citationCache = new Map<string, string>()
+): Promise<string> => {
   const citationRegex = /\[\[(.*?)\]\]/g;
 
-  const citationCache = new Map<string, string>();
   // async lookups, started concurrently so the preview dataloader can batch them
-  const pendingCitations = new Map<string, Promise<string>>();
+  const pendingCitations = new Map<string, Promise<string | undefined>>();
   const matches = [...input.matchAll(citationRegex)];
   for (const match of matches) {
     const citation = match[1];
@@ -298,7 +302,8 @@ export const replaceCitations = async (input: string): Promise<string> => {
 
   await Promise.all(
     [...pendingCitations].map(async ([citation, xml]) => {
-      citationCache.set(citation, await xml);
+      const resolved = await xml;
+      if (resolved !== undefined) citationCache.set(citation, resolved);
     })
   );
 

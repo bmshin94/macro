@@ -1,5 +1,5 @@
 // import '@core/component/AI/css/prism-theme.css';
-import { StaticMarkdown } from '@core/component/LexicalMarkdown/component/core/StaticMarkdown';
+import { StreamingStaticMarkdown } from '@core/component/LexicalMarkdown/component/core/StaticMarkdown';
 import { aiChatTheme } from '@core/component/LexicalMarkdown/theme';
 import type { EditorState } from 'lexical';
 import type { Accessor } from 'solid-js';
@@ -39,7 +39,7 @@ export function ChatMessageMarkdown(props: {
   };
 
   return (
-    <StaticMarkdown
+    <StreamingStaticMarkdown
       markdown={text()}
       theme={aiChatTheme}
       rootRef={props.rootRef}
