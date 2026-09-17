@@ -86,6 +86,27 @@ pub fn resolve_inbox_selector<'a>(
     }
 }
 
+/// Require that `link` is an inbox the caller owns, not one delegated to
+/// them. Owner-only actions (sending on an agent opt-in the owner set for
+/// their own agents) use this after [`resolve_inbox_selector`], which
+/// deliberately spans every accessible inbox.
+pub fn require_owned_inbox(link: &Link, caller_macro_id: &str) -> Result<(), ToolCallError> {
+    if link.macro_id.to_string() == caller_macro_id {
+        return Ok(());
+    }
+    let inbox = link.email_address.0.as_ref();
+    Err(ToolCallError {
+        description: format!(
+            "{inbox} is shared with the user but owned by someone else; only its owner can send \
+             from it here. Save the email with CreateEmailDraft instead."
+        ),
+        internal_error: anyhow::anyhow!(
+            "caller {caller_macro_id} does not own link {} ({inbox})",
+            link.id
+        ),
+    })
+}
+
 /// Service context for email AI tools.
 pub struct EmailToolContext<
     T: EmailService,

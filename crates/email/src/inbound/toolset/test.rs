@@ -246,6 +246,37 @@ fn resolve_inbox_selector_rejects_unknown_address() {
     );
 }
 
+#[test]
+fn require_owned_inbox_rejects_delegated_inboxes() {
+    let owned = make_link("macro|gab@macro.com", "gab@macro.com", true);
+    let delegated = make_link("macro|boss@macro.com", "boss@macro.com", true);
+
+    assert!(require_owned_inbox(&owned, "macro|gab@macro.com").is_ok());
+
+    let err = require_owned_inbox(&delegated, "macro|gab@macro.com")
+        .err()
+        .expect("a delegated inbox must be refused");
+    assert!(
+        err.description.contains("owned by someone else"),
+        "{}",
+        err.description
+    );
+    assert!(
+        err.description.contains("CreateEmailDraft"),
+        "{}",
+        err.description
+    );
+}
+
+#[test]
+fn require_owned_inbox_rejects_the_fallback_when_the_caller_owns_nothing() {
+    // With no owned link, the selector falls back to the first accessible
+    // inbox; the ownership check is what keeps that fallback from sending.
+    let inboxes = vec![make_link("macro|boss@macro.com", "boss@macro.com", true)];
+    let link = resolve_inbox_selector(&inboxes, "macro|assistant@macro.com", None).unwrap();
+    assert!(require_owned_inbox(link, "macro|assistant@macro.com").is_err());
+}
+
 /// The composer's export, as `prepareEmailBody` encodes it: base64url of the
 /// body element's outer HTML, unpadded.
 fn composer_body(html: &str) -> String {

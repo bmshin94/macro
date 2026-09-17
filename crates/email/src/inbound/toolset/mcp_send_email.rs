@@ -33,8 +33,8 @@ send with different arguments.\n\
 \n\
 To reply within an existing thread, pass `replying_to_id` (a message id from GetThread). Write \
 the body in Markdown; it is rendered to HTML, and the inbox's signature is added per the user's \
-settings. Sends from the primary inbox unless `inbox` names another connected inbox (an email \
-address from ListInboxes)."
+settings. Sends from the primary inbox unless `inbox` names another inbox the user owns (an \
+email address from ListInboxes); inboxes shared with the user by someone else cannot send."
 )]
 #[serde(rename_all = "camelCase")]
 pub struct McpSendEmail {
@@ -121,6 +121,9 @@ where
         let caller_macro_id = request_context.user_id.to_string();
         let link =
             super::resolve_inbox_selector(&inboxes, &caller_macro_id, self.inbox.as_deref())?;
+        // The opt-in is the owner's, for their own agents: a teammate the
+        // inbox is delegated to must not ride on it.
+        super::require_owned_inbox(link, &caller_macro_id)?;
         let inbox = link.email_address.0.as_ref().to_string();
 
         // Fail closed: a settings lookup error reads as "not enabled".

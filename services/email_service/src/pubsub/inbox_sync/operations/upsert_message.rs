@@ -267,7 +267,7 @@ pub async fn upsert_message(
                     thread_id: thread_db_id,
                     provider_thread_id: provider_thread_id.clone(),
                     is_spam_or_trash,
-                    is_trash,
+                    is_trash: Some(is_trash),
                 })
             }
             MessageSyncEventKind::Received => {
@@ -285,7 +285,7 @@ pub async fn upsert_message(
                     to_emails: event_to_emails,
                     attachment_count: message_attachment_count as u32,
                     is_spam_or_trash,
-                    is_trash,
+                    is_trash: Some(is_trash),
                     received_at: event_received_at,
                 })
             }

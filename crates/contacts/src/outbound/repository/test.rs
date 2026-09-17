@@ -120,6 +120,29 @@ async fn test_hidden_contacts_are_filtered_for_the_owner_only(pool: PgPool) -> s
     Ok(())
 }
 
+#[sqlx::test(
+    migrator = "MACRO_DB_MIGRATIONS",
+    fixtures(path = "fixtures", scripts("user_list"))
+)]
+async fn test_hiding_a_stranger_stores_nothing(pool: PgPool) -> sqlx::Result<()> {
+    let repo = DbContactsRepository::new(pool.clone());
+    let owner = mid("macro|a@test.com");
+
+    // Not a connection of the owner: nothing to suppress, nothing stored, so
+    // a client cannot grow the table with arbitrary ids.
+    repo.set_contact_hidden(owner.clone(), mid("macro|stranger@test.com"), true)
+        .await
+        .unwrap();
+
+    let count = sqlx::query_scalar!("SELECT count(*) FROM contacts_hidden")
+        .fetch_one(&pool)
+        .await?
+        .unwrap();
+    assert_eq!(count, 0);
+    assert_eq!(repo.get_contacts(owner).await.unwrap().len(), 3);
+    Ok(())
+}
+
 #[sqlx::test(migrator = "MACRO_DB_MIGRATIONS")]
 async fn test_create_connections_batch(pool: PgPool) -> sqlx::Result<()> {
     let connections: Vec<(MacroUserIdStr<'static>, MacroUserIdStr<'static>)> = (0..8)

@@ -364,27 +364,34 @@ export async function markThreadNotSpamWithToast(
     return;
   }
 
+  // Two label edits, in a deliberate order: add the destination label
+  // first, then drop the source. If the first fails nothing has changed; if
+  // the second fails the thread carries both labels and stays visible, never
+  // stranded with neither (SPAM gone and INBOX absent reads as archived).
   const setLabels = async (spam: boolean) => {
-    const results = await Promise.all([
-      emailClient.updateThreadLabel({
-        thread_id: threadId,
-        label_id: spamLabelId,
-        value: spam,
-      }),
-      emailClient.updateThreadLabel({
-        thread_id: threadId,
-        label_id: inboxLabelId,
-        value: !spam,
-      }),
-    ]);
-    return results.every((result) => result.isOk());
+    const [add, remove] = spam
+      ? [spamLabelId, inboxLabelId]
+      : [inboxLabelId, spamLabelId];
+    const added = await emailClient.updateThreadLabel({
+      thread_id: threadId,
+      label_id: add,
+      value: true,
+    });
+    if (added.isErr()) return false;
+    const removed = await emailClient.updateThreadLabel({
+      thread_id: threadId,
+      label_id: remove,
+      value: false,
+    });
+    // Whatever happened, the first edit landed, so the feed needs refetching.
+    invalidateAllSoup();
+    return removed.isOk();
   };
 
   if (!(await setLabels(false))) {
     toast.failure('Failed to move out of spam');
     return;
   }
-  invalidateAllSoup();
 
   toast.success('Moved out of spam', {
     subtext: 'The thread is back in your inbox',
@@ -394,7 +401,6 @@ export async function markThreadNotSpamWithToast(
         icon: ArrowCounterClockwise,
         onClick: async () => {
           if (await setLabels(true)) {
-            invalidateAllSoup();
             toast.success('Moved back to spam');
           } else {
             toast.failure('Failed to undo');

@@ -20,7 +20,8 @@ pub trait ContactsRepository: Send + Sync + 'static {
 
     /// Records whether `owner` wants `contact` suppressed from their
     /// suggestions. The connection itself is kept, so a later sync that
-    /// re-upserts the edge does not resurface the contact.
+    /// re-upserts the edge does not resurface the contact. Hiding someone
+    /// the owner is not connected to is a no-op.
     fn set_contact_hidden(
         &self,
         owner: MacroUserIdStr<'_>,

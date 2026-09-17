@@ -246,14 +246,14 @@ fn patches_from_email_event(event: &EmailTopicEvent) -> Vec<SoupRealtimePatch> {
     // Spam stays in the feed as noise, so only trash suppresses the patch.
     match event {
         EmailTopicEvent::MessageReceived(metadata) => {
-            if metadata.is_trash {
+            if metadata.is_trash() {
                 Vec::new()
             } else {
                 updated_thread(metadata.thread_id)
             }
         }
         EmailTopicEvent::MessageDraftSynced(metadata) => {
-            if metadata.is_trash {
+            if metadata.is_trash() {
                 Vec::new()
             } else {
                 updated_thread(metadata.thread_id)

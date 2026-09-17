@@ -108,10 +108,17 @@ impl ContactsRepository for DbContactsRepository {
         hidden: bool,
     ) -> Result<(), Report> {
         if hidden {
+            // Only a current connection can be hidden: that is the only thing
+            // that gets suggested, and it bounds the table by the owner's own
+            // contact count rather than by whatever ids a client sends.
             sqlx::query!(
                 "
                 INSERT INTO contacts_hidden(owner, contact)
-                VALUES ($1, $2)
+                SELECT $1, $2
+                WHERE EXISTS (
+                    SELECT 1 FROM contacts_connections
+                    WHERE (user1 = $1 AND user2 = $2) OR (user1 = $2 AND user2 = $1)
+                )
                 ON CONFLICT (owner, contact) DO NOTHING
                 ",
                 owner.as_ref(),
