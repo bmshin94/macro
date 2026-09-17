@@ -68,7 +68,6 @@ export default function BlockPdf() {
 
 function PdfBlockContent() {
   const pdf = usePdfDocument();
-  const [showTabBar] = pdf.state.signals.showTabBar;
 
   return (
     <ModalsProvider>
@@ -77,7 +76,7 @@ function PdfBlockContent() {
           <PdfSidePanelSections />
           <div class="flex size-full min-w-0 flex-col overflow-hidden">
             <TopBar />
-            <Show when={showTabBar()}>
+            <Show when={pdf.tabs.isVisible()}>
               <div class="flex px-2 justify-between min-h-11 items-center gap-2">
                 <div class="overflow-x-auto overflow-y-hidden grow customScrollbar w-0">
                   <Tabs />

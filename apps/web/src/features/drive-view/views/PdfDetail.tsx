@@ -34,7 +34,6 @@ export type PdfDetailContext = {
 function PdfDetailContent() {
   const pdf = usePdfDocument();
   const [documentProxy] = pdf.state.signals.documentProxy;
-  const [showTabBar] = pdf.state.signals.showTabBar;
 
   return (
     <>
@@ -47,7 +46,7 @@ function PdfDetailContent() {
         </div>
       </Show>
       <div class="flex size-full min-h-0 min-w-0 flex-col overflow-hidden">
-        <Show when={showTabBar()}>
+        <Show when={pdf.tabs.isVisible()}>
           <div class="flex min-h-11 items-center justify-between gap-2 px-2">
             <div class="customScrollbar w-0 grow overflow-x-auto overflow-y-hidden">
               <Tabs />

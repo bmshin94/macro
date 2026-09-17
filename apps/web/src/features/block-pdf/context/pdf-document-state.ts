@@ -22,7 +22,6 @@ import type {
   LocationBlockParams,
   PreciseLocation,
 } from '../signal/location';
-import type { TabInfo } from '../signal/tab';
 import type {
   ThreadHeights,
   ThreadPositionsOnPage,
@@ -36,12 +35,6 @@ import {
   PayloadMode,
   type PayloadType,
 } from '../type/placeables';
-
-const defaultTabData = (id: number): TabInfo => ({
-  label: 'Page 1',
-  locationHash: '#page=1',
-  id,
-});
 
 const createDefinitionPopupState = (): ISectionPopupContext => ({
   terms: [],
@@ -107,14 +100,8 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
   const selectingCommentThread = createSignal<number | null>(null);
 
   const placeableMode = createSignal<PayloadType>(PayloadMode.NoMode);
-  const showTabBar = createSignal(false);
   const activePlaceableId = createSignal<string>();
   const newPlaceable = createSignal<IPlaceable>();
-
-  const tabId = createSignal(0);
-  const tabData = createStore<TabInfo[]>([defaultTabData(0)]);
-  const activeTabId = createSignal(0);
-  const tabHistory = createSignal<number[]>([0]);
 
   const rootViewer = createSignal<PDFViewer>();
   const popupViewer = createSignal<PDFViewer>();
@@ -250,12 +237,8 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       isSelectingViewerText,
       selectingCommentThread,
       placeableMode,
-      showTabBar,
       activePlaceableId,
       newPlaceable,
-      tabId,
-      activeTabId,
-      tabHistory,
       rootViewer,
       popupViewer,
       pagesLoaded,
@@ -281,7 +264,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
     },
     stores: {
       location,
-      tabData,
       pageHeight,
       highlights,
       selection,

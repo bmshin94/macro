@@ -14,6 +14,7 @@ import {
   createPdfPersistence,
   type PdfPersistence,
 } from '../primitives/pdf-persistence';
+import { createPdfTabs, type PdfTabs } from '../primitives/pdf-tabs';
 import type { LocationSearchParams } from '../signal/location';
 import {
   createPdfDocumentState,
@@ -42,6 +43,7 @@ export type PdfDocumentContextValue = {
   setRootElement: (element: HTMLElement | undefined) => void;
   model: PdfDocumentModel;
   persistence: PdfPersistence;
+  tabs: PdfTabs;
   state: PdfDocumentState;
 };
 
@@ -64,6 +66,7 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
   const [rootElement, setRootElement] = createSignal<HTMLElement>();
   const model = createPdfDocumentModel();
   const persistence = createPdfPersistence();
+  const tabs = createPdfTabs();
   const context: PdfDocumentContextValue = {
     documentId,
     documentVersionId: () => props.documentVersionId,
@@ -80,6 +83,7 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
     setRootElement,
     model,
     persistence,
+    tabs,
     state: createPdfDocumentState(documentId),
   };
 
