@@ -27,7 +27,6 @@ export function useHasModificationData() {
 export function useSaveModificationData() {
   const pdf = usePdfDocument();
   const pdfModificationValue = pdf.model.modificationData;
-  const [tableOfContents] = pdf.state.stores.tableOfContents;
 
   const serverModificationDataHash = createMemo(() => {
     const modificationData_ = pdf.model.serverSnapshot();
@@ -41,7 +40,6 @@ export function useSaveModificationData() {
     const placeables = pdfModificationValue.placeables ?? [];
     const { modificationData } = getSaveModificationData({
       placeables,
-      TOCItems: tableOfContents.items,
       pinnedTerms: [],
     });
     const sha = hashModificationDataSync(modificationData);
@@ -52,7 +50,6 @@ export function useSaveModificationData() {
     const placeables = pdfModificationValue.placeables ?? [];
     const { modificationData } = getSaveModificationData({
       placeables,
-      TOCItems: tableOfContents.items,
       pinnedTerms: [],
     });
 

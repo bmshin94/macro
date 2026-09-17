@@ -20,7 +20,6 @@ import type Term from '../../model/Term';
 import { usePopupStore } from '../../signal/definitionPopup';
 import { useIsPopup } from '../../signal/pdfViewer';
 import { useGoToLocation } from '../../signal/tab';
-import { useGetIdToSectionMap } from '../../store/tableOfContents';
 import { CoParseClassName } from '../../type/coParse';
 import TocUtils from '../../util/TocUtils';
 import { DefinitionsAccordion } from './DefinitionsAccordion';
@@ -98,7 +97,6 @@ export function DefinitionLookup(props: IProps) {
   const pdf = usePdfDocument();
   const popupOpen = pdf.viewer.isPopupOpen;
   const isPopup = useIsPopup();
-  const getIdToSectionMap = useGetIdToSectionMap();
   const popupStore = usePopupStore(isPopup);
   const termIDToSizingMap = popupStore.termIDToSizingMap;
   const terms = popupStore.terms;
@@ -152,9 +150,7 @@ export function DefinitionLookup(props: IProps) {
 
     if (className === CoParseClassName.SectionReference) {
       e.stopPropagation();
-      // when current TOC is using PDF bookmarks, use the AI TOC's ID-to-section
-      // mapping since the section references are built from the AI TOC
-      const idToSectionMap = getIdToSectionMap();
+      const idToSectionMap = pdf.outline.sectionReferenceMap();
       const section = TocUtils.getSection({ id, idToSectionMap });
       openLocation({
         newTab: true,

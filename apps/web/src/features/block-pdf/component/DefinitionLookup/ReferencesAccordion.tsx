@@ -4,7 +4,6 @@ import { createSignal, Index } from 'solid-js';
 import { styled } from 'solid-styled-components';
 import Reference from '../../model/Reference';
 import type Term from '../../model/Term';
-import { useTableOfContentsValue } from '../../store/tableOfContents';
 import { OpenRefInNewTabIcon } from './OpenRefInNewTabIcon';
 import {
   AccordionText,
@@ -31,15 +30,8 @@ interface IProps {
 }
 
 export function ReferencesAccordion(props: IProps) {
-  const tableOfContents = useTableOfContentsValue();
-  const idToSectionMap = () => tableOfContents().idToSectionMap;
-
   const references = () =>
-    Array.from(props.term.references).map((e) =>
-      Reference.fromXML(e, {
-        idToSectionMap: idToSectionMap(),
-      })
-    );
+    Array.from(props.term.references).map(Reference.fromXML);
 
   const [expandedItem, setExpandedItem] = createSignal(['0']);
 
@@ -60,10 +52,6 @@ export function ReferencesAccordion(props: IProps) {
         <Accordion value={expandedItem()} onChange={setExpandedItem}>
           <Index each={references()}>
             {(r, idx) => {
-              let text = 'On page ' + (r().pageNum + 1);
-              if (r().sectionName) {
-                text = `In ${r().sectionName} on page ${r().pageNum + 1}`;
-              }
               return (
                 <Accordion.Item value={idx.toString()}>
                   <BootstrapCard
@@ -78,7 +66,7 @@ export function ReferencesAccordion(props: IProps) {
                         setExpandedItem([idx.toString()]);
                       }}
                     >
-                      <AccordionText>{text}</AccordionText>
+                      <AccordionText>On page {r().pageNum + 1}</AccordionText>
                       <OpenRefInNewTabIcon reference={r()} term={props.term} />
                     </button>
                     <Accordion.Content>

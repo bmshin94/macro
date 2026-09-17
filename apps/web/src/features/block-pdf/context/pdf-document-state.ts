@@ -11,38 +11,12 @@ import { createStore } from 'solid-js/store';
 import type { IHighlight } from '../model/Highlight';
 import { getPdfAnchors, getPdfComments } from '../queries/annotations';
 import type { HighlightPageMap, HighlightUuidMap } from '../store/highlight';
-import type { ITableOfContentsContext } from '../store/tableOfContents';
 import type { CommentStore } from '../type/comments';
 import {
   type IPlaceable,
   PayloadMode,
   type PayloadType,
 } from '../type/placeables';
-
-const createTableOfContentsState = (): ITableOfContentsContext => ({
-  original: {
-    aiToc: null,
-    pdfBookmarks: null,
-  },
-  currentMode: 'bookmarks',
-  width:
-    typeof window === 'undefined'
-      ? 150
-      : Math.max(150, Math.round(window.innerWidth * 0.15)),
-  sectionToRenameID: null,
-  renameFormValue: '',
-  sectionToDeleteID: null,
-  unsavedBookmarks: false,
-  coparse: null,
-  items: [],
-  openItems: {},
-  isLoaded: false,
-  pageToSectionMap: [],
-  idToSectionMap: {},
-  idToPathMap: {},
-  idToNearestTitleMap: {},
-  aiTocIdToSectionMap: {},
-});
 
 export function createPdfDocumentState(documentId: Accessor<string>) {
   const generalPopupLocation = createSignal<{
@@ -80,10 +54,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
   const activeCommentThread = createSignal<ThreadId | null>(null);
   const noScrollToActiveCommentThread = createSignal(false);
   const comments = createStore<CommentStore>([]);
-
-  const tableOfContents = createStore<ITableOfContentsContext>(
-    createTableOfContentsState()
-  );
 
   const commentThreads = createResource(documentId, getPdfComments);
   const anchors = createResource(documentId, getPdfAnchors);
@@ -139,7 +109,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       highlights,
       selection,
       comments,
-      tableOfContents,
     },
     resources: {
       commentThreads,

@@ -10,10 +10,8 @@ import {
   type IColor,
 } from '../../model/Color';
 import type Term from '../../model/Term';
-import { useTableOfContentsValue } from '../../store/tableOfContents';
 import { CoParseClassName } from '../../type/coParse';
 import { decodeDefinitionText } from '../../util/definitionText';
-import TocUtils from '../../util/TocUtils';
 import { OpenRefInNewTabIcon } from './OpenRefInNewTabIcon';
 import {
   AccordionText,
@@ -67,8 +65,6 @@ const HoverText = styled.span<{
   cursor: pointer;
 `;
 
-const SECTION_MAX_CHARS = 80;
-
 function filterUniqueTerms(terms: (Term | null)[]): Term[] {
   let uniqueObj: { [key: string]: Term } = {};
   terms.forEach((t) => {
@@ -98,7 +94,6 @@ interface IProps {
 }
 
 export function DefinitionsAccordion(props: IProps) {
-  const tableOfContentsContext = useTableOfContentsValue();
   const terms = createMemo(() =>
     computeRelatedTerms(props.term, props.getTerm)
   );
@@ -235,11 +230,6 @@ export function DefinitionsAccordion(props: IProps) {
               n.nodeName.includes('span')
             );
             const spans = constructSpans(elArr);
-            const nearestSection = TocUtils.getNearestSection({
-              page: t.pageNum,
-              yPos: t.yPos,
-              pageToSectionMap: tableOfContentsContext().pageToSectionMap,
-            });
 
             return (
               <Accordion.Item value={'definitionCard' + idx()}>
@@ -253,19 +243,7 @@ export function DefinitionsAccordion(props: IProps) {
                         setExpandedItem(['definitionCard' + idx()]);
                       }}
                     >
-                      <AccordionText>
-                        {nearestSection
-                          ? `In ${
-                              nearestSection.fullDescriptor.length >
-                              SECTION_MAX_CHARS
-                                ? nearestSection.fullDescriptor.substring(
-                                    0,
-                                    SECTION_MAX_CHARS
-                                  ) + '...'
-                                : nearestSection.fullDescriptor
-                            } on page ${t.pageNum + 1} `
-                          : `On page ${t.pageNum + 1}`}
-                      </AccordionText>
+                      <AccordionText>On page {t.pageNum + 1}</AccordionText>
                       <OpenRefInNewTabIcon reference={t} term={props.term} />
                     </button>
                   </Accordion.Header>

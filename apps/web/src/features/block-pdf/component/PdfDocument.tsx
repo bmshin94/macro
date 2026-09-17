@@ -28,7 +28,6 @@ import { usePdfSave } from '../signal/save';
 import { useUpdateColorsEffect } from '../signal/setting';
 import { useSyncHighlightStore } from '../store/highlight';
 import { useSyncActivePlaceableWithCommentThread } from '../store/placeables';
-import { useTableOfContentsUpdate } from '../store/tableOfContents';
 import { IModificationDataOnServerSchema } from '../type/coParse';
 import { preprocess } from '../websocket/preprocess';
 import { Document } from './Document';
@@ -101,7 +100,6 @@ function PdfDocumentState(props: PdfDocumentProps) {
   usePendingLocationNavigationEffect();
   useSyncHighlightStore();
   useSyncActivePlaceableWithCommentThread();
-  const tableOfContentsDispatch = useTableOfContentsUpdate();
   const savePdf = usePdfSave();
 
   props.registerMethods?.({
@@ -144,7 +142,7 @@ function PdfDocumentState(props: PdfDocumentProps) {
     if (!coparse) return;
 
     pdf.definitions.commands.loadTermXml(coparse.defs ?? '');
-    tableOfContentsDispatch({ type: 'LOAD_AI_TOC', coparse });
+    pdf.outline.commands.loadCoparse(coparse);
     pdf.viewer.commands.replaceOverlays(coparse.overlays);
   });
 

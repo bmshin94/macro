@@ -6,11 +6,6 @@ import {
   type IUpdateFindControlStateEvent,
 } from '../PdfViewer/EventBus';
 import type { FindController } from '../PdfViewer/FindController';
-import {
-  type TPageToSectionMap,
-  useGetPageToSectionMap,
-} from '../store/tableOfContents';
-import TocUtils from '../util/TocUtils';
 import { generatePhrases } from '../util/wordSearchUtils';
 
 enum SearchMatchType {
@@ -102,10 +97,7 @@ function useMergedEventSignal() {
   };
 }
 
-function getWordMatches(
-  pageToSectionMap: TPageToSectionMap,
-  findController: FindController
-): WordMatch[] {
+function getWordMatches(findController: FindController): WordMatch[] {
   if (
     !findController._pageMatches ||
     findController._pageMatches.length === 0 ||
@@ -152,12 +144,6 @@ function getWordMatches(
         endPos,
         page: pageContent,
       });
-      const section =
-        TocUtils.getNearestSection({
-          page: pageIndex,
-          yPos: startPos,
-          pageToSectionMap,
-        })?.title ?? '';
       matches.push({
         startPos,
         endPos,
@@ -165,7 +151,7 @@ function getWordMatches(
         prePhrase,
         postPhrase,
         matchPhrase,
-        section,
+        section: '',
         matchNumber,
         type: SearchMatchType.Word,
       });
@@ -184,7 +170,6 @@ export function useSearchStart() {
 
 export function useSearchResults() {
   const mergedEvent = useMergedEventSignal();
-  const pageToSectionMap = useGetPageToSectionMap();
 
   return (): {
     query: string;
@@ -205,7 +190,7 @@ export function useSearchResults() {
       };
 
     const findController = results.source;
-    const matches = getWordMatches(pageToSectionMap(), findController);
+    const matches = getWordMatches(findController);
     if (matches.length === 0) {
       return null;
     }

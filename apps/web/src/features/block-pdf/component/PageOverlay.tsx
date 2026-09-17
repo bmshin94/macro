@@ -38,7 +38,6 @@ import {
 import { LocationType, useCreateShareUrl } from '../signal/location';
 import { useIsPopup } from '../signal/pdfViewer';
 import { useAddNewHighlights, useRemoveHighlight } from '../store/highlight';
-import { useGetIdToSectionMap } from '../store/tableOfContents';
 import TocUtils from '../util/TocUtils';
 import { AbsoluteDefinitionLookups } from './AbsoluteDefinitionLookups';
 import { Placeable } from './Placeable';
@@ -79,7 +78,6 @@ export function PageOverlay(props: IPageOverlayProps) {
   const [mode, setMode] = signals.placeableMode;
   const getPopupViewer = pdf.viewer.popup.instance;
   const getRootViewer = pdf.viewer.root.instance;
-  const getIdToSectionMap = useGetIdToSectionMap();
   const isPopup = useIsPopup();
   const popupDispatchCtx = usePopupContextUpdate(isPopup);
   const popupTerms = usePopupStore(isPopup).terms;
@@ -144,7 +142,7 @@ export function PageOverlay(props: IPageOverlayProps) {
       e.stopPropagation();
 
       const secIDNumber = parseInt(secID);
-      const idToSectionMap = getIdToSectionMap();
+      const idToSectionMap = pdf.outline.sectionReferenceMap();
       const { page, y } = TocUtils.getSection({
         id: secIDNumber,
         idToSectionMap,

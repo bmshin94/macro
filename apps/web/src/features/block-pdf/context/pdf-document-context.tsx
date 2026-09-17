@@ -19,6 +19,7 @@ import {
   createPdfNavigation,
   type PdfNavigation,
 } from '../primitives/pdf-navigation';
+import { createPdfOutline, type PdfOutline } from '../primitives/pdf-outline';
 import {
   createPdfPersistence,
   type PdfPersistence,
@@ -61,6 +62,7 @@ export type PdfDocumentContextValue = {
   persistence: PdfPersistence;
   tabs: PdfTabs;
   viewer: PdfViewerRuntime;
+  outline: PdfOutline;
   state: PdfDocumentState;
 };
 
@@ -88,6 +90,7 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
   const persistence = createPdfPersistence();
   const tabs = createPdfTabs();
   const viewer = createPdfViewerRuntime();
+  const outline = createPdfOutline();
   const context: PdfDocumentContextValue = {
     documentId,
     documentProxy: () => props.documentProxy,
@@ -109,6 +112,7 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
     persistence,
     tabs,
     viewer,
+    outline,
     state: createPdfDocumentState(documentId),
   };
 
