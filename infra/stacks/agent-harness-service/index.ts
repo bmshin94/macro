@@ -95,18 +95,6 @@ const service = new AgentHarnessService(`agent-harness-service-${stack}`, {
       name: 'ENVIRONMENT',
       value: stack,
     },
-    // `ai_tools` wires these queues only when they are switched on, so
-    // without them the agent's SendEmail fails on an unconfigured queue after
-    // it has already written the message row, and UpdateThreadLabels reverts
-    // every call. The IAM grants are in `queueArns`.
-    {
-      name: 'ENABLE_EMAIL_SCHEDULED_QUEUE',
-      value: 'true',
-    },
-    {
-      name: 'ENABLE_GMAIL_OPS_QUEUE',
-      value: 'true',
-    },
     // Datadog
     {
       name: 'DD_SERVICE',

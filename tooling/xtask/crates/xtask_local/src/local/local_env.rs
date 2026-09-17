@@ -288,10 +288,9 @@ impl QueueEnv {
                 env.insert(key.into(), form.value(queue.name));
             }
         }
-        // The `ai_tools` context wires these queues only when they are
-        // switched on; without them an agent session's SendEmail fails on an
-        // unconfigured queue after it has written the message row, and
-        // UpdateThreadLabels reverts every call.
+        // Without these the `ai_tools` SQS client is built with no queue name
+        // and every enqueue fails, so an agent session can neither send email
+        // nor sync thread labels. Deployed environments set them in Doppler.
         env.insert("ENABLE_EMAIL_SCHEDULED_QUEUE".into(), "true".into());
         env.insert("ENABLE_GMAIL_OPS_QUEUE".into(), "true".into());
     }
