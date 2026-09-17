@@ -2,10 +2,11 @@
 
 use axum::{Json, extract::State};
 use chrono::Utc;
-use macro_authorization::{MacroAuthorizationExtractor, MacroAuthorizationService, UserOrInternal};
+use macro_authorization::MacroAuthorizationService;
 
 use super::GtmInviteRouterState;
 use super::dto::{CreateGtmInviteLinkRequest, GtmInviteLink};
+use super::gtm_macro_staff::GtmMacroStaffExtractor;
 use crate::domain::models::GtmInviteError;
 use crate::domain::ports::GtmInviteService;
 
@@ -27,10 +28,10 @@ use crate::domain::ports::GtmInviteService;
 #[tracing::instrument(skip_all, err)]
 pub async fn handler<T: GtmInviteService, R, Auth: MacroAuthorizationService>(
     State(state): State<GtmInviteRouterState<T, R, Auth>>,
-    authorization: MacroAuthorizationExtractor<Auth, UserOrInternal>,
+    staff: GtmMacroStaffExtractor<Auth>,
     Json(request): Json<CreateGtmInviteLinkRequest>,
 ) -> Result<Json<GtmInviteLink>, GtmInviteError> {
-    let creator = &authorization.authorization.user.macro_user_id;
+    let creator = &staff.macro_user_id;
     let link = state.service.create_link(creator, request.into()).await?;
     let free_months = state.service.config().free_months;
 

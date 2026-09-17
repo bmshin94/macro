@@ -106,7 +106,6 @@ fn redeemed_link() -> InviteLink {
     }
 }
 
-/// A service that mirrors the staff gate and hands back canned links.
 struct FakeGtmInviteService {
     config: GtmInviteConfig,
     resolve: Result<InviteLink, GtmInviteError>,
@@ -135,14 +134,6 @@ impl FakeGtmInviteService {
     }
 }
 
-fn require_staff(user: &MacroUserIdStr<'_>) -> Result<(), GtmInviteError> {
-    if user.is_macro_staff() {
-        Ok(())
-    } else {
-        Err(GtmInviteError::Forbidden)
-    }
-}
-
 impl GtmInviteService for FakeGtmInviteService {
     fn config(&self) -> &GtmInviteConfig {
         &self.config
@@ -150,10 +141,9 @@ impl GtmInviteService for FakeGtmInviteService {
 
     async fn create_link(
         &self,
-        creator: &MacroUserIdStr<'_>,
+        _creator: &MacroUserIdStr<'_>,
         request: CreateInviteLink,
     ) -> Result<InviteLink, GtmInviteError> {
-        require_staff(creator)?;
         Ok(InviteLink {
             first_name: request.first_name,
             ..sample_link()
@@ -162,19 +152,17 @@ impl GtmInviteService for FakeGtmInviteService {
 
     async fn list_links(
         &self,
-        caller: &MacroUserIdStr<'_>,
+        _caller: &MacroUserIdStr<'_>,
         _only_mine: bool,
     ) -> Result<Vec<InviteLink>, GtmInviteError> {
-        require_staff(caller)?;
         Ok(vec![sample_link(), redeemed_link()])
     }
 
     async fn revoke_link(
         &self,
-        caller: &MacroUserIdStr<'_>,
+        _caller: &MacroUserIdStr<'_>,
         _id: Uuid,
     ) -> Result<InviteLink, GtmInviteError> {
-        require_staff(caller)?;
         Ok(InviteLink {
             revoked_at: Some(Utc::now()),
             ..sample_link()
@@ -266,8 +254,6 @@ async fn read_json<T: serde::de::DeserializeOwned>(response: axum::response::Res
     let body = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&body).unwrap()
 }
-
-// -- staff endpoints --
 
 #[tokio::test]
 async fn staff_can_create_links() {
@@ -370,8 +356,6 @@ async fn staff_can_revoke_links() {
     assert_eq!(link.status, GtmInviteLinkStatus::Revoked);
 }
 
-// -- public resolve --
-
 #[tokio::test]
 async fn anyone_can_resolve_a_link_and_only_sees_public_fields() {
     let app = build_router(FakeGtmInviteService::new(), false);
@@ -441,8 +425,6 @@ async fn the_rate_limit_does_not_cover_authenticated_routes() {
 
     assert_eq!(response.status(), StatusCode::OK);
 }
-
-// -- redeem + offer --
 
 #[tokio::test]
 async fn signed_in_users_redeem_links_and_receive_the_offer() {
