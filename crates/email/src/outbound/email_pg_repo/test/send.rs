@@ -402,6 +402,73 @@ async fn revert_leaves_a_message_a_worker_is_delivering_alone(
     Ok(())
 }
 
+/// The guard has to be a lock, not a read. A worker's claim is one committed
+/// statement, so a revert that merely *read* `processing` could have a claim
+/// land between that read and its DELETE, delete the row the worker just
+/// claimed, and leave the worker to send from the data it already holds.
+#[sqlx::test(
+    migrator = "MACRO_DB_MIGRATIONS",
+    fixtures(path = "../../../../fixtures", scripts("email_draft"))
+)]
+async fn revert_waits_for_a_claim_racing_it(pool: Pool<Postgres>) -> anyhow::Result<()> {
+    let link = link()?;
+    let draft_id = Uuid::parse_str(DRAFT_MESSAGE_ID)?;
+    let repo = EmailPgRepo::new(pool.clone());
+    let service = service(pool.clone(), crate::domain::ports::NoOpEnqueuer);
+
+    service
+        .send_message_impl(&link, &[link.clone()], send_input(Some(draft_id)))
+        .await?;
+
+    // A worker claims the row exactly the way the scheduled consumer does, but
+    // holds the transaction open so the claim is in flight, not settled.
+    let mut claim = pool.begin().await?;
+    sqlx::query!(
+        r#"
+        UPDATE email_scheduled_messages SET processing = true, updated_at = NOW()
+        WHERE link_id = $1 AND message_id = $2
+        "#,
+        link.id,
+        draft_id,
+    )
+    .execute(&mut *claim)
+    .await?;
+
+    let mut revert = tokio::spawn({
+        let repo = repo.clone();
+        let link_id = link.id;
+        async move { repo.revert_sent_message_to_draft(draft_id, link_id).await }
+    });
+
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(500), &mut revert)
+            .await
+            .is_err(),
+        "the revert must wait on the in-flight claim"
+    );
+
+    // What the claim lands on is the point. Testing `processing` with an
+    // unlocked read lets the revert flip the message to a draft first and only
+    // then wait — on the DELETE's row lock — so once the claim commits it
+    // deletes the row that claim just took and leaves a live draft behind.
+    claim.commit().await?;
+    revert.await??;
+
+    let (is_draft, is_sent) = message_flags(&pool, draft_id).await?;
+    assert!(
+        !is_draft,
+        "once the claim lands the revert must see it and leave the send alone"
+    );
+    assert!(!is_sent);
+    assert_eq!(
+        scheduled_row_count(&pool, draft_id).await?,
+        1,
+        "the claimed row must survive for the worker to mark the send as sent"
+    );
+
+    Ok(())
+}
+
 /// A message that was never inserted (or belongs to another inbox) must not
 /// make the revert fail — it runs on a path that is already handling an error.
 #[sqlx::test(

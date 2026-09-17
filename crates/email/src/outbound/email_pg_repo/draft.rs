@@ -68,7 +68,7 @@ pub(crate) async fn insert_message(
 /// scheduled worker already delivered (`is_sent`), or is delivering right now
 /// (`processing` on its scheduled row), is left exactly as it is, message row
 /// and scheduled row both. `get_message_to_send` does not re-check `is_draft`,
-/// so a worker that has claimed the row will send the mail whatever this does —
+/// so a worker that has claimed the row sends the mail whatever this does —
 /// reverting underneath it would deliver the email *and* leave a live draft to
 /// send again.
 #[tracing::instrument(skip(pool), err)]
@@ -79,15 +79,35 @@ pub(crate) async fn revert_sent_message_to_draft(
 ) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
+    // Lock the scheduled row up front rather than testing `processing` inside
+    // the UPDATE below. A worker's claim is a single committed statement, so an
+    // unlocked read only proves nothing had claimed the row at that instant: a
+    // claim landing before the DELETE would have its row deleted out from under
+    // it and still send. Holding the lock makes a concurrent claim wait — it
+    // then finds no row and skips — and makes a claim that got here first
+    // visible to the check.
+    let claimed = sqlx::query_scalar!(
+        r#"
+        SELECT processing FROM email_scheduled_messages
+        WHERE link_id = $1 AND message_id = $2
+        FOR UPDATE
+        "#,
+        link_id,
+        message_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if claimed == Some(true) {
+        tx.commit().await?;
+        return Ok(());
+    }
+
     let thread_db_id = sqlx::query_scalar!(
         r#"
         UPDATE email_messages
         SET is_draft = true, is_sent = false, updated_at = NOW()
         WHERE id = $1 AND link_id = $2 AND is_sent = false
-          AND NOT EXISTS (
-              SELECT 1 FROM email_scheduled_messages esm
-              WHERE esm.link_id = $2 AND esm.message_id = $1 AND esm.processing = true
-          )
         RETURNING thread_id
         "#,
         message_id,
