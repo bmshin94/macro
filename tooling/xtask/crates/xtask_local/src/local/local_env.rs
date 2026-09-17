@@ -288,6 +288,12 @@ impl QueueEnv {
                 env.insert(key.into(), form.value(queue.name));
             }
         }
+        // The `ai_tools` context wires these queues only when they are
+        // switched on; without them an agent session's SendEmail fails on an
+        // unconfigured queue after it has written the message row, and
+        // UpdateThreadLabels reverts every call.
+        env.insert("ENABLE_EMAIL_SCHEDULED_QUEUE".into(), "true".into());
+        env.insert("ENABLE_GMAIL_OPS_QUEUE".into(), "true".into());
     }
 }
 
