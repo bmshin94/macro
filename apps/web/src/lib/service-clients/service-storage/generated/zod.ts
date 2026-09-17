@@ -800,9 +800,9 @@ export const editCommentResponse = zod
         .union([
           zod.null(),
           zod
-            .enum(['task', 'snippet', 'skill'])
+            .enum(['task', 'snippet', 'skill', 'initiative_description'])
             .describe(
-              'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.'
+              'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.\n\nWire, database, and `Display` spellings are all `snake_case` so a\nmulti-word variant serializes identically in every system.'
             ),
         ])
         .optional(),
@@ -5541,9 +5541,9 @@ export const getUserDocumentsHandlerResponse = zod.object({
               .union([
                 zod.null(),
                 zod
-                  .enum(['task', 'snippet', 'skill'])
+                  .enum(['task', 'snippet', 'skill', 'initiative_description'])
                   .describe(
-                    'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.'
+                    'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.\n\nWire, database, and `Display` spellings are all `snake_case` so a\nmulti-word variant serializes identically in every system.'
                   ),
               ])
               .optional(),
@@ -5710,9 +5710,9 @@ export const createDocumentResponse = zod.object({
             .union([
               zod.null(),
               zod
-                .enum(['task', 'snippet', 'skill'])
+                .enum(['task', 'snippet', 'skill', 'initiative_description'])
                 .describe(
-                  'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.'
+                  'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.\n\nWire, database, and `Display` spellings are all `snake_case` so a\nmulti-word variant serializes identically in every system.'
                 ),
             ])
             .optional(),
@@ -5886,9 +5886,9 @@ export const createMarkdownHandlerResponse = zod
         .union([
           zod.null(),
           zod
-            .enum(['task', 'snippet', 'skill'])
+            .enum(['task', 'snippet', 'skill', 'initiative_description'])
             .describe(
-              'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.'
+              'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.\n\nWire, database, and `Display` spellings are all `snake_case` so a\nmulti-word variant serializes identically in every system.'
             ),
         ])
         .optional(),
@@ -6198,9 +6198,9 @@ export const createTaskHandlerResponse = zod
         .union([
           zod.null(),
           zod
-            .enum(['task', 'snippet', 'skill'])
+            .enum(['task', 'snippet', 'skill', 'initiative_description'])
             .describe(
-              'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.'
+              'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.\n\nWire, database, and `Display` spellings are all `snake_case` so a\nmulti-word variant serializes identically in every system.'
             ),
         ])
         .optional(),
@@ -6398,6 +6398,11 @@ export const getBatchPreviewHandlerResponse = zod.object({
                     .describe(
                       'A skill document — markdown instructions for AI'
                     ),
+                  zod
+                    .object({
+                      type: zod.enum(['initiative_description']),
+                    })
+                    .describe('The description document of an initiative'),
                 ])
                 .describe(
                   'The sub type of a document preview with associated properties.\nTask-related properties are encoded within the variant to ensure valid states.'
@@ -6528,6 +6533,11 @@ export const getDocumentByTeamSlugResponse = zod.object({
                         .describe(
                           'A skill document — markdown instructions for AI'
                         ),
+                      zod
+                        .object({
+                          type: zod.enum(['initiative_description']),
+                        })
+                        .describe('The description document of an initiative'),
                     ])
                     .describe(
                       'Sub type of a document with associated properties encoded in each variant.\nThis ensures type-safety: task properties only exist when the document is a task.'
@@ -6726,9 +6736,9 @@ export const getDocumentResponse = zod.object({
             .union([
               zod.null(),
               zod
-                .enum(['task', 'snippet', 'skill'])
+                .enum(['task', 'snippet', 'skill', 'initiative_description'])
                 .describe(
-                  'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.'
+                  'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.\n\nWire, database, and `Display` spellings are all `snake_case` so a\nmulti-word variant serializes identically in every system.'
                 ),
             ])
             .optional(),
@@ -6898,9 +6908,9 @@ export const saveDocumentHandlerResponse = zod.object({
         .union([
           zod.null(),
           zod
-            .enum(['task', 'snippet', 'skill'])
+            .enum(['task', 'snippet', 'skill', 'initiative_description'])
             .describe(
-              'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.'
+              'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.\n\nWire, database, and `Display` spellings are all `snake_case` so a\nmulti-word variant serializes identically in every system.'
             ),
         ])
         .optional(),
@@ -7585,9 +7595,9 @@ export const copyDocumentResponse = zod
               .union([
                 zod.null(),
                 zod
-                  .enum(['task', 'snippet', 'skill'])
+                  .enum(['task', 'snippet', 'skill', 'initiative_description'])
                   .describe(
-                    'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.'
+                    'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.\n\nWire, database, and `Display` spellings are all `snake_case` so a\nmulti-word variant serializes identically in every system.'
                   ),
               ])
               .optional(),
@@ -8018,9 +8028,9 @@ export const getDocumentLocationV3Response = zod
               .union([
                 zod.null(),
                 zod
-                  .enum(['task', 'snippet', 'skill'])
+                  .enum(['task', 'snippet', 'skill', 'initiative_description'])
                   .describe(
-                    'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.'
+                    'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.\n\nWire, database, and `Display` spellings are all `snake_case` so a\nmulti-word variant serializes identically in every system.'
                   ),
               ])
               .optional(),
@@ -8074,9 +8084,9 @@ export const getDocumentLocationV3Response = zod
               .union([
                 zod.null(),
                 zod
-                  .enum(['task', 'snippet', 'skill'])
+                  .enum(['task', 'snippet', 'skill', 'initiative_description'])
                   .describe(
-                    'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.'
+                    'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.\n\nWire, database, and `Display` spellings are all `snake_case` so a\nmulti-word variant serializes identically in every system.'
                   ),
               ])
               .optional(),
@@ -8141,9 +8151,9 @@ export const getDocumentLocationV3Response = zod
               .union([
                 zod.null(),
                 zod
-                  .enum(['task', 'snippet', 'skill'])
+                  .enum(['task', 'snippet', 'skill', 'initiative_description'])
                   .describe(
-                    'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.'
+                    'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.\n\nWire, database, and `Display` spellings are all `snake_case` so a\nmulti-word variant serializes identically in every system.'
                   ),
               ])
               .optional(),
@@ -8310,9 +8320,9 @@ export const simpleSaveResponse = zod.object({
         .union([
           zod.null(),
           zod
-            .enum(['task', 'snippet', 'skill'])
+            .enum(['task', 'snippet', 'skill', 'initiative_description'])
             .describe(
-              'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.'
+              'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.\n\nWire, database, and `Display` spellings are all `snake_case` so a\nmulti-word variant serializes identically in every system.'
             ),
         ])
         .optional(),
@@ -8495,9 +8505,9 @@ export const getDocumentVersionResponse = zod.object({
         .union([
           zod.null(),
           zod
-            .enum(['task', 'snippet', 'skill'])
+            .enum(['task', 'snippet', 'skill', 'initiative_description'])
             .describe(
-              'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.'
+              'The document sub type enum represents all values of document sub types.\nThese values should match the `document_sub_type_value` table in macrodb.\n\nWire, database, and `Display` spellings are all `snake_case` so a\nmulti-word variant serializes identically in every system.'
             ),
         ])
         .optional(),
@@ -9355,6 +9365,11 @@ export const getHistoryHandlerResponse = zod.object({
                     .describe(
                       'A skill document — markdown instructions for AI'
                     ),
+                  zod
+                    .object({
+                      type: zod.enum(['initiative_description']),
+                    })
+                    .describe('The description document of an initiative'),
                 ])
                 .describe(
                   'Sub type of a document with associated properties encoded in each variant.\nThis ensures type-safety: task properties only exist when the document is a task.'
@@ -9460,10 +9475,11 @@ export const listInitiativesResponse = zod
       .array(
         zod
           .object({
-            description: zod
-              .string()
-              .nullish()
-              .describe('Optional description.'),
+            descriptionDocumentId: zod
+              .uuid()
+              .describe(
+                'Id of the markdown document that holds an initiative\'s description.\n\nThe documents side mints it as a UUID; `\"Document\".id` and\n`initiative.description_document_id` store it as TEXT, so it is parsed once at the\nadapter boundary and displayed back when bound in SQL.'
+              ),
             id: zod
               .uuid()
               .describe(
@@ -9485,7 +9501,12 @@ export const listInitiativesResponse = zod
  */
 export const createInitiativeBody = zod
   .object({
-    description: zod.string().nullish().describe('Optional description.'),
+    description: zod
+      .string()
+      .nullish()
+      .describe(
+        'Initial markdown for the description document. Not stored on the initiative; later\nedits happen in the document editor.'
+      ),
     memberIds: zod
       .array(zod.string())
       .nullish()
@@ -9505,7 +9526,11 @@ export const createInitiativeResponse = zod
     createdAt: zod.iso
       .datetime({})
       .describe('When the initiative was created.'),
-    description: zod.string().nullish().describe('Optional description.'),
+    descriptionDocumentId: zod
+      .uuid()
+      .describe(
+        'Id of the markdown document that holds an initiative\'s description.\n\nThe documents side mints it as a UUID; `\"Document\".id` and\n`initiative.description_document_id` store it as TEXT, so it is parsed once at the\nadapter boundary and displayed back when bound in SQL.'
+      ),
     id: zod
       .uuid()
       .describe(
@@ -9583,7 +9608,11 @@ export const getInitiativeResponse = zod
     createdAt: zod.iso
       .datetime({})
       .describe('When the initiative was created.'),
-    description: zod.string().nullish().describe('Optional description.'),
+    descriptionDocumentId: zod
+      .uuid()
+      .describe(
+        'Id of the markdown document that holds an initiative\'s description.\n\nThe documents side mints it as a UUID; `\"Document\".id` and\n`initiative.description_document_id` store it as TEXT, so it is parsed once at the\nadapter boundary and displayed back when bound in SQL.'
+      ),
     id: zod
       .uuid()
       .describe(
@@ -9669,10 +9698,6 @@ export const updateInitiativeParams = zod.object({
 
 export const updateInitiativeBody = zod
   .object({
-    description: zod
-      .string()
-      .nullish()
-      .describe('Replacement description. `Some(\"\")` clears it after trim.'),
     memberIds: zod
       .array(zod.string())
       .nullish()
@@ -9734,7 +9759,7 @@ export const updateInitiativeBody = zod
       .optional(),
   })
   .describe(
-    'Update-initiative HTTP body. Absent fields are left unchanged. `member_ids`\npresent is a full replace.'
+    'Update-initiative HTTP body. Absent fields are left unchanged. `member_ids`\npresent is a full replace. The description is edited in its document, not here.'
   );
 
 export const updateInitiativeResponse = zod
@@ -9742,7 +9767,11 @@ export const updateInitiativeResponse = zod
     createdAt: zod.iso
       .datetime({})
       .describe('When the initiative was created.'),
-    description: zod.string().nullish().describe('Optional description.'),
+    descriptionDocumentId: zod
+      .uuid()
+      .describe(
+        'Id of the markdown document that holds an initiative\'s description.\n\nThe documents side mints it as a UUID; `\"Document\".id` and\n`initiative.description_document_id` store it as TEXT, so it is parsed once at the\nadapter boundary and displayed back when bound in SQL.'
+      ),
     id: zod
       .uuid()
       .describe(
@@ -10230,6 +10259,13 @@ export const getItemsSoupResponse = zod
                               })
                               .describe(
                                 'A skill document — markdown instructions for AI'
+                              ),
+                            zod
+                              .object({
+                                type: zod.enum(['initiative_description']),
+                              })
+                              .describe(
+                                'The description document of an initiative'
                               ),
                           ])
                           .describe(
@@ -14200,6 +14236,13 @@ export const postItemsSoupResponse = zod
                               .describe(
                                 'A skill document — markdown instructions for AI'
                               ),
+                            zod
+                              .object({
+                                type: zod.enum(['initiative_description']),
+                              })
+                              .describe(
+                                'The description document of an initiative'
+                              ),
                           ])
                           .describe(
                             'Sub type of a document with associated properties encoded in each variant.\nThis ensures type-safety: task properties only exist when the document is a task.'
@@ -17609,6 +17652,13 @@ export const postItemsSoupAstResponse = zod
                               })
                               .describe(
                                 'A skill document — markdown instructions for AI'
+                              ),
+                            zod
+                              .object({
+                                type: zod.enum(['initiative_description']),
+                              })
+                              .describe(
+                                'The description document of an initiative'
                               ),
                           ])
                           .describe(
@@ -21282,6 +21332,15 @@ export const postItemsSoupAstGroupedResponse = zod
                                     .describe(
                                       'A skill document — markdown instructions for AI'
                                     ),
+                                  zod
+                                    .object({
+                                      type: zod.enum([
+                                        'initiative_description',
+                                      ]),
+                                    })
+                                    .describe(
+                                      'The description document of an initiative'
+                                    ),
                                 ])
                                 .describe(
                                   'Sub type of a document with associated properties encoded in each variant.\nThis ensures type-safety: task properties only exist when the document is a task.'
@@ -24690,6 +24749,15 @@ export const postItemsSoupAstGroupedResponse = zod
                                     .describe(
                                       'A skill document — markdown instructions for AI'
                                     ),
+                                  zod
+                                    .object({
+                                      type: zod.enum([
+                                        'initiative_description',
+                                      ]),
+                                    })
+                                    .describe(
+                                      'The description document of an initiative'
+                                    ),
                                 ])
                                 .describe(
                                   'Sub type of a document with associated properties encoded in each variant.\nThis ensures type-safety: task properties only exist when the document is a task.'
@@ -27837,6 +27905,13 @@ export const getPinsHandlerResponse = zod.object({
                             .describe(
                               'A skill document — markdown instructions for AI'
                             ),
+                          zod
+                            .object({
+                              type: zod.enum(['initiative_description']),
+                            })
+                            .describe(
+                              'The description document of an initiative'
+                            ),
                         ])
                         .describe(
                           'Sub type of a document with associated properties encoded in each variant.\nThis ensures type-safety: task properties only exist when the document is a task.'
@@ -27981,6 +28056,13 @@ export const getPinsHandlerResponse = zod.object({
                             })
                             .describe(
                               'A skill document — markdown instructions for AI'
+                            ),
+                          zod
+                            .object({
+                              type: zod.enum(['initiative_description']),
+                            })
+                            .describe(
+                              'The description document of an initiative'
                             ),
                         ])
                         .describe(
@@ -29386,6 +29468,11 @@ export const getProjectContentHandlerResponse = zod.object({
                       .describe(
                         'A skill document — markdown instructions for AI'
                       ),
+                    zod
+                      .object({
+                        type: zod.enum(['initiative_description']),
+                      })
+                      .describe('The description document of an initiative'),
                   ])
                   .describe(
                     'Sub type of a document with associated properties encoded in each variant.\nThis ensures type-safety: task properties only exist when the document is a task.'
@@ -29622,6 +29709,11 @@ export const recentlyDeletedResponse = zod.object({
                         .describe(
                           'A skill document — markdown instructions for AI'
                         ),
+                      zod
+                        .object({
+                          type: zod.enum(['initiative_description']),
+                        })
+                        .describe('The description document of an initiative'),
                     ])
                     .describe(
                       'Sub type of a document with associated properties encoded in each variant.\nThis ensures type-safety: task properties only exist when the document is a task.'
