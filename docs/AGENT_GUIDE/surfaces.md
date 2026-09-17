@@ -325,6 +325,8 @@ Macro Markdown messages retain document mentions. Ordinary HTML bodies use an
 open shadow root: Playwright text locators can reach them, but a card's ordinary
 `innerText` or `querySelector` does not traverse that root.
 
+Sending a reply from an inbox thread marks that thread done but stays on it;
+only the explicit Mark done action opens the next email.
 After a successful send, the `Email sent` notice offers `Undo`. Undo restores the
 sent envelope and editable content, including when the reply used another inbox;
 a slow background refresh must not keep the restored editor disabled. A rejected
@@ -437,6 +439,11 @@ from an opened file.
 
 Calendars default to Day on phones and Week on desktop. The selected view is
 remembered locally on each device.
+
+Primary-calendar event pills share the chat composer's surface: charcoal with a
+glass rim/shadow in dark mode, pale with a fine outline and soft shadows in light
+mode. Other calendars use subtle source-color tints of that surface; selection
+adds an accent outline. Month-view timed events keep their compact dots.
 
 Calendar event creation and editing open in a bottom sheet on touch devices,
 with scrollable content above the keyboard. Desktop retains the centered dialog.
