@@ -147,12 +147,6 @@ where
             });
     }
 
-    /// Authorize an explicit team-share change against the persisted owner.
-    ///
-    /// Returns `Ok(None)` without loading anything when the request omits the
-    /// team level, so ordinary renames and moves never take the team-share
-    /// guard. Effective Owner access (for example via a parent folder) is not
-    /// enough: only the project's actual owner may share it with their team.
     async fn authorize_project_team_share(
         &self,
         receipt: &EntityAccessReceipt<EditAccessLevel>,

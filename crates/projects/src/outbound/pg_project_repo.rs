@@ -265,8 +265,6 @@ impl ProjectRepo for PgProjectRepo {
     #[tracing::instrument(err, skip(self, args))]
     async fn edit_project(&self, args: EditProjectArgs) -> Result<Project, ProjectError> {
         let mut transaction = self.pool.begin().await?;
-        // Canonical team sharing first: it takes the shared guard before any
-        // `SharePermission` row lock and refuses an unauthorized team level.
         team_share::apply_team_share(
             &mut transaction,
             &args.project_id,

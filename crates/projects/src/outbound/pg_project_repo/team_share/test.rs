@@ -39,7 +39,6 @@ fn team_share_request(level: Option<AccessLevel>) -> UpdateSharePermissionReques
     }
 }
 
-/// Authorize `level` exactly as the domain service would for the persisted owner.
 fn command(facts: &TeamShareFacts, level: Option<AccessLevel>) -> AuthorizedTeamShareCommand {
     authorize_team_share(
         Some(&facts.owner),
@@ -182,7 +181,6 @@ async fn edit_applies_team_share_command_and_inserts_direct_team_entity_access(p
         [AccessLevel::Edit]
     );
 
-    // A downgrade replaces the managed grant instead of adding a second row.
     edit_team_share(&repo, &project_id, Some(AccessLevel::View))
         .await
         .unwrap();
@@ -252,7 +250,6 @@ async fn edit_with_team_level_but_no_command_returns_unauthorized(pool: PgPool) 
     assert!(matches!(result, Err(ProjectError::Unauthorized)));
     assert_eq!(stored_team_share(&pool, &project_id).await, unshared());
     assert!(direct_team_rows(&pool, &project_id).await.is_empty());
-    // The whole edit is rolled back, not just the team share.
     assert_eq!(
         repo.get_project_by_id(&project_id)
             .await
