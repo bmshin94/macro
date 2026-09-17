@@ -11,6 +11,7 @@ import { type Accessor, createMemo } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { usePdfComments } from '../../context/pdf-comments-context';
 import { usePdfDocument } from '../../context/pdf-document-context';
+import { usePdfViewer } from '../../context/pdf-viewer-context';
 
 // how much to pad the container for the "show more" buttons
 const CONTAINER_PADDING = 80;
@@ -148,9 +149,10 @@ export function computePageCommentLayout({
 
 export function usePageCommentLayout(pageIndex: Accessor<number>) {
   const pdf = usePdfDocument();
+  const pdfViewer = usePdfViewer();
   const activeCommentThreadId = pdf.activeCommentThreadId;
   const comments = usePdfComments().all;
-  const pageHeights = pdf.viewer.root.pageHeights;
+  const pageHeights = pdfViewer.root.pageHeights;
   const [threadHeights, setThreadHeights] = createStore<Partial<ThreadHeights>>(
     {}
   );

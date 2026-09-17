@@ -3,7 +3,6 @@ import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 import {
   type Accessor,
   createContext,
-  createSignal,
   type FlowComponent,
   useContext,
 } from 'solid-js';
@@ -34,10 +33,6 @@ import {
   type PdfPersistence,
 } from '../primitives/pdf-persistence';
 import { createPdfTabs, type PdfTabs } from '../primitives/pdf-tabs';
-import {
-  createPdfViewerRuntime,
-  type PdfViewerRuntime,
-} from '../primitives/pdf-viewer-runtime';
 import type { LocationSearchParams } from '../signal/location';
 
 export type PdfDocumentPermissions = {
@@ -59,8 +54,6 @@ export type PdfDocumentContextValue = PdfInteraction & {
     isOwner: Accessor<boolean>;
   };
   locationParams: Accessor<LocationSearchParams>;
-  rootElement: Accessor<HTMLElement | undefined>;
-  setRootElement: (element: HTMLElement | undefined) => void;
   annotations: PdfAnnotations;
   definitions: PdfDefinitions;
   markup: PdfMarkup;
@@ -68,7 +61,6 @@ export type PdfDocumentContextValue = PdfInteraction & {
   navigation: PdfNavigation;
   persistence: PdfPersistence;
   tabs: PdfTabs;
-  viewer: PdfViewerRuntime;
   outline: PdfOutline;
 };
 
@@ -89,15 +81,13 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
   props
 ) => {
   const documentId = () => props.documentId;
-  const [rootElement, setRootElement] = createSignal<HTMLElement>();
   const definitions = createPdfDefinitions();
   const markup = createPdfMarkup();
-  const interaction = createPdfInteraction(markup.mode);
+  const interaction = createPdfInteraction();
   const model = createPdfDocumentModel();
   const navigation = createPdfNavigation();
   const persistence = createPdfPersistence();
   const tabs = createPdfTabs();
-  const viewer = createPdfViewerRuntime();
   const outline = createPdfOutline();
   const annotations = createPdfAnnotations(documentId);
   const context: PdfDocumentContextValue = {
@@ -113,8 +103,6 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
       isOwner: () => props.permissions.isOwner,
     },
     locationParams: () => props.locationParams ?? {},
-    rootElement,
-    setRootElement,
     ...interaction,
     annotations,
     definitions,
@@ -123,7 +111,6 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
     navigation,
     persistence,
     tabs,
-    viewer,
     outline,
   };
 

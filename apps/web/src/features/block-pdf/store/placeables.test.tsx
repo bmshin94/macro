@@ -5,6 +5,7 @@ import {
   PdfDocumentProvider,
   usePdfDocument,
 } from '../context/pdf-document-context';
+import { PdfViewerProvider } from '../context/pdf-viewer-context';
 import {
   type IPlaceable,
   PayloadMode,
@@ -103,7 +104,9 @@ function setup(): PlaceableTestApi {
         isOwner: true,
       }}
     >
-      <Probe capture={(value) => (api = value)} />
+      <PdfViewerProvider>
+        <Probe capture={(value) => (api = value)} />
+      </PdfViewerProvider>
     </PdfDocumentProvider>
   ));
   return api;

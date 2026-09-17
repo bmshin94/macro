@@ -11,6 +11,7 @@ import {
 import { useUserId } from '@core/context/user';
 import { createMemo } from 'solid-js';
 import { usePdfDocument } from '../../context/pdf-document-context';
+import { usePdfViewer } from '../../context/pdf-viewer-context';
 import { sortComments } from '../commentsResource';
 
 export { isThreadPlaceable };
@@ -148,12 +149,12 @@ export const useCommentPlaceables = () => {
 
 export const useFreeComments = () => {
   const userId = useUserId();
-  const pdf = usePdfDocument();
-  const pageHeights = pdf.viewer.root.pageHeights;
+  const pdfViewer = usePdfViewer();
+  const pageHeights = pdfViewer.root.pageHeights;
   const commentPlaceables = useCommentPlaceables();
 
   return createMemo(() => {
-    if (!pdf.viewer.root.isReady()) return [];
+    if (!pdfViewer.root.isReady()) return [];
 
     const out: PdfComment[] = [];
     for (const commentPlaceable of commentPlaceables()) {

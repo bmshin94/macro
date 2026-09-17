@@ -10,6 +10,7 @@ import type {
 import type { CreateCommentResponse } from '@service-storage/generated/schemas/createCommentResponse';
 import { createCallback } from '@solid-primitives/rootless';
 import { usePdfComments } from '../../context/pdf-comments-context';
+import { usePdfViewer } from '../../context/pdf-viewer-context';
 import {
   useAttachHighlightCommentResource,
   useCreateFreeCommentResource,
@@ -149,8 +150,10 @@ export function useDeleteNewComments() {
 
 export function useScrollToCommentThread() {
   const pdf = usePdfDocument();
-  const { documentId, rootElement } = pdf;
-  const viewer = pdf.viewer.root.instance;
+  const pdfViewer = usePdfViewer();
+  const { documentId } = pdf;
+  const rootElement = pdfViewer.rootElement;
+  const viewer = pdfViewer.root.instance;
   const comments = usePdfComments().all;
 
   const scrollIntoView = (el: HTMLElement) => {

@@ -12,6 +12,7 @@ import { createCallback } from '@solid-primitives/rootless';
 import { type Accessor, createEffect } from 'solid-js';
 import { z } from 'zod';
 import { usePdfDocument } from '../context/pdf-document-context';
+import { usePdfViewer } from '../context/pdf-viewer-context';
 
 export { URL_PARAMS };
 
@@ -103,13 +104,13 @@ export const PdfOrderInfoSchema = z.object({
 export type PdfOrderInfo = z.infer<typeof PdfOrderInfoSchema>;
 
 const useIsViewerReadyForScroll = () => {
-  const pdf = usePdfDocument();
-  return () => pdf.viewer.root.isReady() && pdf.viewer.root.hasVisiblePages();
+  const rootViewer = usePdfViewer().root;
+  return () => rootViewer.isReady() && rootViewer.hasVisiblePages();
 };
 
 export function usePendingLocationNavigationEffect() {
   const pdf = usePdfDocument();
-  const rootViewer = pdf.viewer.root.instance;
+  const rootViewer = usePdfViewer().root.instance;
   const goToLinkLocationFromParams = useGoToLinkLocationFromParams();
   const isViewerReady = useIsViewerReadyForScroll();
 
@@ -461,8 +462,9 @@ async function applyCustomHighlights(
 
 function useGoToPdfLocation() {
   const pdf = usePdfDocument();
-  const rootViewer = pdf.viewer.root.instance;
-  const findControllerStateEventSignal = pdf.viewer.root.findControlState;
+  const rootRuntime = usePdfViewer().root;
+  const rootViewer = rootRuntime.instance;
+  const findControllerStateEventSignal = rootRuntime.findControlState;
 
   const go = async (location: PdfLocation): Promise<void> => {
     const viewer = rootViewer();
@@ -608,7 +610,7 @@ function useGoToPdfLocation() {
 
 const useGoToPreviousLocation = () => {
   const pdf = usePdfDocument();
-  const viewer = pdf.viewer.root.instance;
+  const viewer = usePdfViewer().root.instance;
   const isViewerReady = useIsViewerReadyForScroll();
 
   return async () => {

@@ -24,6 +24,7 @@ import type { PageViewport } from 'pdfjs-dist';
 import { batch, createEffect, createMemo } from 'solid-js';
 import { v7 as uuid7 } from 'uuid';
 import { usePdfDocument } from '../context/pdf-document-context';
+import { usePdfViewer } from '../context/pdf-viewer-context';
 import {
   isThreadPlaceable,
   useCommentPlaceables,
@@ -60,7 +61,7 @@ export function usePlaceableIdMap() {
 
 function useCurrentScale() {
   const isPopup = useIsPopup();
-  const viewer = usePdfDocument().viewer;
+  const viewer = usePdfViewer();
   const currentScale = isPopup
     ? viewer.popup.currentScale
     : viewer.root.currentScale;
@@ -70,7 +71,7 @@ function useCurrentScale() {
 
 function useGetPopupContextViewer() {
   const isPopup = useIsPopup();
-  const viewer = usePdfDocument().viewer;
+  const viewer = usePdfViewer();
 
   return (isPopup ? viewer.popup : viewer.root).instance;
 }

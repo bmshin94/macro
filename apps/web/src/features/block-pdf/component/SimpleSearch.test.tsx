@@ -8,10 +8,8 @@ import {
 } from '@solidjs/testing-library';
 import { createSignal, Show } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  PdfDocumentProvider,
-  usePdfDocument,
-} from '../context/pdf-document-context';
+import { PdfDocumentProvider } from '../context/pdf-document-context';
+import { PdfViewerProvider, usePdfViewer } from '../context/pdf-viewer-context';
 import { SimpleSearch } from './SimpleSearch';
 
 const search = vi.hoisted(() => ({
@@ -56,9 +54,9 @@ afterEach(() => {
 });
 
 function SearchOwner() {
-  const pdf = usePdfDocument();
+  const pdfViewer = usePdfViewer();
   return (
-    <div data-testid="search-root" ref={pdf.setRootElement}>
+    <div data-testid="search-root" ref={pdfViewer.setRootElement}>
       <SimpleSearch />
     </div>
   );
@@ -80,7 +78,9 @@ describe('SimpleSearch', () => {
               isOwner: true,
             }}
           >
-            <SearchOwner />
+            <PdfViewerProvider>
+              <SearchOwner />
+            </PdfViewerProvider>
           </PdfDocumentProvider>
         )}
       </Show>

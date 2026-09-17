@@ -20,6 +20,7 @@ import {
   PdfDocumentProvider,
   usePdfDocument,
 } from '../context/pdf-document-context';
+import { PdfViewerProvider, usePdfViewer } from '../context/pdf-viewer-context';
 import {
   type LocationBlockParams,
   type LocationSearchParams,
@@ -81,7 +82,9 @@ export function PdfDocument(props: PdfDocumentProps) {
           permissions={props.permissions}
           locationParams={props.locationParams}
         >
-          <PdfDocumentBehavior {...props} />
+          <PdfViewerProvider>
+            <PdfDocumentBehavior {...props} />
+          </PdfViewerProvider>
         </PdfDocumentProvider>
       )}
     </Show>
@@ -98,6 +101,7 @@ export function PdfDocumentContent() {
 
 function PdfDocumentBehavior(props: PdfDocumentProps) {
   const pdf = usePdfDocument();
+  const pdfViewer = usePdfViewer();
   const comments = usePdfCommentProjection();
   usePendingLocationNavigationEffect();
   useSyncActivePlaceableWithCommentThread();
@@ -144,7 +148,7 @@ function PdfDocumentBehavior(props: PdfDocumentProps) {
 
     pdf.definitions.commands.loadTermXml(coparse.defs ?? '');
     pdf.outline.commands.loadCoparse(coparse);
-    pdf.viewer.commands.replaceOverlays(coparse.overlays);
+    pdfViewer.replaceOverlays(coparse.overlays);
   });
 
   const debouncedSave = leading(
@@ -177,7 +181,7 @@ function PdfDocumentBehavior(props: PdfDocumentProps) {
   return (
     <PdfCommentsProvider comments={comments}>
       <div
-        ref={pdf.setRootElement}
+        ref={pdfViewer.setRootElement}
         class="size-full select-none overscroll-none overflow-hidden flex flex-col"
         onContextMenu={(event) => event.preventDefault()}
         data-tut="App"

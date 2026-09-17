@@ -3,6 +3,7 @@ import { FindBar } from '@core/component/FindBar';
 import { IS_MAC } from '@core/constant/isMac';
 import { createEffect, createSignal, onCleanup, Show, untrack } from 'solid-js';
 import { usePdfDocument } from '../context/pdf-document-context';
+import { usePdfViewer } from '../context/pdf-viewer-context';
 import {
   useJumpToResult,
   useSearchClose,
@@ -12,6 +13,7 @@ import {
 
 export function SimpleSearch() {
   const pdf = usePdfDocument();
+  const rootElement = usePdfViewer().rootElement;
   const searchStart = useSearchStart();
   const searchResults = useSearchResults();
   const jumpToResult = useJumpToResult();
@@ -110,7 +112,7 @@ export function SimpleSearch() {
   };
 
   createEffect(() => {
-    const element = pdf.rootElement();
+    const element = rootElement();
     if (!element) return;
     element.addEventListener('keydown', handleHotkey);
     onCleanup(() => {

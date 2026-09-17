@@ -16,6 +16,7 @@ import {
 import { createStore } from 'solid-js/store';
 import { styled } from 'solid-styled-components';
 import { usePdfDocument } from '../../context/pdf-document-context';
+import { usePdfViewer } from '../../context/pdf-viewer-context';
 import type Term from '../../model/Term';
 import { usePopupStore } from '../../signal/definitionPopup';
 import { useIsPopup } from '../../signal/pdfViewer';
@@ -95,7 +96,7 @@ type IProps = {
 
 export function DefinitionLookup(props: IProps) {
   const pdf = usePdfDocument();
-  const popupOpen = pdf.viewer.isPopupOpen;
+  const popupOpen = usePdfViewer().isPopupOpen;
   const isPopup = useIsPopup();
   const popupStore = usePopupStore(isPopup);
   const termIDToSizingMap = popupStore.termIDToSizingMap;

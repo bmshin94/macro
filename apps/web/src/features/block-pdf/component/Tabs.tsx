@@ -9,6 +9,7 @@ import PlusIcon from '@phosphor/plus.svg';
 import XIcon from '@phosphor/x.svg';
 import { For, Show } from 'solid-js';
 import { usePdfDocument } from '../context/pdf-document-context';
+import { usePdfViewer } from '../context/pdf-viewer-context';
 
 interface IInternalTabProps {
   label: string;
@@ -51,7 +52,7 @@ function Tab(props: IInternalTabProps) {
 export function Tabs() {
   const pdf = usePdfDocument();
   const tabs = pdf.tabs.items;
-  const viewerHasVisiblePages = pdf.viewer.root.hasVisiblePages;
+  const viewerHasVisiblePages = usePdfViewer().root.hasVisiblePages;
   const createTab = useCreateTab();
   const deleteTab = useDeleteTab();
   const navigate = useNavigateToTab();

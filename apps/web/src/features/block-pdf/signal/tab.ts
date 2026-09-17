@@ -1,13 +1,14 @@
 import { ENABLE_PDF_TABS } from '@core/constant/featureFlags';
 import { createCallback } from '@solid-primitives/rootless';
 import { usePdfDocument } from '../context/pdf-document-context';
+import { usePdfViewer } from '../context/pdf-viewer-context';
 
 const TOP_PADDING = 0.2;
 
 export const MAX_TAB_COUNT = 8;
 
 export function useGoToLocationHash() {
-  const rootViewer = usePdfDocument().viewer.root.instance;
+  const rootViewer = usePdfViewer().root.instance;
   const createTab = useCreateTab();
   const tabCount = useTabCount();
 
@@ -23,7 +24,7 @@ export function useGoToLocationHash() {
 }
 
 export function useGoToLocation() {
-  const rootViewer = usePdfDocument().viewer.root.instance;
+  const rootViewer = usePdfViewer().root.instance;
   const createTab = useCreateTab();
   const tabCount = useTabCount();
   return createCallback(
@@ -59,8 +60,9 @@ export function useGoToLocation() {
 
 export function useNavigateToTab() {
   const pdf = usePdfDocument();
+  const pdfViewer = usePdfViewer();
   const updateCurrentTab = useUpdateCurrentTab();
-  const rootViewer = pdf.viewer.root.instance;
+  const rootViewer = pdfViewer.root.instance;
 
   return createCallback((id: number) => {
     const viewer = rootViewer();
@@ -78,8 +80,9 @@ export function useNavigateToTab() {
 
 export function useUpdateCurrentTab() {
   const pdf = usePdfDocument();
-  const rootViewer = pdf.viewer.root.instance;
-  const currentPageNumber = pdf.viewer.root.currentPageNumber;
+  const pdfViewer = usePdfViewer();
+  const rootViewer = pdfViewer.root.instance;
+  const currentPageNumber = pdfViewer.root.currentPageNumber;
   return createCallback(() => {
     const viewer = rootViewer();
     if (!viewer) return;
@@ -93,9 +96,10 @@ export function useUpdateCurrentTab() {
 
 export function useCreateTab() {
   const pdf = usePdfDocument();
+  const pdfViewer = usePdfViewer();
   const navigateToTab = useNavigateToTab();
-  const rootViewer = pdf.viewer.root.instance;
-  const currentPageNumber = pdf.viewer.root.currentPageNumber;
+  const rootViewer = pdfViewer.root.instance;
+  const currentPageNumber = pdfViewer.root.currentPageNumber;
 
   return createCallback((info?: { label: string; locationHash: string }) => {
     if (pdf.isNested()) return;

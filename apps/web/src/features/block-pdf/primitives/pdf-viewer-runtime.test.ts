@@ -91,9 +91,9 @@ describe('createPdfViewerRuntime', () => {
     const root = createViewer();
     const popup = createViewer();
 
-    viewer.commands.installPair({ root, popup });
-    viewer.commands.detachListeners();
-    viewer.commands.clearPair();
+    viewer.installPair({ root, popup });
+    viewer.detachListeners();
+    viewer.clearPair();
 
     expect(snapshots).toEqual([
       { root: undefined, popup: undefined },
@@ -108,7 +108,7 @@ describe('createPdfViewerRuntime', () => {
     const overlays = ['overlay-1', 'overlay-2'];
 
     expect(viewer.overlays()).toBeUndefined();
-    viewer.commands.replaceOverlays(overlays);
+    viewer.replaceOverlays(overlays);
 
     expect(viewer.overlays()).toBe(overlays);
     dispose();
@@ -136,7 +136,7 @@ describe('createPdfViewerRuntime', () => {
       source: {},
       matchesCount: { current: 2, total: 2 },
     } as TEvents['updatefindmatchescount'];
-    viewer.commands.installPair({ root, popup });
+    viewer.installPair({ root, popup });
 
     root.event.dispatch('pagesloaded', { source: {}, pagesCount: 8 });
     root.event.dispatch('pagechanging', {
@@ -212,7 +212,7 @@ describe('createPdfViewerRuntime', () => {
     const root = createViewer();
     const popup = createViewer();
     const rootOverlayViews = overlayViews([{ id: 2, height: 640 }]);
-    viewer.commands.installPair({ root, popup });
+    viewer.installPair({ root, popup });
     root.event.dispatch('pagesloaded', { source: {}, pagesCount: 4 });
     root.event.dispatch('pagechanging', {
       source: {},
@@ -260,7 +260,7 @@ describe('createPdfViewerRuntime', () => {
     );
     popup.event.dispatch('updateviewarea', updateViewArea(1));
 
-    viewer.commands.detachListeners();
+    viewer.detachListeners();
 
     root.event.dispatch('pagesloaded', { source: {}, pagesCount: 99 });
     popup.event.dispatch('pagechanging', {
@@ -316,8 +316,8 @@ describe('createPdfViewerRuntime', () => {
     const root = createViewer();
     const popup = createViewer();
 
-    first.viewer.commands.installPair({ root, popup });
-    first.viewer.commands.replaceOverlays(['overlay-1']);
+    first.viewer.installPair({ root, popup });
+    first.viewer.replaceOverlays(['overlay-1']);
     root.event.dispatch('pagesloaded', { source: {}, pagesCount: 2 });
 
     expect({

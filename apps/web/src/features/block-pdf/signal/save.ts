@@ -4,6 +4,7 @@ import { refetchHistory } from '@queries/history/history';
 import { storageServiceClient } from '@service-storage/client';
 import { createMemo } from 'solid-js';
 import { usePdfDocument } from '../context/pdf-document-context';
+import { usePdfViewer } from '../context/pdf-viewer-context';
 import {
   getSaveModificationData,
   hashModificationData,
@@ -71,7 +72,7 @@ export function useSaveModificationData() {
 
 export function usePdfSaveLocation() {
   const pdf = usePdfDocument();
-  const viewer = pdf.viewer.root.instance;
+  const viewer = usePdfViewer().root.instance;
   const prevLocationHash = pdf.navigation.persistedViewLocation;
   const userId = useUserId();
 

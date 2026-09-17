@@ -1,7 +1,6 @@
 import type { ThreadId } from '@core/comments/commentType';
-import { type Accessor, batch, createSignal } from 'solid-js';
+import { batch, createSignal } from 'solid-js';
 import type { IHighlight } from '../model/Highlight';
-import { PayloadMode, type PayloadType } from '../type/placeables';
 
 export type PdfSelectionMenuLocation = {
   pageIndex: number;
@@ -13,7 +12,7 @@ export type PdfAnnotationSelection = {
   selectedHighlights: IHighlight[];
 };
 
-export function createPdfInteraction(placementMode: Accessor<PayloadType>) {
+export function createPdfInteraction() {
   const [selectionMenuLocation, setSelectionMenuLocation] =
     createSignal<PdfSelectionMenuLocation | null>(null);
   const [annotationSelection, setAnnotationSelection] =
@@ -32,9 +31,6 @@ export function createPdfInteraction(placementMode: Accessor<PayloadType>) {
   const [activeCommentThreadId, setActiveCommentThreadId] =
     createSignal<ThreadId | null>(null);
   const [activeThreadScrollingSuppressed, setActiveThreadScrollingSuppressed] =
-    createSignal(false);
-  const [pageClicksDisabled, setPageClicksDisabled] = createSignal(false);
-  const [viewerTextSelectionActive, setViewerTextSelectionActive] =
     createSignal(false);
   const [selectedCommentThread, setSelectedCommentThread] = createSignal<
     number | null
@@ -106,29 +102,11 @@ export function createPdfInteraction(placementMode: Accessor<PayloadType>) {
         setHoveredHighlightId(null);
       });
     },
-    beginViewerTextSelection() {
-      if (viewerTextSelectionActive()) return;
-      batch(() => {
-        setSelectedCommentThread(null);
-        setViewerTextSelectionActive(true);
-      });
-    },
-    endViewerTextSelection() {
-      setViewerTextSelectionActive(false);
-    },
     selectCommentThread(threadId: number) {
       setSelectedCommentThread(threadId);
     },
     clearSelectedCommentThread() {
       setSelectedCommentThread(null);
-    },
-    runWithPageClicksDisabled(operation: () => void) {
-      setPageClicksDisabled(true);
-      try {
-        operation();
-      } finally {
-        setPageClicksDisabled(false);
-      }
     },
   };
 
@@ -140,11 +118,6 @@ export function createPdfInteraction(placementMode: Accessor<PayloadType>) {
     convertedHighlightThreadDraftId,
     activeCommentThreadId,
     activeThreadScrollingSuppressed,
-    overlayClicksDisabled: () =>
-      placementMode() !== PayloadMode.NoMode || viewerTextSelectionActive(),
-    viewerTextSelectionDisabled: () => selectedCommentThread() != null,
-    pageClicksDisabled,
-    viewerTextSelectionActive,
     selectedCommentThread,
     ...commands,
   };

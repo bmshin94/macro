@@ -3,12 +3,6 @@ import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 import { createSignal, For } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IHighlight } from '../model/Highlight';
-import type { PDFViewer } from '../PdfViewer';
-import {
-  createEventBus,
-  type IVisiblePage,
-  type TEvents,
-} from '../PdfViewer/EventBus';
 import type { IModificationDataOnServer } from '../type/coParse';
 import { PayloadMode } from '../type/placeables';
 import {
@@ -50,58 +44,6 @@ function setup(...documentIds: string[]) {
   ));
   return contexts;
 }
-
-function viewerSnapshot(context: PdfDocumentContextValue) {
-  return {
-    popupOpen: context.viewer.isPopupOpen(),
-    currentPageNumber: context.viewer.root.currentPageNumber(),
-    currentScale: context.viewer.root.currentScale() ?? null,
-    canZoomIn: context.viewer.root.canZoomIn(),
-    canZoomOut: context.viewer.root.canZoomOut(),
-    pageCount: context.viewer.root.pageCount() ?? null,
-    popupCurrentPageNumber: context.viewer.popup.currentPageNumber(),
-    popupCurrentScale: context.viewer.popup.currentScale() ?? null,
-    viewerReady: context.viewer.root.isReady(),
-    viewerHasVisiblePages: context.viewer.root.hasVisiblePages(),
-  };
-}
-
-function installViewers(context: PdfDocumentContextValue) {
-  const root = { event: createEventBus() } as unknown as PDFViewer;
-  const popup = { event: createEventBus() } as unknown as PDFViewer;
-  context.viewer.commands.installPair({ root, popup });
-  return { root, popup };
-}
-
-const updateViewArea = (pageNumber: number): TEvents['updateviewarea'] => {
-  const page = {
-    id: pageNumber,
-    x: 0,
-    y: 0,
-    view: {} as IVisiblePage['view'],
-    percent: 100,
-    widthPercent: 100,
-  };
-  return {
-    source: {},
-    location: {
-      pageNumber,
-      scale: 1,
-      top: 0,
-      left: 0,
-      rotation: 0,
-      pdfOpenParams: '',
-      unscaledYPos: 0,
-      viewportScale: 1,
-    },
-    visiblePages: {
-      first: page,
-      last: page,
-      views: [page],
-      ids: new Set([pageNumber]),
-    },
-  };
-};
 
 describe('PdfDocumentProvider', () => {
   it('reads reactive document proxy props without remounting providers', () => {
@@ -153,100 +95,6 @@ describe('PdfDocumentProvider', () => {
     );
   });
 
-  it('isolates viewer state between document providers', () => {
-    const contexts = setup('document-1', 'document-2');
-    const first = contexts.get('document-1')!;
-    const second = contexts.get('document-2')!;
-    const { root } = installViewers(first);
-
-    root.event.dispatch('pagesloaded', {
-      source: {},
-      pagesCount: 12,
-    } satisfies TEvents['pagesloaded']);
-    root.event.dispatch('pagechanging', {
-      source: {},
-      pageNumber: 4,
-      previous: 3,
-      pageLabel: null,
-    } satisfies TEvents['pagechanging']);
-    root.event.dispatch('updateviewarea', updateViewArea(4));
-
-    expect(viewerSnapshot(first)).toEqual({
-      popupOpen: false,
-      currentPageNumber: 4,
-      currentScale: null,
-      canZoomIn: false,
-      canZoomOut: false,
-      pageCount: 12,
-      popupCurrentPageNumber: 1,
-      popupCurrentScale: null,
-      viewerReady: true,
-      viewerHasVisiblePages: true,
-    });
-    expect(viewerSnapshot(second)).toEqual({
-      popupOpen: false,
-      currentPageNumber: 1,
-      currentScale: null,
-      canZoomIn: false,
-      canZoomOut: false,
-      pageCount: null,
-      popupCurrentPageNumber: 1,
-      popupCurrentScale: null,
-      viewerReady: false,
-      viewerHasVisiblePages: false,
-    });
-  });
-
-  it('projects root and popup viewer events into observable state', () => {
-    const context = setup('document-1').get('document-1')!;
-    const { root, popup } = installViewers(context);
-
-    root.event.dispatch('pagesloaded', {
-      source: {},
-      pagesCount: 8,
-    } satisfies TEvents['pagesloaded']);
-    root.event.dispatch('scalechanging', {
-      source: {},
-      scale: 1,
-      presetValue: undefined,
-    } satisfies TEvents['scalechanging']);
-    root.event.dispatch('pagechanging', {
-      source: {},
-      pageNumber: 3,
-      previous: 2,
-      pageLabel: null,
-    } satisfies TEvents['pagechanging']);
-    root.event.dispatch('popupvisibilitychanged', {
-      source: {},
-      isOpen: true,
-      target: document.createElement('div'),
-    } satisfies TEvents['popupvisibilitychanged']);
-    popup.event.dispatch('scalechanging', {
-      source: {},
-      scale: 1.5,
-      presetValue: undefined,
-    } satisfies TEvents['scalechanging']);
-    popup.event.dispatch('pagechanging', {
-      source: {},
-      pageNumber: 6,
-      previous: 5,
-      pageLabel: null,
-    } satisfies TEvents['pagechanging']);
-
-    expect(viewerSnapshot(context)).toEqual({
-      popupOpen: true,
-      currentPageNumber: 3,
-      currentScale: 1,
-      canZoomIn: true,
-      canZoomOut: true,
-      pageCount: 8,
-      popupCurrentPageNumber: 6,
-      popupCurrentScale: 1.5,
-      viewerReady: true,
-      viewerHasVisiblePages: false,
-    });
-  });
-
   it('isolates document models between providers', () => {
     const contexts = setup('document-1', 'document-2');
     const first = contexts.get('document-1')!;
@@ -268,45 +116,14 @@ describe('PdfDocumentProvider', () => {
     expect(second.model.revision()).toBe(0);
   });
 
-  it('coordinates text selection, comment selection, and placeable mode', () => {
-    const context = setup('document-1').get('document-1')!;
-    const { markup } = context;
-
-    expect('interaction' in context).toBe(false);
-    context.selectCommentThread(42);
-    expect({
-      overlayClicksDisabled: context.overlayClicksDisabled(),
-      viewerTextSelectionDisabled: context.viewerTextSelectionDisabled(),
-      selectedCommentThread: context.selectedCommentThread(),
-    }).toEqual({
-      overlayClicksDisabled: false,
-      viewerTextSelectionDisabled: true,
-      selectedCommentThread: 42,
-    });
-
-    context.beginViewerTextSelection();
-    expect({
-      overlayClicksDisabled: context.overlayClicksDisabled(),
-      viewerTextSelectionDisabled: context.viewerTextSelectionDisabled(),
-      selectedCommentThread: context.selectedCommentThread(),
-    }).toEqual({
-      overlayClicksDisabled: true,
-      viewerTextSelectionDisabled: false,
-      selectedCommentThread: null,
-    });
-
-    context.endViewerTextSelection();
-    markup.commands.beginPlacement(PayloadMode.Thread);
-    expect(context.overlayClicksDisabled()).toBe(true);
-
-    markup.commands.cancelPlacement();
-    expect(context.overlayClicksDisabled()).toBe(false);
-  });
-
   it('isolates markup and interaction between document providers', () => {
     const contexts = setup('document-1', 'document-2');
     const first = contexts.get('document-1')!;
     const second = contexts.get('document-2')!;
+
+    expect('viewer' in first).toBe(false);
+    expect('rootElement' in first).toBe(false);
+    expect('interaction' in first).toBe(false);
 
     first.markup.commands.beginPlacement(PayloadMode.Signature);
     first.markup.commands.activate('placeable-1');
@@ -319,7 +136,6 @@ describe('PdfDocumentProvider', () => {
       secondMode: second.markup.mode(),
       secondActiveId: second.markup.activeId(),
       secondSelectedThread: second.selectedCommentThread(),
-      secondOverlayDisabled: second.overlayClicksDisabled(),
     }).toEqual({
       firstMode: PayloadMode.Signature,
       firstActiveId: 'placeable-1',
@@ -327,7 +143,6 @@ describe('PdfDocumentProvider', () => {
       secondMode: PayloadMode.NoMode,
       secondActiveId: undefined,
       secondSelectedThread: null,
-      secondOverlayDisabled: false,
     });
   });
 

@@ -27,6 +27,7 @@ import {
   Show,
 } from 'solid-js';
 import { usePdfDocument } from '../context/pdf-document-context';
+import { usePdfViewer } from '../context/pdf-viewer-context';
 import type { IColor } from '../model/Color';
 import { Highlight, HighlightType } from '../model/Highlight';
 import { PageModel } from '../model/Page';
@@ -37,6 +38,10 @@ import {
 } from '../signal/definitionPopup';
 import { LocationType, useCreateShareUrl } from '../signal/location';
 import { useIsPopup } from '../signal/pdfViewer';
+import {
+  useOverlayClicksDisabled,
+  useViewerTextSelectionDisabled,
+} from '../signal/viewerInteraction';
 import { useAddNewHighlights, useRemoveHighlight } from '../store/highlight';
 import TocUtils from '../util/TocUtils';
 import { AbsoluteDefinitionLookups } from './AbsoluteDefinitionLookups';
@@ -67,6 +72,7 @@ export function PageOverlay(props: IPageOverlayProps) {
   const analytics = useAnalytics();
 
   const pdf = usePdfDocument();
+  const pdfViewer = usePdfViewer();
   let pageOverlayRef!: HTMLDivElement;
   const pageViewDivProp = () => props.pageViewDiv;
 
@@ -75,8 +81,8 @@ export function PageOverlay(props: IPageOverlayProps) {
   const isDocumentOwner = pdf.permissions.isOwner;
 
   const mode = pdf.markup.mode;
-  const getPopupViewer = pdf.viewer.popup.instance;
-  const getRootViewer = pdf.viewer.root.instance;
+  const getPopupViewer = pdfViewer.popup.instance;
+  const getRootViewer = pdfViewer.root.instance;
   const isPopup = useIsPopup();
   const popupDispatchCtx = usePopupContextUpdate(isPopup);
   const popupTerms = usePopupStore(isPopup).terms;
@@ -84,8 +90,8 @@ export function PageOverlay(props: IPageOverlayProps) {
   const isAuth = useIsAuthenticated();
   const createPlaceable = useCreatePlaceable();
   const commentPlaceables = useCommentPlaceables();
-  const overlayClicksDisabled = pdf.overlayClicksDisabled;
-  const pageClicksDisabled = pdf.pageClicksDisabled;
+  const overlayClicksDisabled = useOverlayClicksDisabled();
+  const pageClicksDisabled = pdfViewer.pageClicksDisabled;
 
   const onClick = (e: MouseEvent) => {
     if (pageClicksDisabled()) return;
@@ -234,7 +240,7 @@ export function PageOverlay(props: IPageOverlayProps) {
     });
   });
 
-  const disableSelect = pdf.viewerTextSelectionDisabled;
+  const disableSelect = useViewerTextSelectionDisabled();
   createEffect(() => {
     const pageViewDiv = pageViewDivProp();
     if (!pageViewDiv) return;
@@ -250,7 +256,7 @@ export function PageOverlay(props: IPageOverlayProps) {
       pdf.clearActiveCommentThread();
       pdf.markup.commands.cancelPlacement();
     };
-    const el = pdf.rootElement();
+    const el = pdfViewer.rootElement();
     if (!el) return;
     el.addEventListener('click', resetMode);
     onCleanup(() => el.removeEventListener('click', resetMode));
@@ -275,7 +281,7 @@ export function PageOverlay(props: IPageOverlayProps) {
   const doEdit = useDoEdit();
   const currentPageViewport = () => {
     const pageNumber = (
-      isPopup ? pdf.viewer.popup : pdf.viewer.root
+      isPopup ? pdfViewer.popup : pdfViewer.root
     ).currentPageNumber();
     const viewer = isPopup ? getPopupViewer() : getRootViewer();
     return (
@@ -395,7 +401,7 @@ export function PageOverlay(props: IPageOverlayProps) {
 
   const showPopup = createMemo(() => {
     const shouldshow =
-      !isPopup && !pdf.viewer.isPopupOpen() && !!pdf.selectionMenuLocation();
+      !isPopup && !pdfViewer.isPopupOpen() && !!pdf.selectionMenuLocation();
     return shouldshow;
   });
 

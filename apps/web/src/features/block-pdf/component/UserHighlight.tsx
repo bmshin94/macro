@@ -8,6 +8,7 @@ import {
   type VoidProps,
 } from 'solid-js';
 import { usePdfDocument } from '../context/pdf-document-context';
+import { usePdfViewer } from '../context/pdf-viewer-context';
 import { Color, type IColor } from '../model/Color';
 import type { IHighlight } from '../model/Highlight';
 import { usePopupContextUpdate } from '../signal/definitionPopup';
@@ -31,6 +32,7 @@ const isHighlightComment = (highlight: IHighlight) =>
 // TODO: handle highlight selection in a different document
 export const useHighlightSelection = () => {
   const pdf = usePdfDocument();
+  const rootElement = usePdfViewer().rootElement;
 
   return (highlightId: string, element?: HTMLElement) => {
     const highlight = pdf.annotations.highlightsByUuid()[highlightId];
@@ -50,9 +52,9 @@ export const useHighlightSelection = () => {
 
     const highlightElement =
       element ??
-      pdf
-        .rootElement()
-        ?.querySelector<HTMLElement>(highlightIdSelector(highlightId));
+      rootElement()?.querySelector<HTMLElement>(
+        highlightIdSelector(highlightId)
+      );
     if (!highlightElement) return;
 
     const rect = highlightElement.getBoundingClientRect();

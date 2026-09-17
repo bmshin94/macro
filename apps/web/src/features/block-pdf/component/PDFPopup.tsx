@@ -14,6 +14,7 @@ import {
   Switch,
 } from 'solid-js';
 import { usePdfDocument } from '../context/pdf-document-context';
+import { usePdfViewer } from '../context/pdf-viewer-context';
 
 type PDFPopupProps = {
   highlightProps: {
@@ -51,13 +52,14 @@ function HighlightIcon() {
 
 export function PDFPopup(props: PDFPopupProps) {
   const pdf = usePdfDocument();
+  const rootElement = usePdfViewer().rootElement;
   const blockId = pdf.documentId();
 
   onMount(() => {
     const stopSelectionChangePropagation = (event: Event) => {
       event.stopPropagation();
     };
-    const blockElement = pdf.rootElement();
+    const blockElement = rootElement();
     blockElement?.addEventListener(
       'selectionchange',
       stopSelectionChangePropagation,

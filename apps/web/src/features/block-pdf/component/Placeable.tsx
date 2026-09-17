@@ -20,6 +20,7 @@ import {
   untrack,
 } from 'solid-js';
 import { usePdfDocument } from '../context/pdf-document-context';
+import { usePdfViewer } from '../context/pdf-viewer-context';
 import {
   FreeCommentPlaceable,
   NewFreeCommentPlaceable,
@@ -36,8 +37,9 @@ export const Placeable: Component<{
   canEdit: boolean;
 }> = (props) => {
   const pdf = usePdfDocument();
+  const pdfViewer = usePdfViewer();
   const isPopup = useIsPopup();
-  const viewer = isPopup ? pdf.viewer.popup : pdf.viewer.root;
+  const viewer = isPopup ? pdfViewer.popup : pdfViewer.root;
   const getViewer = viewer.instance;
 
   const [textAreaRef, setTextAreaRef] = createSignal<HTMLTextAreaElement>();

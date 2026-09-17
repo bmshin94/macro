@@ -12,6 +12,7 @@ import { createCallback } from '@solid-primitives/rootless';
 import { batch, createMemo } from 'solid-js';
 import { usePdfComments } from '../../context/pdf-comments-context';
 import { usePdfDocument } from '../../context/pdf-document-context';
+import { usePdfViewer } from '../../context/pdf-viewer-context';
 import {
   Highlight,
   HighlightType,
@@ -80,11 +81,12 @@ const getHighlightThread = (
 export const useHighlightComments = () => {
   const userId = useUserId();
   const pdf = usePdfDocument();
-  const pageHeights = pdf.viewer.root.pageHeights;
+  const pdfViewer = usePdfViewer();
+  const pageHeights = pdfViewer.root.pageHeights;
   const highlights = pdf.annotations.highlightsByPage;
 
   return createMemo(() => {
-    if (!pdf.viewer.root.isReady()) return [];
+    if (!pdfViewer.root.isReady()) return [];
 
     const out: PdfComment[] = [];
     for (const [pageIndexStr, pageHighlights] of Object.entries(highlights)) {
@@ -168,12 +170,13 @@ export const useDeleteNewHighlightComment = () => {
 
 export function useCreateHighlightCommentAtSelection() {
   const pdf = usePdfDocument();
+  const pdfViewer = usePdfViewer();
   const annotationSelection = pdf.annotationSelection;
   const currentPageViewport = useCurrentPageViewport();
   const deleteNewComments = useDeleteNewComments();
 
   return createCallback((_e: MouseEvent) => {
-    pdf.runWithPageClicksDisabled(() => {
+    pdfViewer.runWithPageClicksDisabled(() => {
       deleteNewComments();
       pdf.closeSelectionMenu();
 

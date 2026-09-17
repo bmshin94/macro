@@ -5,6 +5,11 @@ import {
   PdfDocumentProvider,
   usePdfDocument,
 } from '../context/pdf-document-context';
+import {
+  type PdfViewerContextValue,
+  PdfViewerProvider,
+  usePdfViewer,
+} from '../context/pdf-viewer-context';
 import type { PDFViewer } from '../PdfViewer';
 import { createEventBus, type TEvents } from '../PdfViewer/EventBus';
 import { useCreateTab, useNavigateToTab } from './tab';
@@ -18,6 +23,7 @@ afterEach(cleanup);
 
 type TabTestApi = {
   context: PdfDocumentContextValue;
+  viewer: PdfViewerContextValue;
   createTab: ReturnType<typeof useCreateTab>;
   navigateToTab: ReturnType<typeof useNavigateToTab>;
 };
@@ -25,6 +31,7 @@ type TabTestApi = {
 function Probe(props: { capture: (api: TabTestApi) => void }) {
   props.capture({
     context: usePdfDocument(),
+    viewer: usePdfViewer(),
     createTab: useCreateTab(),
     navigateToTab: useNavigateToTab(),
   });
@@ -44,7 +51,9 @@ function setup(isNested = false): TabTestApi {
         isOwner: true,
       }}
     >
-      <Probe capture={(value) => (api = value)} />
+      <PdfViewerProvider>
+        <Probe capture={(value) => (api = value)} />
+      </PdfViewerProvider>
     </PdfDocumentProvider>
   ));
   return api;
@@ -72,7 +81,7 @@ describe('PDF tab hooks', () => {
     withoutViewer.createTab();
 
     const nested = setup(true);
-    nested.context.viewer.commands.installPair({
+    nested.viewer.installPair({
       root: createViewer(),
       popup: createViewer(),
     });
@@ -92,14 +101,14 @@ describe('PDF tab hooks', () => {
   });
 
   it('creates and navigates tabs through viewer state', () => {
-    const { context, createTab, navigateToTab } = setup();
+    const { context, viewer, createTab, navigateToTab } = setup();
     const getLocationHash = vi.fn(() => '#page=3');
     const goToLocationHash = vi.fn();
     const rootViewer = createViewer({
       getLocationHash,
       goToLocationHash,
     });
-    context.viewer.commands.installPair({
+    viewer.installPair({
       root: rootViewer,
       popup: createViewer(),
     });

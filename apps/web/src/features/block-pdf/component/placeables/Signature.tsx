@@ -15,6 +15,7 @@ import {
 } from 'solid-js';
 import { themeReactive } from '../../../theme/signals/themeReactive';
 import { usePdfDocument } from '../../context/pdf-document-context';
+import { usePdfViewer } from '../../context/pdf-viewer-context';
 import { useDeletePlaceable, useModifyPayload } from '../../store/placeables';
 import { type AllowableEdits, PayloadMode } from '../../type/placeables';
 
@@ -32,6 +33,7 @@ interface SignatureEditorProps {
 
 function SignatureEditor(props: SignatureEditorProps) {
   const pdf = usePdfDocument();
+  const rootElement = usePdfViewer().rootElement;
   let canvasRef!: HTMLCanvasElement;
   let signaturePad: SignaturePad | undefined;
 
@@ -70,7 +72,7 @@ function SignatureEditor(props: SignatureEditorProps) {
   );
 
   onMount(() => {
-    const el = pdf.rootElement();
+    const el = rootElement();
     if (!el) {
       setBlockRect(undefined);
       return;

@@ -1,5 +1,5 @@
 import { createContext, type ParentComponent, useContext } from 'solid-js';
-import { usePdfDocument } from '../context/pdf-document-context';
+import { usePdfViewer } from '../context/pdf-viewer-context';
 import { PDFViewer } from '../PdfViewer';
 
 type PageViewportWithScale = {
@@ -30,11 +30,11 @@ export const initializePdfViewer = (popupViewer?: PDFViewer) => {
 };
 
 export const useGetRootViewer = () => {
-  return usePdfDocument().viewer.root.instance;
+  return usePdfViewer().root.instance;
 };
 
 export const useGetPopupViewer = () => {
-  return usePdfDocument().viewer.popup.instance;
+  return usePdfViewer().popup.instance;
 };
 
 export const useGetPopupContextViewer = () => {
@@ -46,7 +46,7 @@ export const useGetPopupContextViewer = () => {
 
 // NOTE: this fires off on every change because the isEqual function is not working
 export const useVisiblePages = () => {
-  const viewer = usePdfDocument().viewer;
+  const viewer = usePdfViewer();
   const isPopup = useIsPopup();
   const viewArea = isPopup ? viewer.popup.viewArea : viewer.root.viewArea;
   return () => viewArea()?.visiblePages;
@@ -70,35 +70,35 @@ export function useIsPopup() {
 }
 
 export const useOverlayViewsChanged = () => {
-  const viewer = usePdfDocument().viewer;
+  const viewer = usePdfViewer();
   const isPopup = useIsPopup();
   return isPopup ? viewer.popup.overlayViews : viewer.root.overlayViews;
 };
 
 export const useCurrentPageNumber = () => {
-  return usePdfDocument().viewer.root.currentPageNumber;
+  return usePdfViewer().root.currentPageNumber;
 };
 
 // /** reactive values based on current page dimensions */
 export const useCurrentPageViewport = () => {
-  const pdf = usePdfDocument();
+  const viewerRuntime = usePdfViewer();
   const isPopup = useIsPopup();
   const getViewer = useGetPopupContextViewer();
   const currentPageNumber = isPopup
-    ? pdf.viewer.popup.currentPageNumber
-    : pdf.viewer.root.currentPageNumber;
+    ? viewerRuntime.popup.currentPageNumber
+    : viewerRuntime.root.currentPageNumber;
 
   return () => {
     const curPage = currentPageNumber();
     const viewer = getViewer();
-    if (!pdf.viewer.root.isReady() || !viewer || curPage < 1)
+    if (!viewerRuntime.root.isReady() || !viewer || curPage < 1)
       return PAGE_VIEWPORT_DEFAULT;
     return viewer.pageViewport(curPage - 1) ?? PAGE_VIEWPORT_DEFAULT;
   };
 };
 
 export const useCurrentScale = () => {
-  const viewer = usePdfDocument().viewer;
+  const viewer = usePdfViewer();
   const isPopup = useIsPopup();
   const currentScale = isPopup
     ? viewer.popup.currentScale

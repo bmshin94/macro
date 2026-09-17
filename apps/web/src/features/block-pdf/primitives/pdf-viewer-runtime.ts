@@ -187,7 +187,7 @@ export function createPdfViewerRuntime() {
     },
     isPopupOpen,
     overlays,
-    commands,
+    ...commands,
   };
 }
 

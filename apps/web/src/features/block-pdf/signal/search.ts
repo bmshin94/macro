@@ -1,5 +1,5 @@
 import type { PDFViewer } from '@block-pdf/PdfViewer';
-import { usePdfDocument } from '../context/pdf-document-context';
+import { usePdfViewer } from '../context/pdf-viewer-context';
 import {
   FindState,
   type IMatchesCount,
@@ -36,7 +36,7 @@ type WordMatch = BaseMatch & {
 type Match = EntityMatch | WordMatch;
 
 function useMergedEventSignal() {
-  const { findControlState, findMatchesCount } = usePdfDocument().viewer.root;
+  const { findControlState, findMatchesCount } = usePdfViewer().root;
 
   return (): IUpdateFindControlStateEvent | null => {
     const controlStateEvent = findControlState();
@@ -162,7 +162,7 @@ function getWordMatches(findController: FindController): WordMatch[] {
 }
 
 export function useSearchStart() {
-  const rootViewer = usePdfDocument().viewer.root.instance;
+  const rootViewer = usePdfViewer().root.instance;
   return (args: Parameters<PDFViewer['search']>[0]) => {
     rootViewer()?.search(args);
   };
@@ -206,7 +206,7 @@ export function useSearchResults() {
 }
 
 export function useJumpToResult() {
-  const rootViewer = usePdfDocument().viewer.root.instance;
+  const rootViewer = usePdfViewer().root.instance;
   const mergedEvent = useMergedEventSignal();
 
   return (match: Match) => {
@@ -225,7 +225,7 @@ export function useJumpToResult() {
 }
 
 export function useSearchClose() {
-  const rootViewer = usePdfDocument().viewer.root.instance;
+  const rootViewer = usePdfViewer().root.instance;
   return () => {
     rootViewer()?.findBarClose();
   };

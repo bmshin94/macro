@@ -1,90 +1,19 @@
-import { createRoot, createSignal } from 'solid-js';
+import { createRoot } from 'solid-js';
 import { describe, expect, it } from 'vitest';
 import type { IHighlight } from '../model/Highlight';
-import { PayloadMode, type PayloadType } from '../type/placeables';
 import { createPdfInteraction, type PdfInteraction } from './pdf-interaction';
 
 function setup(): {
   interaction: PdfInteraction;
-  setPlacementMode: (mode: PayloadType) => void;
   dispose: () => void;
 } {
-  return createRoot((dispose) => {
-    const [placementMode, setPlacementMode] = createSignal<PayloadType>(
-      PayloadMode.NoMode
-    );
-    return {
-      interaction: createPdfInteraction(placementMode),
-      setPlacementMode,
-      dispose,
-    };
-  });
+  return createRoot((dispose) => ({
+    interaction: createPdfInteraction(),
+    dispose,
+  }));
 }
 
 describe('createPdfInteraction', () => {
-  it('derives click and text-selection locks from their authorities', () => {
-    const { interaction, setPlacementMode, dispose } = setup();
-
-    expect({
-      overlayClicksDisabled: interaction.overlayClicksDisabled(),
-      viewerTextSelectionDisabled: interaction.viewerTextSelectionDisabled(),
-    }).toEqual({
-      overlayClicksDisabled: false,
-      viewerTextSelectionDisabled: false,
-    });
-
-    setPlacementMode(PayloadMode.Thread);
-    expect(interaction.overlayClicksDisabled()).toBe(true);
-
-    setPlacementMode(PayloadMode.NoMode);
-    interaction.selectCommentThread(42);
-    expect({
-      overlayClicksDisabled: interaction.overlayClicksDisabled(),
-      viewerTextSelectionDisabled: interaction.viewerTextSelectionDisabled(),
-    }).toEqual({
-      overlayClicksDisabled: false,
-      viewerTextSelectionDisabled: true,
-    });
-    dispose();
-  });
-
-  it('coordinates viewer and comment text selection synchronously', () => {
-    const { interaction, dispose } = setup();
-
-    interaction.selectCommentThread(42);
-    interaction.beginViewerTextSelection();
-
-    expect({
-      viewerTextSelectionActive: interaction.viewerTextSelectionActive(),
-      selectedCommentThread: interaction.selectedCommentThread(),
-      overlayClicksDisabled: interaction.overlayClicksDisabled(),
-      viewerTextSelectionDisabled: interaction.viewerTextSelectionDisabled(),
-    }).toEqual({
-      viewerTextSelectionActive: true,
-      selectedCommentThread: null,
-      overlayClicksDisabled: true,
-      viewerTextSelectionDisabled: false,
-    });
-
-    interaction.selectCommentThread(7);
-    interaction.beginViewerTextSelection();
-    interaction.endViewerTextSelection();
-
-    expect({
-      viewerTextSelectionActive: interaction.viewerTextSelectionActive(),
-      selectedCommentThread: interaction.selectedCommentThread(),
-      viewerTextSelectionDisabled: interaction.viewerTextSelectionDisabled(),
-    }).toEqual({
-      viewerTextSelectionActive: false,
-      selectedCommentThread: 7,
-      viewerTextSelectionDisabled: true,
-    });
-
-    interaction.clearSelectedCommentThread();
-    expect(interaction.selectedCommentThread()).toBeNull();
-    dispose();
-  });
-
   it('opens and closes the selection menu', () => {
     const { interaction, dispose } = setup();
     const element = document.createElement('div');
@@ -97,32 +26,6 @@ describe('createPdfInteraction', () => {
 
     interaction.closeSelectionMenu();
     expect(interaction.selectionMenuLocation()).toBeNull();
-    dispose();
-  });
-
-  it('restores page clicks when scoped work returns or throws', () => {
-    const { interaction, dispose } = setup();
-    const observed: boolean[] = [];
-
-    interaction.runWithPageClicksDisabled(() => {
-      observed.push(interaction.pageClicksDisabled());
-    });
-    observed.push(interaction.pageClicksDisabled());
-
-    expect(() =>
-      interaction.runWithPageClicksDisabled(() => {
-        observed.push(interaction.pageClicksDisabled());
-        throw new Error('failed');
-      })
-    ).toThrow('failed');
-
-    expect({
-      observed,
-      pageClicksDisabled: interaction.pageClicksDisabled(),
-    }).toEqual({
-      observed: [true, false, true],
-      pageClicksDisabled: false,
-    });
     dispose();
   });
 
@@ -206,31 +109,29 @@ describe('createPdfInteraction', () => {
     const first = setup();
     const second = setup();
 
-    first.interaction.beginViewerTextSelection();
     first.interaction.openSelectionMenu({
       pageIndex: 1,
       element: document.createElement('div'),
     });
     first.interaction.activateHighlight('highlight-1');
     first.interaction.activateCommentThread(-1);
+    first.interaction.selectCommentThread(7);
     first.interaction.suppressActiveThreadScrolling();
 
     expect({
-      firstSelecting: first.interaction.viewerTextSelectionActive(),
       firstMenuPage: first.interaction.selectionMenuLocation()?.pageIndex,
-      secondSelecting: second.interaction.viewerTextSelectionActive(),
+      firstSelectedThread: first.interaction.selectedCommentThread(),
       secondMenu: second.interaction.selectionMenuLocation(),
-      secondOverlayDisabled: second.interaction.overlayClicksDisabled(),
+      secondSelectedThread: second.interaction.selectedCommentThread(),
       secondActiveHighlight: second.interaction.activeHighlightId(),
       secondActiveThread: second.interaction.activeCommentThreadId(),
       secondScrollSuppressed:
         second.interaction.activeThreadScrollingSuppressed(),
     }).toEqual({
-      firstSelecting: true,
       firstMenuPage: 1,
-      secondSelecting: false,
+      firstSelectedThread: 7,
       secondMenu: null,
-      secondOverlayDisabled: false,
+      secondSelectedThread: null,
       secondActiveHighlight: null,
       secondActiveThread: null,
       secondScrollSuppressed: false,
