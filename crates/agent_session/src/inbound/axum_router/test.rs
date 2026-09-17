@@ -831,3 +831,16 @@ fn an_unnamed_control_request_omits_the_field() {
 
     assert_eq!(body, serde_json::json!({ "type": "stop" }));
 }
+
+/// A client that speculates an action sends the id it speculated under. The
+/// action's own fields are flattened in beside it, so this pins that the
+/// named id survives that flatten rather than being swallowed by the enum.
+#[test]
+fn a_control_request_keeps_the_client_minted_action_id() {
+    let body = r#"{"type":"prompt","prompt":"hi","actionId":"01a0acab-5eff-72d6-91ca-16997a26d13a"}"#;
+    let request: ControlRequest = serde_json::from_str(body).expect("the body parses");
+    assert_eq!(
+        request.action_id.map(|id| id.to_string()).as_deref(),
+        Some("01a0acab-5eff-72d6-91ca-16997a26d13a")
+    );
+}
