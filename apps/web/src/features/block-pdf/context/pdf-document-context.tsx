@@ -6,6 +6,10 @@ import {
   type FlowComponent,
   useContext,
 } from 'solid-js';
+import {
+  createPdfDocumentModel,
+  type PdfDocumentModel,
+} from '../primitives/pdf-document-model';
 import type { LocationSearchParams } from '../signal/location';
 import {
   createPdfDocumentState,
@@ -32,6 +36,7 @@ export type PdfDocumentContextValue = {
   locationParams: Accessor<LocationSearchParams>;
   rootElement: Accessor<HTMLElement | undefined>;
   setRootElement: (element: HTMLElement | undefined) => void;
+  model: PdfDocumentModel;
   state: PdfDocumentState;
 };
 
@@ -52,6 +57,7 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
 ) => {
   const documentId = () => props.documentId;
   const [rootElement, setRootElement] = createSignal<HTMLElement>();
+  const model = createPdfDocumentModel();
   const context: PdfDocumentContextValue = {
     documentId,
     documentVersionId: () => props.documentVersionId,
@@ -66,6 +72,7 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
     locationParams: () => props.locationParams ?? {},
     rootElement,
     setRootElement,
+    model,
     state: createPdfDocumentState(documentId),
   };
 

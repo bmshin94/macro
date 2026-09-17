@@ -31,10 +31,6 @@ import type { ISectionPopupContext } from '../store/definitionPopup';
 import type { HighlightPageMap, HighlightUuidMap } from '../store/highlight';
 import type { ITableOfContentsContext } from '../store/tableOfContents';
 import type { CommentStore } from '../type/comments';
-import type {
-  IModificationData,
-  IModificationDataOnServer,
-} from '../type/coParse';
 import {
   type IPlaceable,
   PayloadMode,
@@ -83,11 +79,6 @@ const createTableOfContentsState = (): ITableOfContentsContext => ({
 export function createPdfDocumentState(documentId: Accessor<string>) {
   const documentProxy = createSignal<PDFDocumentProxy>();
   const viewLocation = createSignal<GetDocumentResponseDataViewLocation>();
-  const modificationData = createStore<IModificationData>({
-    bookmarks: [],
-    placeables: [],
-    pinnedTermsNames: [],
-  });
   const overlays = createSignal<string[]>();
 
   const locationChanged = createSignal(false);
@@ -120,10 +111,8 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
   const activePlaceableId = createSignal<string>();
   const newPlaceable = createSignal<IPlaceable>();
 
-  const numOperations = createSignal(0);
   const savingCount = createSignal(0);
   const isSaving = createSignal(false);
-  const serverModificationData = createSignal<IModificationDataOnServer>();
 
   const tabId = createSignal(0);
   const tabData = createStore<TabInfo[]>([defaultTabData(0)]);
@@ -267,10 +256,8 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       showTabBar,
       activePlaceableId,
       newPlaceable,
-      numOperations,
       savingCount,
       isSaving,
-      serverModificationData,
       tabId,
       activeTabId,
       tabHistory,
@@ -298,7 +285,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       noScrollToActiveCommentThread,
     },
     stores: {
-      modificationData,
       location,
       tabData,
       pageHeight,

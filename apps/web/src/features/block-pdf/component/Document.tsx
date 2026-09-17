@@ -324,10 +324,8 @@ export function Document() {
   const canSaveModificationData = pdf.permissions.canEdit;
 
   const loadAnnotations = useLoadAnnotations();
-  const serverModificationData = signals.serverModificationData[0];
-  const hasServerModificationData = () => !!serverModificationData();
   const updateModificationDataOnLoad = () =>
-    canSaveModificationData() && !hasServerModificationData();
+    canSaveModificationData() && !pdf.model.hasServerSnapshot();
 
   createEffect((prevDocumentId) => {
     const rootPdfViewer = getRootViewer();
@@ -335,13 +333,9 @@ export function Document() {
     if (!rootPdfViewer || !popupPdfViewer) return;
 
     const documentProxy = signals.documentProxy[0]();
-    const modificationData = stores.modificationData[0];
 
     if (documentProxy) {
-      const annotationsPromise = loadAnnotations(
-        documentProxy,
-        modificationData
-      );
+      const annotationsPromise = loadAnnotations(documentProxy);
 
       if (updateModificationDataOnLoad()) {
         annotationsPromise.then(saveModificationData);
@@ -617,16 +611,15 @@ export function Document() {
 
   if (ENABLE_PDF_MODIFICATION_DATA_AUTOSAVE && !pdf.isNested()) {
     const isSaving = createDeferred(signals.isSaving[0]);
-    const currentOperations = createDeferred(signals.numOperations[0]);
-    const [savedOperations, setSavedOperations] = createSignal(0);
+    const currentRevision = createDeferred(pdf.model.revision);
+    const [savedRevision, setSavedRevision] = createSignal(0);
     createEffect(() => {
       if (isSaving()) return;
 
-      const currOps = currentOperations();
-      const savedOps = savedOperations();
-      if (currOps <= savedOps) return;
+      const revision = currentRevision();
+      if (revision <= savedRevision()) return;
 
-      saveModificationData().then(() => setSavedOperations(currOps));
+      saveModificationData().then(() => setSavedRevision(revision));
     });
   }
 

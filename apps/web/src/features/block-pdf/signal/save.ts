@@ -11,8 +11,7 @@ import {
 } from '../util/buildModificationData';
 
 export function useDoEdit() {
-  const [, setNumOperations] = usePdfDocument().state.signals.numOperations;
-  return () => setNumOperations((prev) => prev + 1);
+  return usePdfDocument().model.commands.recordEdit;
 }
 
 const useSaveWrapper = () => {
@@ -45,24 +44,23 @@ const useSaveWrapper = () => {
 };
 
 export function useHasModificationData() {
-  const { highlights, modificationData } = usePdfDocument().state.stores;
+  const pdf = usePdfDocument();
+  const { highlights } = pdf.state.stores;
   const [highlightStoreValue] = highlights;
-  const [pdfModificationValue] = modificationData;
 
   return () =>
     Object.keys(highlightStoreValue).length > 0 ||
-    pdfModificationValue.placeables.length > 0;
+    pdf.model.modificationData.placeables.length > 0;
 }
 
 export function useSaveModificationData() {
   const pdf = usePdfDocument();
   const saveWrapper = useSaveWrapper();
-  const [pdfModificationValue] = pdf.state.stores.modificationData;
+  const pdfModificationValue = pdf.model.modificationData;
   const [tableOfContents] = pdf.state.stores.tableOfContents;
-  const [serverModificationData] = pdf.state.signals.serverModificationData;
 
   const serverModificationDataHash = createMemo(() => {
-    const modificationData_ = serverModificationData();
+    const modificationData_ = pdf.model.serverSnapshot();
     if (!modificationData_) return '';
     const hash = hashModificationDataSync(modificationData_);
     return hash;

@@ -479,7 +479,7 @@ export function PageOverlay(props: IPageOverlayProps) {
           class="top-0 left-0 absolute bg-transparent"
           inert={pdf.isNested()}
         >
-          <For each={stores.modificationData[0].placeables}>
+          <For each={pdf.model.modificationData.placeables}>
             {(placeable) => {
               return (
                 <Show

@@ -2,6 +2,7 @@ import { cleanup, render } from '@solidjs/testing-library';
 import { For } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IVisiblePage, TEvents } from '../PdfViewer/EventBus';
+import type { IModificationDataOnServer } from '../type/coParse';
 import { PayloadMode } from '../type/placeables';
 import {
   type PdfDocumentContextValue,
@@ -182,6 +183,27 @@ describe('PdfDocumentProvider state', () => {
       viewerReady: true,
       viewerHasVisiblePages: false,
     });
+  });
+
+  it('isolates document models between providers', () => {
+    const contexts = setup('document-1', 'document-2');
+    const first = contexts.get('document-1')!;
+    const second = contexts.get('document-2')!;
+    const snapshot = {
+      bookmarks: [],
+      highlights: null,
+      pinnedTermsNames: [],
+      placeables: [],
+    } satisfies IModificationDataOnServer;
+
+    first.model.commands.hydrateFromServer(snapshot);
+    first.model.commands.recordEdit();
+
+    expect(first.model).not.toBe(second.model);
+    expect(first.model.serverSnapshot()).toBe(snapshot);
+    expect(first.model.revision()).toBe(1);
+    expect(second.model.serverSnapshot()).toBeUndefined();
+    expect(second.model.revision()).toBe(0);
   });
 
   it('coordinates text selection, comment selection, and placeable mode', async () => {

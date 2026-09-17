@@ -13,7 +13,6 @@ import {
   onMount,
   Show,
 } from 'solid-js';
-import { reconcile } from 'solid-js/store';
 import { fromZodError } from 'zod-validation-error';
 import {
   type PdfDocumentPermissions,
@@ -30,10 +29,7 @@ import { useUpdateColorsEffect } from '../signal/setting';
 import { useSyncHighlightStore } from '../store/highlight';
 import { useSyncActivePlaceableWithCommentThread } from '../store/placeables';
 import { useTableOfContentsUpdate } from '../store/tableOfContents';
-import {
-  IModificationDataOnServerSchema,
-  transformModificationDataToClient,
-} from '../type/coParse';
+import { IModificationDataOnServerSchema } from '../type/coParse';
 import { preprocess } from '../websocket/preprocess';
 import { Document } from './Document';
 
@@ -109,10 +105,8 @@ function PdfDocumentState(props: PdfDocumentProps) {
     viewLocation,
     pendingLocationParams,
     locationChanged,
-    serverModificationData,
     isSaving,
   } = pdf.state.signals;
-  const [, setModificationData] = pdf.state.stores.modificationData;
   const tableOfContentsDispatch = useTableOfContentsUpdate();
   const savePdf = usePdfSave();
 
@@ -138,10 +132,7 @@ function PdfDocumentState(props: PdfDocumentProps) {
       return;
     }
 
-    serverModificationData[1](parsed.data);
-    setModificationData(
-      reconcile(transformModificationDataToClient(parsed.data))
-    );
+    pdf.model.commands.hydrateFromServer(parsed.data);
   });
 
   const [preprocessResource] = createResource(() => {

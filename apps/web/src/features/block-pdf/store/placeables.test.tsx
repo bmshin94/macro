@@ -112,27 +112,23 @@ function setup(): PlaceableTestApi {
 describe('useModifyPlaceable', () => {
   it('updates a matching placeable and records one edit', () => {
     const { context, modifyPlaceable } = setup();
-    const [, setModificationData] = context.state.stores.modificationData;
-    const [numOperations] = context.state.signals.numOperations;
     const original = textPlaceable('before');
-    setModificationData('placeables', [original]);
+    context.model.commands.replacePlaceables([original]);
 
     const updated = textPlaceable('after');
 
     expect(modifyPlaceable(0, updated)).toBe(true);
-    expect(context.state.stores.modificationData[0].placeables[0]).toEqual({
+    expect(context.model.modificationData.placeables[0]).toEqual({
       ...updated,
       wasEdited: true,
     });
-    expect(numOperations()).toBe(1);
+    expect(context.model.revision()).toBe(1);
   });
 
   it('rejects missing or mismatched placeables without recording an edit', () => {
     const { context, modifyPlaceable } = setup();
-    const [, setModificationData] = context.state.stores.modificationData;
-    const [numOperations] = context.state.signals.numOperations;
     const original = textPlaceable('before');
-    setModificationData('placeables', [original]);
+    context.model.commands.replacePlaceables([original]);
 
     const mismatched = {
       ...textPlaceable('after'),
@@ -142,9 +138,7 @@ describe('useModifyPlaceable', () => {
     expect(modifyPlaceable(-1, original)).toBe(false);
     expect(modifyPlaceable(1, original)).toBe(false);
     expect(modifyPlaceable(0, mismatched)).toBe(false);
-    expect(context.state.stores.modificationData[0].placeables).toEqual([
-      original,
-    ]);
-    expect(numOperations()).toBe(0);
+    expect(context.model.modificationData.placeables).toEqual([original]);
+    expect(context.model.revision()).toBe(0);
   });
 });

@@ -52,7 +52,7 @@ const DEFAULT_APPEARANCE_PAYLOAD: AppearancePayload = {
 };
 
 export function usePlaceableIdMap() {
-  const [modificationData] = usePdfDocument().state.stores.modificationData;
+  const modificationData = usePdfDocument().model.modificationData;
   const commentPlaceables = useCommentPlaceables();
 
   return createMemo(() => {
@@ -75,12 +75,6 @@ function useGetPopupContextViewer() {
   const { rootViewer, popupViewer } = usePdfDocument().state.signals;
 
   return () => (isPopup ? popupViewer[0]() : rootViewer[0]());
-}
-
-function useDoEdit() {
-  const [, setNumOperations] = usePdfDocument().state.signals.numOperations;
-
-  return () => setNumOperations((previous) => previous + 1);
 }
 
 // function convertTextAnnotationToThread(
@@ -699,7 +693,6 @@ export function useCreatePlaceable() {
   const makeSignature = useMakeSignature();
   const pdf = usePdfDocument();
   const [mode, setMode] = pdf.state.signals.placeableMode;
-  const [, setPdfModificationData] = pdf.state.stores.modificationData;
   const [, setActivePlaceableId] = pdf.state.signals.activePlaceableId;
   const [, setNewPlaceable] = pdf.state.signals.newPlaceable;
   const [, setActiveCommentThread] = pdf.state.signals.activeCommentThread;
@@ -729,7 +722,7 @@ export function useCreatePlaceable() {
 
     batch(() => {
       if (!isThreadPlaceable(placeable)) {
-        setPdfModificationData('placeables', (prev) => [...prev, placeable]);
+        pdf.model.commands.appendPlaceable(placeable);
       } else {
         setActiveCommentThread(-1);
       }
@@ -745,34 +738,16 @@ export function useCreatePlaceable() {
 }
 
 export function useModifyPlaceable() {
-  const [modificationData, setModificationData] =
-    usePdfDocument().state.stores.modificationData;
-  const doEdit = useDoEdit();
+  const model = usePdfDocument().model;
 
   return (index: number, newPlaceable: IPlaceable) => {
-    if (index < 0) return false;
-
-    const placeables = modificationData.placeables;
-
-    const currPlaceable = placeables.at(index);
-    if (!currPlaceable) return false;
-
-    if (newPlaceable.payloadType !== currPlaceable.payloadType) return false;
-
-    setModificationData('placeables', index, {
-      ...newPlaceable,
-      wasEdited: true,
-    });
-
-    doEdit();
-
-    return true;
+    return model.commands.updatePlaceable(index, newPlaceable);
   };
 }
 
 export function useModifyPayload() {
   const modifyPlaceable = useModifyPlaceable();
-  const [modificationData] = usePdfDocument().state.stores.modificationData;
+  const modificationData = usePdfDocument().model.modificationData;
 
   return <T extends PayloadType>(
     id: string,
@@ -802,25 +777,10 @@ export function useModifyPayload() {
 
 export function useDeletePlaceable() {
   const pdf = usePdfDocument();
-  const [modificationData, setModificationData] =
-    pdf.state.stores.modificationData;
+  const modificationData = pdf.model.modificationData;
   const [, setActivePlaceable] = pdf.state.signals.activePlaceableId;
   const placeableIdMap = usePlaceableIdMap();
-  const doEdit = useDoEdit();
   const deleteComment = useDeleteComment();
-
-  const arrayDelete = (index: number) => {
-    if (index < 0 || index >= modificationData.placeables.length) return false;
-
-    setModificationData('placeables', (prev) => [
-      ...prev.slice(0, index),
-      ...prev.slice(index + 1),
-    ]);
-
-    doEdit();
-
-    return true;
-  };
 
   return createCallback((uuid: string) => {
     const placeable = placeableIdMap()[uuid];
@@ -841,7 +801,7 @@ export function useDeletePlaceable() {
 
     const index = internalIdToIndex(modificationData.placeables, uuid);
 
-    let deleted = arrayDelete(index);
+    const deleted = pdf.model.commands.removePlaceable(index);
     if (deleted) {
       setActivePlaceable((prev) => (prev === uuid ? undefined : prev));
     }
@@ -854,7 +814,7 @@ export function useUpdatePlaceablePosition() {
   const editPdfFreeCommentAnchor = useEditPdfFreeCommentAnchor();
   const pdf = usePdfDocument();
   const [, setNewPlaceable] = pdf.state.signals.newPlaceable;
-  const [modificationData] = pdf.state.stores.modificationData;
+  const modificationData = pdf.model.modificationData;
   const placeableIdMap = usePlaceableIdMap();
 
   return createCallback(
