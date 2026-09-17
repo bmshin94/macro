@@ -2249,8 +2249,6 @@ async fn upload_extract_uses_fixed_request_id() {
     assert_eq!(*request_ids.lock().unwrap(), vec![fixed_id]);
 }
 
-// -- Team sharing --
-
 use models_permissions::share_permission::team_share::{TeamShareFacts, TeamShareLevel};
 
 const OTHER_USER: &str = "macro|other@example.com";
@@ -2424,7 +2422,6 @@ async fn edit_with_team_share_null_forwards_clear_command() {
 
 #[tokio::test]
 async fn edit_team_share_by_non_owner_returns_unauthorized_and_publishes_nothing() {
-    // The receipt carries effective Owner access, but the persisted owner is someone else.
     let project_id = Uuid::new_v4();
     let facts = team_share_facts(project_id, user_id(OTHER_USER), Some(TEAM_ID), 0);
     let mut repo = MockProjectRepo::new();
