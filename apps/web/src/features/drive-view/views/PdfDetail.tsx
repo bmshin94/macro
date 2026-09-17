@@ -33,11 +33,10 @@ export type PdfDetailContext = {
 
 function PdfDetailContent() {
   const pdf = usePdfDocument();
-  const [documentProxy] = pdf.state.signals.documentProxy;
 
   return (
     <>
-      <Show when={documentProxy()}>
+      <Show when={pdf.documentProxy()}>
         <div class="flex min-h-11 shrink-0 items-center gap-2 border-edge-muted border-b px-2">
           <PdfToolbarControls />
           <div class="ml-auto">

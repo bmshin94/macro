@@ -30,13 +30,11 @@ export const initializePdfViewer = (popupViewer?: PDFViewer) => {
 };
 
 export const useGetRootViewer = () => {
-  const [viewer] = usePdfDocument().state.signals.rootViewer;
-  return () => viewer();
+  return usePdfDocument().viewer.root;
 };
 
 export const useGetPopupViewer = () => {
-  const [viewer] = usePdfDocument().state.signals.popupViewer;
-  return () => viewer();
+  return usePdfDocument().viewer.popup;
 };
 
 export const useGetPopupContextViewer = () => {

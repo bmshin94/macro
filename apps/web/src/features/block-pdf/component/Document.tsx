@@ -57,12 +57,11 @@ const PDF = 72.0;
 const PDF_TO_CSS_UNITS = CSS / PDF;
 
 function InnerDocument() {
-  const { state } = usePdfDocument();
+  const pdf = usePdfDocument();
+  const { state } = pdf;
   const isPopup = useIsPopup();
-  const getViewer = () =>
-    isPopup ? state.signals.popupViewer[0]() : state.signals.rootViewer[0]();
+  const getViewer = () => (isPopup ? pdf.viewer.popup() : pdf.viewer.root());
 
-  // attach new tab listeners
   const goToLocationHash = useGoToLocationHash();
 
   // TODO (seamus) : Chatted with Rithy. Manual cleanup should not be
@@ -83,9 +82,8 @@ function InnerDocument() {
     cleanupNewTabHandler = () => {};
   });
 
-  // watch the overlays and send the contents to be rendered by PDFViewer
   createEffect(() => {
-    const overlays = state.signals.overlays[0]();
+    const overlays = pdf.viewer.overlays();
     if (!overlays || overlays.length === 0) return;
     getViewer()?.setOverlays(overlays);
   });
@@ -184,8 +182,8 @@ export function Document() {
   const [documentContainerRef, setDocumentContainerRef] =
     createSignal<HTMLDivElement>();
   const [destroying, setDestroying] = createSignal(false);
-  const [getRootViewer, setRootViewer] = signals.rootViewer;
-  const [getPopupViewer, setPopupViewer] = signals.popupViewer;
+  const getRootViewer = pdf.viewer.root;
+  const getPopupViewer = pdf.viewer.popup;
   const disableClick = signals.disableOverlayClick[0];
   const setIsSelecting = signals.isSelectingViewerText[1];
   const blockElement = pdf.rootElement;
@@ -277,8 +275,10 @@ export function Document() {
     attachViewerSignals(rootViewer, false);
     attachViewerSignals(popupViewer, true);
 
-    setPopupViewer(popupViewer);
-    setRootViewer(rootViewer);
+    pdf.viewer.commands.installPair({
+      root: rootViewer,
+      popup: popupViewer,
+    });
   });
 
   let mountRef: HTMLDivElement | undefined;
@@ -314,8 +314,7 @@ export function Document() {
       .finally(() => {
         popupViewer = undefined;
         rootViewer = undefined;
-        setRootViewer(undefined);
-        setPopupViewer(undefined);
+        pdf.viewer.commands.clearPair();
         setDestroying(false);
       });
   });
@@ -332,7 +331,7 @@ export function Document() {
     const popupPdfViewer = getPopupViewer();
     if (!rootPdfViewer || !popupPdfViewer) return;
 
-    const documentProxy = signals.documentProxy[0]();
+    const documentProxy = pdf.documentProxy();
 
     if (documentProxy) {
       const annotationsPromise = loadAnnotations(documentProxy);

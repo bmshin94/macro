@@ -1,6 +1,5 @@
 import type { Completion } from '@core/client/completion';
 import type { ThreadId } from '@core/comments/commentType';
-import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 import type { Accessor } from 'solid-js';
 import {
   createEffect,
@@ -10,7 +9,6 @@ import {
 } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import type { IHighlight } from '../model/Highlight';
-import type { PDFViewer } from '../PdfViewer';
 import type { TEvents } from '../PdfViewer/EventBus';
 import { TermDataStore } from '../PdfViewer/TermDataStore';
 import { ZOOM_MAX, ZOOM_MIN } from '../PdfViewer/zoom';
@@ -63,9 +61,6 @@ const createTableOfContentsState = (): ITableOfContentsContext => ({
 });
 
 export function createPdfDocumentState(documentId: Accessor<string>) {
-  const documentProxy = createSignal<PDFDocumentProxy>();
-  const overlays = createSignal<string[]>();
-
   const generalPopupLocation = createSignal<{
     pageIndex: number;
     element: HTMLElement;
@@ -83,8 +78,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
   const activePlaceableId = createSignal<string>();
   const newPlaceable = createSignal<IPlaceable>();
 
-  const rootViewer = createSignal<PDFViewer>();
-  const popupViewer = createSignal<PDFViewer>();
   const pagesLoaded = createSignal<TEvents['pagesloaded']>();
   const scaleChanging = createSignal<TEvents['scalechanging']>();
   const pageChanging = createSignal<TEvents['pagechanging']>();
@@ -204,8 +197,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
 
   return {
     signals: {
-      documentProxy,
-      overlays,
       generalPopupLocation,
       disableOverlayClick,
       disableViewerTextSelection,
@@ -215,8 +206,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       placeableMode,
       activePlaceableId,
       newPlaceable,
-      rootViewer,
-      popupViewer,
       pagesLoaded,
       scaleChanging,
       pageChanging,

@@ -72,9 +72,9 @@ function useCurrentScale() {
 
 function useGetPopupContextViewer() {
   const isPopup = useIsPopup();
-  const { rootViewer, popupViewer } = usePdfDocument().state.signals;
+  const viewer = usePdfDocument().viewer;
 
-  return () => (isPopup ? popupViewer[0]() : rootViewer[0]());
+  return () => (isPopup ? viewer.popup() : viewer.root());
 }
 
 // function convertTextAnnotationToThread(

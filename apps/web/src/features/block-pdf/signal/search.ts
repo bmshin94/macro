@@ -177,7 +177,7 @@ function getWordMatches(
 }
 
 export function useSearchStart() {
-  const [rootViewer] = usePdfDocument().state.signals.rootViewer;
+  const rootViewer = usePdfDocument().viewer.root;
   return (args: Parameters<PDFViewer['search']>[0]) => {
     rootViewer()?.search(args);
   };
@@ -222,7 +222,7 @@ export function useSearchResults() {
 }
 
 export function useJumpToResult() {
-  const [rootViewer] = usePdfDocument().state.signals.rootViewer;
+  const rootViewer = usePdfDocument().viewer.root;
   const mergedEvent = useMergedEventSignal();
 
   return (match: Match) => {
@@ -241,7 +241,7 @@ export function useJumpToResult() {
 }
 
 export function useSearchClose() {
-  const [rootViewer] = usePdfDocument().state.signals.rootViewer;
+  const rootViewer = usePdfDocument().viewer.root;
   return () => {
     rootViewer()?.findBarClose();
   };

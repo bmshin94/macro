@@ -41,7 +41,7 @@ export function PdfToolbarControls() {
 }
 
 export function PdfSplitToolbar() {
-  const [documentProxy] = usePdfDocument().state.signals.documentProxy;
+  const documentProxy = usePdfDocument().documentProxy;
   return (
     <Show when={documentProxy()}>
       <SplitToolbarLeft>

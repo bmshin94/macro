@@ -73,6 +73,7 @@ export function PdfDocument(props: PdfDocumentProps) {
       {(documentId) => (
         <PdfDocumentProvider
           documentId={documentId}
+          documentProxy={props.documentProxy}
           documentVersionId={props.documentVersionId}
           documentName={props.documentName}
           isNested={props.isNested}
@@ -100,7 +101,6 @@ function PdfDocumentState(props: PdfDocumentProps) {
   usePendingLocationNavigationEffect();
   useSyncHighlightStore();
   useSyncActivePlaceableWithCommentThread();
-  const { documentProxy } = pdf.state.signals;
   const tableOfContentsDispatch = useTableOfContentsUpdate();
   const savePdf = usePdfSave();
 
@@ -111,7 +111,6 @@ function PdfDocumentState(props: PdfDocumentProps) {
   });
 
   createEffect(() => {
-    documentProxy[1](props.documentProxy);
     pdf.navigation.commands.setPersistedViewLocation(
       pdf.isNested() ? undefined : props.viewLocation
     );
@@ -146,7 +145,7 @@ function PdfDocumentState(props: PdfDocumentProps) {
 
     pdf.state.termDataStore.load(coparse.defs ?? '');
     tableOfContentsDispatch({ type: 'LOAD_AI_TOC', coparse });
-    pdf.state.signals.overlays[1](coparse.overlays);
+    pdf.viewer.commands.replaceOverlays(coparse.overlays);
   });
 
   const debouncedSave = leading(

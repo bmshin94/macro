@@ -1,4 +1,5 @@
 import type { PortalScope } from '@core/component/ScopedPortal';
+import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 import {
   type Accessor,
   createContext,
@@ -19,6 +20,10 @@ import {
   type PdfPersistence,
 } from '../primitives/pdf-persistence';
 import { createPdfTabs, type PdfTabs } from '../primitives/pdf-tabs';
+import {
+  createPdfViewerRuntime,
+  type PdfViewerRuntime,
+} from '../primitives/pdf-viewer-runtime';
 import type { LocationSearchParams } from '../signal/location';
 import {
   createPdfDocumentState,
@@ -33,6 +38,7 @@ export type PdfDocumentPermissions = {
 
 export type PdfDocumentContextValue = {
   documentId: Accessor<string>;
+  documentProxy: Accessor<PDFDocumentProxy | undefined>;
   documentVersionId: Accessor<number | undefined>;
   documentName: Accessor<string>;
   isNested: Accessor<boolean>;
@@ -49,11 +55,13 @@ export type PdfDocumentContextValue = {
   navigation: PdfNavigation;
   persistence: PdfPersistence;
   tabs: PdfTabs;
+  viewer: PdfViewerRuntime;
   state: PdfDocumentState;
 };
 
 export type PdfDocumentProviderProps = {
   documentId: string;
+  documentProxy?: PDFDocumentProxy;
   documentVersionId?: number;
   documentName: string;
   isNested?: boolean;
@@ -73,8 +81,10 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
   const navigation = createPdfNavigation();
   const persistence = createPdfPersistence();
   const tabs = createPdfTabs();
+  const viewer = createPdfViewerRuntime();
   const context: PdfDocumentContextValue = {
     documentId,
+    documentProxy: () => props.documentProxy,
     documentVersionId: () => props.documentVersionId,
     documentName: () => props.documentName,
     isNested: () => props.isNested ?? false,
@@ -91,6 +101,7 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
     navigation,
     persistence,
     tabs,
+    viewer,
     state: createPdfDocumentState(documentId),
   };
 

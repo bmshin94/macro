@@ -65,7 +65,10 @@ describe('PDF tab hooks', () => {
     withoutViewer.createTab();
 
     const nested = setup(true);
-    nested.context.state.signals.rootViewer[1]({} as PDFViewer);
+    nested.context.viewer.commands.installPair({
+      root: {} as PDFViewer,
+      popup: {} as PDFViewer,
+    });
     nested.createTab();
 
     expect({
@@ -85,10 +88,13 @@ describe('PDF tab hooks', () => {
     const { context, createTab, navigateToTab } = setup();
     const getLocationHash = vi.fn(() => '#page=3');
     const goToLocationHash = vi.fn();
-    context.state.signals.rootViewer[1]({
-      getLocationHash,
-      goToLocationHash,
-    } as unknown as PDFViewer);
+    context.viewer.commands.installPair({
+      root: {
+        getLocationHash,
+        goToLocationHash,
+      } as unknown as PDFViewer,
+      popup: {} as PDFViewer,
+    });
     setCurrentPage(context, 3);
 
     createTab();

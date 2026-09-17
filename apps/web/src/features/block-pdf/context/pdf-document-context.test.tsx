@@ -1,5 +1,6 @@
 import { cleanup, render } from '@solidjs/testing-library';
-import { For } from 'solid-js';
+import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
+import { createSignal, For } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IVisiblePage, TEvents } from '../PdfViewer/EventBus';
 import type { IModificationDataOnServer } from '../type/coParse';
@@ -93,6 +94,55 @@ const flushEffects = () =>
   new Promise<void>((resolve) => queueMicrotask(resolve));
 
 describe('PdfDocumentProvider state', () => {
+  it('reads reactive document proxy props without remounting providers', () => {
+    const firstProxy = { name: 'first' } as unknown as PDFDocumentProxy;
+    const nextProxy = { name: 'next' } as unknown as PDFDocumentProxy;
+    const secondProxy = { name: 'second' } as unknown as PDFDocumentProxy;
+    const [proxy, setProxy] = createSignal(firstProxy);
+    const contexts = new Map<string, PdfDocumentContextValue>();
+    const captures = new Map<string, number>();
+
+    render(() => (
+      <For each={['document-1', 'document-2']}>
+        {(documentId) => (
+          <PdfDocumentProvider
+            documentId={documentId}
+            documentProxy={documentId === 'document-1' ? proxy() : secondProxy}
+            documentName={`${documentId}.pdf`}
+            permissions={{
+              canComment: true,
+              canEdit: true,
+              isOwner: true,
+            }}
+          >
+            <Probe
+              capture={(context) => {
+                contexts.set(documentId, context);
+                captures.set(documentId, (captures.get(documentId) ?? 0) + 1);
+              }}
+            />
+          </PdfDocumentProvider>
+        )}
+      </For>
+    ));
+
+    const first = contexts.get('document-1')!;
+    const second = contexts.get('document-2')!;
+    expect(first.documentProxy()).toBe(firstProxy);
+    expect(second.documentProxy()).toBe(secondProxy);
+
+    setProxy(nextProxy);
+
+    expect(first.documentProxy()).toBe(nextProxy);
+    expect(second.documentProxy()).toBe(secondProxy);
+    expect(captures).toEqual(
+      new Map([
+        ['document-1', 1],
+        ['document-2', 1],
+      ])
+    );
+  });
+
   it('isolates viewer state between document providers', () => {
     const contexts = setup('document-1', 'document-2');
     const first = contexts.get('document-1')!;

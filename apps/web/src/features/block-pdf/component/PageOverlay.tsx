@@ -61,7 +61,6 @@ export interface IHighlightObj {
   isActive: boolean;
 }
 
-// This is where all the page-specifc overlays should reside, like placeables, etc.
 export function PageOverlay(props: IPageOverlayProps) {
   const analytics = useAnalytics();
 
@@ -75,8 +74,8 @@ export function PageOverlay(props: IPageOverlayProps) {
   const isDocumentOwner = pdf.permissions.isOwner;
 
   const [mode, setMode] = signals.placeableMode;
-  const getPopupViewer = signals.popupViewer[0];
-  const getRootViewer = signals.rootViewer[0];
+  const getPopupViewer = pdf.viewer.popup;
+  const getRootViewer = pdf.viewer.root;
   const getIdToSectionMap = useGetIdToSectionMap();
   const isPopup = useIsPopup();
   const popupDispatchCtx = usePopupContextUpdate(isPopup);

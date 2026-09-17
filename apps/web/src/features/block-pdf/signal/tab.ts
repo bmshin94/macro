@@ -7,7 +7,7 @@ const TOP_PADDING = 0.2;
 export const MAX_TAB_COUNT = 8;
 
 export function useGoToLocationHash() {
-  const [rootViewer] = usePdfDocument().state.signals.rootViewer;
+  const rootViewer = usePdfDocument().viewer.root;
   const createTab = useCreateTab();
   const tabCount = useTabCount();
 
@@ -23,7 +23,7 @@ export function useGoToLocationHash() {
 }
 
 export function useGoToLocation() {
-  const [rootViewer] = usePdfDocument().state.signals.rootViewer;
+  const rootViewer = usePdfDocument().viewer.root;
   const createTab = useCreateTab();
   const tabCount = useTabCount();
   return createCallback(
@@ -60,7 +60,7 @@ export function useGoToLocation() {
 export function useNavigateToTab() {
   const pdf = usePdfDocument();
   const updateCurrentTab = useUpdateCurrentTab();
-  const [rootViewer] = pdf.state.signals.rootViewer;
+  const rootViewer = pdf.viewer.root;
 
   return createCallback((id: number) => {
     const viewer = rootViewer();
@@ -78,7 +78,7 @@ export function useNavigateToTab() {
 
 export function useUpdateCurrentTab() {
   const pdf = usePdfDocument();
-  const [rootViewer] = pdf.state.signals.rootViewer;
+  const rootViewer = pdf.viewer.root;
   const currentPageNumber = pdf.state.derived.currentPageNumber;
   return createCallback(() => {
     const viewer = rootViewer();
@@ -94,7 +94,7 @@ export function useUpdateCurrentTab() {
 export function useCreateTab() {
   const pdf = usePdfDocument();
   const navigateToTab = useNavigateToTab();
-  const [rootViewer] = pdf.state.signals.rootViewer;
+  const rootViewer = pdf.viewer.root;
   const currentPageNumber = pdf.state.derived.currentPageNumber;
 
   return createCallback((info?: { label: string; locationHash: string }) => {

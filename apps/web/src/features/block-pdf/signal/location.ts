@@ -113,7 +113,7 @@ const useIsViewerReadyForScroll = () => {
 
 export function usePendingLocationNavigationEffect() {
   const pdf = usePdfDocument();
-  const [rootViewer] = pdf.state.signals.rootViewer;
+  const rootViewer = pdf.viewer.root;
   const goToLinkLocationFromParams = useGoToLinkLocationFromParams();
   const isViewerReady = useIsViewerReadyForScroll();
 
@@ -465,7 +465,7 @@ async function applyCustomHighlights(
 
 function useGoToPdfLocation() {
   const pdf = usePdfDocument();
-  const [rootViewer] = pdf.state.signals.rootViewer;
+  const rootViewer = pdf.viewer.root;
   const [findControllerStateEventSignal] =
     pdf.state.signals.updateFindControlState;
 
@@ -613,7 +613,7 @@ function useGoToPdfLocation() {
 
 const useGoToPreviousLocation = () => {
   const pdf = usePdfDocument();
-  const [viewer] = pdf.state.signals.rootViewer;
+  const viewer = pdf.viewer.root;
   const isViewerReady = useIsViewerReadyForScroll();
 
   return async () => {

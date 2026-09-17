@@ -38,8 +38,7 @@ export const Placeable: Component<{
   const pdf = usePdfDocument();
   const isPopup = useIsPopup();
   const { signals, derived } = pdf.state;
-  const getViewer = () =>
-    isPopup ? signals.popupViewer[0]() : signals.rootViewer[0]();
+  const getViewer = () => (isPopup ? pdf.viewer.popup() : pdf.viewer.root());
 
   const [textAreaRef, setTextAreaRef] = createSignal<HTMLTextAreaElement>();
   let placeableRef!: HTMLDivElement;
