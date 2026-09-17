@@ -143,7 +143,7 @@ function PdfDocumentState(props: PdfDocumentProps) {
     const coparse = preprocessResource.latest;
     if (!coparse) return;
 
-    pdf.state.termDataStore.load(coparse.defs ?? '');
+    pdf.definitions.commands.loadTermXml(coparse.defs ?? '');
     tableOfContentsDispatch({ type: 'LOAD_AI_TOC', coparse });
     pdf.viewer.commands.replaceOverlays(coparse.overlays);
   });

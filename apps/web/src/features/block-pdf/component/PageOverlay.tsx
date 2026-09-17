@@ -31,9 +31,12 @@ import type { IColor } from '../model/Color';
 import { Highlight, HighlightType } from '../model/Highlight';
 import { PageModel } from '../model/Page';
 import type Term from '../model/Term';
+import {
+  usePopupContextUpdate,
+  usePopupStore,
+} from '../signal/definitionPopup';
 import { LocationType, useCreateShareUrl } from '../signal/location';
 import { useIsPopup } from '../signal/pdfViewer';
-import { usePopupContextUpdate, usePopupStore } from '../store/definitionPopup';
 import { useAddNewHighlights, useRemoveHighlight } from '../store/highlight';
 import { useGetIdToSectionMap } from '../store/tableOfContents';
 import TocUtils from '../util/TocUtils';
@@ -87,7 +90,6 @@ export function PageOverlay(props: IPageOverlayProps) {
   const disableOverlayClick = signals.disableOverlayClick[0];
   const setActiveThreadId = signals.activeCommentThread[1];
   const disablePageViewClick = signals.disablePageViewClick[0];
-  const termDataStore = pdf.state.termDataStore;
 
   const onClick = (e: MouseEvent) => {
     if (disablePageViewClick()) return;
@@ -104,7 +106,6 @@ export function PageOverlay(props: IPageOverlayProps) {
     const defID = parent?.getAttribute('defid');
 
     if (defID) {
-      // display definition for term
       const tokenID = tgt.getAttribute('id');
 
       if (!tokenID) {
@@ -119,7 +120,7 @@ export function PageOverlay(props: IPageOverlayProps) {
         return;
       }
 
-      const term = termDataStore?.get(defID);
+      const term = pdf.definitions.getTerm(defID);
 
       if (!term) {
         console.error('Term not found on click');
@@ -140,7 +141,6 @@ export function PageOverlay(props: IPageOverlayProps) {
       });
       analytics.track('block_pdf_definition_open');
     } else if (secID) {
-      // display section popup
       e.stopPropagation();
 
       const secIDNumber = parseInt(secID);

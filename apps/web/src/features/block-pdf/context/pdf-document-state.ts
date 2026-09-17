@@ -9,9 +9,7 @@ import {
 } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import type { IHighlight } from '../model/Highlight';
-import { TermDataStore } from '../PdfViewer/TermDataStore';
 import { getPdfAnchors, getPdfComments } from '../queries/annotations';
-import type { ISectionPopupContext } from '../store/definitionPopup';
 import type { HighlightPageMap, HighlightUuidMap } from '../store/highlight';
 import type { ITableOfContentsContext } from '../store/tableOfContents';
 import type { CommentStore } from '../type/comments';
@@ -20,14 +18,6 @@ import {
   PayloadMode,
   type PayloadType,
 } from '../type/placeables';
-
-const createDefinitionPopupState = (): ISectionPopupContext => ({
-  terms: [],
-  termIDs: [],
-  termIDToSizingMap: {},
-  pageWidth: null,
-  element: null,
-});
 
 const createTableOfContentsState = (): ITableOfContentsContext => ({
   original: {
@@ -91,12 +81,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
   const noScrollToActiveCommentThread = createSignal(false);
   const comments = createStore<CommentStore>([]);
 
-  const rootDefinition = createStore<ISectionPopupContext>(
-    createDefinitionPopupState()
-  );
-  const popupDefinition = createStore<ISectionPopupContext>(
-    createDefinitionPopupState()
-  );
   const tableOfContents = createStore<ITableOfContentsContext>(
     createTableOfContentsState()
   );
@@ -155,8 +139,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       highlights,
       selection,
       comments,
-      rootDefinition,
-      popupDefinition,
       tableOfContents,
     },
     resources: {
@@ -167,7 +149,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       highlightsUuidMap,
       commentMap,
     },
-    termDataStore: new TermDataStore(),
   };
 }
 

@@ -10,8 +10,8 @@ import {
 import { usePdfDocument } from '../context/pdf-document-context';
 import { Color, type IColor } from '../model/Color';
 import type { IHighlight } from '../model/Highlight';
+import { usePopupContextUpdate } from '../signal/definitionPopup';
 import { useIsPopup } from '../signal/pdfViewer';
-import { usePopupContextUpdate } from '../store/definitionPopup';
 import type { IHighlightObj } from './PageOverlay';
 
 // TODO: only check for highlight IDs within the block DOM subtree

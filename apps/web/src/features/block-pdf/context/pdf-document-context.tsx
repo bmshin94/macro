@@ -8,6 +8,10 @@ import {
   useContext,
 } from 'solid-js';
 import {
+  createPdfDefinitions,
+  type PdfDefinitions,
+} from '../primitives/pdf-definitions';
+import {
   createPdfDocumentModel,
   type PdfDocumentModel,
 } from '../primitives/pdf-document-model';
@@ -51,6 +55,7 @@ export type PdfDocumentContextValue = {
   locationParams: Accessor<LocationSearchParams>;
   rootElement: Accessor<HTMLElement | undefined>;
   setRootElement: (element: HTMLElement | undefined) => void;
+  definitions: PdfDefinitions;
   model: PdfDocumentModel;
   navigation: PdfNavigation;
   persistence: PdfPersistence;
@@ -77,6 +82,7 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
 ) => {
   const documentId = () => props.documentId;
   const [rootElement, setRootElement] = createSignal<HTMLElement>();
+  const definitions = createPdfDefinitions();
   const model = createPdfDocumentModel();
   const navigation = createPdfNavigation();
   const persistence = createPdfPersistence();
@@ -97,6 +103,7 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
     locationParams: () => props.locationParams ?? {},
     rootElement,
     setRootElement,
+    definitions,
     model,
     navigation,
     persistence,

@@ -9,11 +9,10 @@ import {
   hexToRgb,
   type IColor,
 } from '../../model/Color';
-import type Section from '../../model/Section';
 import type Term from '../../model/Term';
-import { keyedTermDataStore } from '../../PdfViewer/TermDataStore';
 import { useTableOfContentsValue } from '../../store/tableOfContents';
 import { CoParseClassName } from '../../type/coParse';
+import { decodeDefinitionText } from '../../util/definitionText';
 import TocUtils from '../../util/TocUtils';
 import { OpenRefInNewTabIcon } from './OpenRefInNewTabIcon';
 import {
@@ -21,7 +20,6 @@ import {
   accordionCardStyles,
   accordionCollapseStyles,
   accordionHeadStyles,
-  decodeString,
   FONT_SIZE,
   LINE_HEIGHT,
 } from './shared';
@@ -60,7 +58,6 @@ const DefinitionText = styled.p<{ truncated: boolean }>`
   margin: 0;
 `;
 
-// removed hover styles because they were being applied on individual characters
 const HoverText = styled.span<{
   color: string;
   hoverColor: string;
@@ -84,10 +81,11 @@ function filterUniqueTerms(terms: (Term | null)[]): Term[] {
   return uniqueTerms;
 }
 
-function computeRelatedTerms(term: Term): Term[] {
-  const store = keyedTermDataStore();
-  if (!store) return [];
-  let simTerms: (Term | null)[] = term.sims.map((t) => store.get(t));
+function computeRelatedTerms(
+  term: Term,
+  getTerm: (id: string) => Term | null
+): Term[] {
+  let simTerms: (Term | null)[] = term.sims.map(getTerm);
   simTerms.unshift(term);
   return filterUniqueTerms(simTerms);
 }
@@ -95,22 +93,20 @@ function computeRelatedTerms(term: Term): Term[] {
 interface IProps {
   truncated: boolean;
   term: Term;
+  getTerm: (id: string) => Term | null;
   onClick: JSX.EventHandler<HTMLElement, MouseEvent>;
-  setSection: (section: Section | null) => void;
-  setHoveredDOMRect: (hoveredDOMRect: DOMRect | null) => void;
 }
 
 export function DefinitionsAccordion(props: IProps) {
   const tableOfContentsContext = useTableOfContentsValue();
-  const terms = createMemo(() => computeRelatedTerms(props.term));
+  const terms = createMemo(() =>
+    computeRelatedTerms(props.term, props.getTerm)
+  );
 
-  /**
-   * Generate the span's making up the definition text, including definition and section links
-   */
   const constructSpans = (elArr: ChildNode[]) => {
     const spans = elArr.map((el, _idx) => {
       const element = el as Element;
-      const decodedString = decodeString(element);
+      const decodedString = decodeDefinitionText(element);
       const className = element.getAttribute('class');
       const isSection = className === CoParseClassName.SectionReference;
       const decodedStringArray = decodedString.split(COLORDELIMITER);
@@ -139,7 +135,6 @@ export function DefinitionsAccordion(props: IProps) {
             snippetText = snippetText.replaceAll(entity[0], entity[1]);
           });
           if (isSection || className === CoParseClassName.TermReference) {
-            // Either a section reference or a term reference
             const classID = element.getAttribute(isSection ? 'secId' : 'defId');
             const id = `${className}_${classID}`;
             content.push(
@@ -195,7 +190,6 @@ export function DefinitionsAccordion(props: IProps) {
           }
         });
       } else if (isSection || className === CoParseClassName.TermReference) {
-        // Either a section reference or a term reference
         const classID = element.getAttribute(isSection ? 'secId' : 'defId');
         const id = `${className}_${classID}`;
         return (
@@ -211,14 +205,12 @@ export function DefinitionsAccordion(props: IProps) {
           </HoverText>
         );
       }
-      // Regular text
       if (content.length === 0) {
         return (
           <span style={{ 'white-space': 'pre-wrap' }}>{decodedString}</span>
         );
       }
 
-      // Regular text
       return <span>{content}</span>;
     });
     return spans;
