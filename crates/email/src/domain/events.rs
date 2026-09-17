@@ -165,6 +165,11 @@ pub struct MessageReceivedMetadata {
     pub attachment_count: u32,
     /// Whether the message arrived as spam or trash.
     pub is_spam_or_trash: bool,
+    /// Whether the message arrived in the trash. Spam alone stays visible
+    /// (as noise), so realtime consumers need the two told apart. Defaults
+    /// to `false` for events published before the field existed.
+    #[serde(default)]
+    pub is_trash: bool,
     /// Provider-reported receive time.
     pub received_at: Option<DateTime<Utc>>,
 }
@@ -186,6 +191,10 @@ pub struct MessageDraftSyncedMetadata {
     pub provider_thread_id: String,
     /// Whether the draft is currently spam or trash.
     pub is_spam_or_trash: bool,
+    /// Whether the draft is currently in the trash; see
+    /// [`MessageReceivedMetadata::is_trash`].
+    #[serde(default)]
+    pub is_trash: bool,
 }
 
 /// Metadata for [`EmailTopicEvent::MessageSent`].

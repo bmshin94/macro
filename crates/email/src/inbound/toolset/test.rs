@@ -84,6 +84,66 @@ fn test_send_email_schema_validation() {
 }
 
 #[test]
+fn test_create_email_draft_schema_validation() {
+    let result = generate_validated_input_schema::<CreateEmailDraft>();
+    assert!(result.is_ok(), "{:?}", result);
+
+    let validated = result.unwrap();
+    assert_eq!(validated.name, "CreateEmailDraft");
+    assert!(validated.description.contains("draft"));
+    assert!(
+        validated.description.contains("SendEmail"),
+        "should steer the model between drafting and sending"
+    );
+}
+
+#[test]
+fn test_mcp_send_email_schema_validation() {
+    let result = generate_validated_input_schema::<McpSendEmail>();
+    assert!(result.is_ok(), "{:?}", result);
+
+    let validated = result.unwrap();
+    assert_eq!(
+        validated.name, "SendEmail",
+        "MCP clients see the same tool name as chat"
+    );
+    assert!(validated.description.contains("off by default"));
+    assert!(validated.description.contains("CreateEmailDraft"));
+}
+
+// Which hosts can send: chat reviews SendEmail in the composer, the channel
+// bot only drafts, and MCP sends directly behind the per-inbox opt-in.
+#[test]
+fn host_toolsets_expose_the_right_send_and_draft_tools() {
+    use crate::domain::ports::{NoOpEmailService, NoOpGmailTokenProvider};
+    use ai_toolset::ToolSet as _;
+    type Eas = entity_access::domain::service::EntityAccessServiceImpl<
+        entity_access::outbound::PgAccessRepository,
+    >;
+
+    let chat = email_toolset::<NoOpEmailService, NoOpGmailTokenProvider, Eas>();
+    assert!(
+        chat.user_tools.contains_key("SendEmail"),
+        "chat defers SendEmail to the composer"
+    );
+    assert!(!chat.tools.contains_key("CreateEmailDraft"));
+
+    let bot = channel_bot_toolset::<NoOpEmailService, NoOpGmailTokenProvider, Eas>();
+    assert!(bot.tools.contains_key("CreateEmailDraft"));
+    assert!(!bot.tools.contains_key("SendEmail"));
+    assert!(bot.user_tools.is_empty());
+
+    let mcp = mcp_toolset::<NoOpEmailService, NoOpGmailTokenProvider, Eas>();
+    assert!(mcp.tools.contains_key("CreateEmailDraft"));
+    assert!(mcp.tools.contains_key("SendEmail"));
+    assert!(mcp.user_tools.is_empty());
+    assert!(
+        mcp.request_schemas().is_some(),
+        "the MCP toolset serializes for tool listing"
+    );
+}
+
+#[test]
 fn test_get_thread_schema_validation() {
     let result = generate_validated_input_schema::<GetThread>();
     assert!(result.is_ok(), "{:?}", result);
