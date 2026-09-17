@@ -837,7 +837,8 @@ fn an_unnamed_control_request_omits_the_field() {
 /// named id survives that flatten rather than being swallowed by the enum.
 #[test]
 fn a_control_request_keeps_the_client_minted_action_id() {
-    let body = r#"{"type":"prompt","prompt":"hi","actionId":"01a0acab-5eff-72d6-91ca-16997a26d13a"}"#;
+    let body =
+        r#"{"type":"prompt","prompt":"hi","actionId":"01a0acab-5eff-72d6-91ca-16997a26d13a"}"#;
     let request: ControlRequest = serde_json::from_str(body).expect("the body parses");
     assert_eq!(
         request.action_id.map(|id| id.to_string()).as_deref(),
