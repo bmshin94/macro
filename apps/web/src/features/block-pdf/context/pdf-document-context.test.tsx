@@ -2,12 +2,14 @@ import { cleanup, render } from '@solidjs/testing-library';
 import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 import { createSignal, For } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { IHighlight } from '../model/Highlight';
 import type { PDFViewer } from '../PdfViewer';
 import {
   createEventBus,
   type IVisiblePage,
   type TEvents,
 } from '../PdfViewer/EventBus';
+import type { CommentStore } from '../type/comments';
 import type { IModificationDataOnServer } from '../type/coParse';
 import { PayloadMode } from '../type/placeables';
 import {
@@ -326,6 +328,35 @@ describe('PdfDocumentProvider state', () => {
       secondActiveId: undefined,
       secondSelectedThread: null,
       secondOverlayDisabled: false,
+    });
+  });
+
+  it('projects annotation indexes and isolates annotation state', () => {
+    const contexts = setup('document-1', 'document-2');
+    const first = contexts.get('document-1')!;
+    const second = contexts.get('document-2')!;
+    const highlight = {
+      uuid: 'highlight-1',
+      pageNum: 2,
+    } as IHighlight;
+    const comment = {
+      id: 17,
+      owner: 'user-1',
+    } as CommentStore[number];
+
+    first.state.stores.highlights[1](2, { 'highlight-1': highlight });
+    first.state.stores.comments[1]([comment]);
+
+    expect({
+      highlight: first.state.derived.highlightsUuidMap()['highlight-1'],
+      comment: first.state.derived.commentMap().get(17),
+      secondHighlights: second.state.derived.highlightsUuidMap(),
+      secondComments: [...second.state.derived.commentMap()],
+    }).toEqual({
+      highlight,
+      comment,
+      secondHighlights: {},
+      secondComments: [],
     });
   });
 });
