@@ -16,7 +16,7 @@ export function SimpleSearch() {
   const searchResults = useSearchResults();
   const jumpToResult = useJumpToResult();
   const closeSearchBar = useSearchClose();
-  const [locationPending] = pdf.state.signals.searchLocationPending;
+  const locationPending = pdf.navigation.isSearchLocationPending;
   const [inputEl, setInputEl] = createSignal<HTMLInputElement>();
   const [isOpen, setIsOpen] = createSignal(false);
   const [searchText, setSearchText] = createSignal('');

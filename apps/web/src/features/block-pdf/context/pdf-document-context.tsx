@@ -11,6 +11,10 @@ import {
   type PdfDocumentModel,
 } from '../primitives/pdf-document-model';
 import {
+  createPdfNavigation,
+  type PdfNavigation,
+} from '../primitives/pdf-navigation';
+import {
   createPdfPersistence,
   type PdfPersistence,
 } from '../primitives/pdf-persistence';
@@ -42,6 +46,7 @@ export type PdfDocumentContextValue = {
   rootElement: Accessor<HTMLElement | undefined>;
   setRootElement: (element: HTMLElement | undefined) => void;
   model: PdfDocumentModel;
+  navigation: PdfNavigation;
   persistence: PdfPersistence;
   tabs: PdfTabs;
   state: PdfDocumentState;
@@ -65,6 +70,7 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
   const documentId = () => props.documentId;
   const [rootElement, setRootElement] = createSignal<HTMLElement>();
   const model = createPdfDocumentModel();
+  const navigation = createPdfNavigation();
   const persistence = createPdfPersistence();
   const tabs = createPdfTabs();
   const context: PdfDocumentContextValue = {
@@ -82,6 +88,7 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
     rootElement,
     setRootElement,
     model,
+    navigation,
     persistence,
     tabs,
     state: createPdfDocumentState(documentId),

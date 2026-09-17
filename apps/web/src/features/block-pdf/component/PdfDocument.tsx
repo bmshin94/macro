@@ -100,25 +100,21 @@ function PdfDocumentState(props: PdfDocumentProps) {
   usePendingLocationNavigationEffect();
   useSyncHighlightStore();
   useSyncActivePlaceableWithCommentThread();
-  const {
-    documentProxy,
-    viewLocation,
-    pendingLocationParams,
-    locationChanged,
-  } = pdf.state.signals;
+  const { documentProxy } = pdf.state.signals;
   const tableOfContentsDispatch = useTableOfContentsUpdate();
   const savePdf = usePdfSave();
 
   props.registerMethods?.({
     goToLocationFromParams: async (params) => {
-      locationChanged[1](true);
-      pendingLocationParams[1](JSON.parse(JSON.stringify(params)));
+      pdf.navigation.commands.queueImperativeParams(params);
     },
   });
 
   createEffect(() => {
     documentProxy[1](props.documentProxy);
-    viewLocation[1](pdf.isNested() ? undefined : props.viewLocation);
+    pdf.navigation.commands.setPersistedViewLocation(
+      pdf.isNested() ? undefined : props.viewLocation
+    );
 
     const modificationData = props.modificationData;
     if (!modificationData) return;

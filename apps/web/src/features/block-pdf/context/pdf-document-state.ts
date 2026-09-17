@@ -1,6 +1,5 @@
 import type { Completion } from '@core/client/completion';
 import type { ThreadId } from '@core/comments/commentType';
-import type { GetDocumentResponseDataViewLocation } from '@service-storage/generated/schemas/getDocumentResponseDataViewLocation';
 import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 import type { Accessor } from 'solid-js';
 import {
@@ -16,12 +15,6 @@ import type { TEvents } from '../PdfViewer/EventBus';
 import { TermDataStore } from '../PdfViewer/TermDataStore';
 import { ZOOM_MAX, ZOOM_MIN } from '../PdfViewer/zoom';
 import { getPdfAnchors, getPdfComments } from '../queries/annotations';
-import type {
-  AnnotationLocation,
-  GeneralLocation,
-  LocationBlockParams,
-  PreciseLocation,
-} from '../signal/location';
 import type {
   ThreadHeights,
   ThreadPositionsOnPage,
@@ -71,21 +64,8 @@ const createTableOfContentsState = (): ITableOfContentsContext => ({
 
 export function createPdfDocumentState(documentId: Accessor<string>) {
   const documentProxy = createSignal<PDFDocumentProxy>();
-  const viewLocation = createSignal<GetDocumentResponseDataViewLocation>();
   const overlays = createSignal<string[]>();
 
-  const locationChanged = createSignal(false);
-  const pendingLocationParams = createSignal<LocationBlockParams>();
-  const searchLocationPending = createSignal(false);
-  const location = createStore<{
-    general: GeneralLocation | undefined;
-    precise: PreciseLocation | undefined;
-    annotation: AnnotationLocation | undefined;
-  }>({
-    general: undefined,
-    precise: undefined,
-    annotation: undefined,
-  });
   const generalPopupLocation = createSignal<{
     pageIndex: number;
     element: HTMLElement;
@@ -225,11 +205,7 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
   return {
     signals: {
       documentProxy,
-      viewLocation,
       overlays,
-      locationChanged,
-      pendingLocationParams,
-      searchLocationPending,
       generalPopupLocation,
       disableOverlayClick,
       disableViewerTextSelection,
@@ -263,7 +239,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       noScrollToActiveCommentThread,
     },
     stores: {
-      location,
       pageHeight,
       highlights,
       selection,

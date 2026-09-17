@@ -77,8 +77,7 @@ export function useSaveModificationData() {
 export function usePdfSaveLocation() {
   const pdf = usePdfDocument();
   const [viewer] = pdf.state.signals.rootViewer;
-  const [prevLocationHash, setPrevLocationHash] =
-    pdf.state.signals.viewLocation;
+  const prevLocationHash = pdf.navigation.persistedViewLocation;
   const userId = useUserId();
 
   const shouldSave = () => {
@@ -91,7 +90,7 @@ export function usePdfSaveLocation() {
 
   const save = async () => {
     const location = viewer()?.getLocationHash();
-    setPrevLocationHash(location);
+    pdf.navigation.commands.setPersistedViewLocation(location);
     if (location == null) {
       await storageServiceClient.deleteDocumentViewLocation({
         documentId: pdf.documentId(),

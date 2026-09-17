@@ -35,61 +35,6 @@ export const useResetUserHighlights = () => {
 const isHighlightComment = (highlight: IHighlight) =>
   highlight.thread != null || highlight.hasTempThread;
 
-// export const useGoToHighlight = () => {
-//   const getRootViewer = useGetRootViewer();
-//   const selectHighlight = useHighlightSelection();
-//   const getHighlightByUuid = useGetHighlightByUuid();
-//
-//   return async (highlightId: string) => {
-//     const viewer = getRootViewer();
-//     if (!viewer) return;
-//
-//     let highlightElement: HTMLElement | null = document.querySelector(
-//       highlightIdSelector(highlightId)
-//     );
-//
-//     if (!highlightElement) {
-//       const highlight = getHighlightByUuid(highlightId);
-//       if (!highlight) return;
-//       const pageIndex = highlight.pageNum + 1;
-//       viewer.scrollTo({
-//         pageNumber: pageIndex,
-//         yPos: highlight.rects[0].top,
-//       });
-//     }
-//
-//     // this lets us wait for the highlight to be added to the DOM before selecting it
-//     return new Promise<void>((resolve) => {
-//       const observer = new IntersectionObserver((_entries) => {
-//         observer.disconnect();
-//         // select highlight should jump to the highlight as long as the elemnent is in the DOM
-//         selectHighlight(highlightId);
-//         resolve();
-//       });
-//
-//       const mutationObserver = new MutationObserver(() => {
-//         highlightElement = document.querySelector(
-//           highlightIdSelector(highlightId)
-//         );
-//         if (highlightElement) {
-//           mutationObserver.disconnect();
-//           observer.observe(highlightElement);
-//         }
-//       });
-//
-//       mutationObserver.observe(document.body, {
-//         childList: true,
-//         subtree: true,
-//       });
-//
-//       // If the element is already in the DOM, start observing it immediately
-//       if (highlightElement) {
-//         observer.observe(highlightElement);
-//       }
-//     });
-//   };
-// };
-
 // TODO: handle highlight selection in a different document
 export const useHighlightSelection = () => {
   const pdf = usePdfDocument();
@@ -98,13 +43,11 @@ export const useHighlightSelection = () => {
   const setActiveThread = signals.activeCommentThread[1];
   const setActiveHighlight = signals.activeHighlight[1];
   const setGeneralPopupLocation = signals.generalPopupLocation[1];
-  const setLocationStore = stores.location[1];
 
   return (highlightId: string, element?: HTMLElement) => {
     const highlight = derived.highlightsUuidMap()?.[highlightId];
     if (!highlight) return;
 
-    // handle comments and regular highlights differently
     if (isHighlightComment(highlight)) {
       setActiveThread(highlight.thread?.threadId ?? null);
     } else {
@@ -112,7 +55,6 @@ export const useHighlightSelection = () => {
       setActiveThread(null);
     }
 
-    // Find the highlight element in the DOM
     const highlightElement =
       element ??
       pdf
@@ -120,7 +62,6 @@ export const useHighlightSelection = () => {
         ?.querySelector<HTMLElement>(highlightIdSelector(highlightId));
     if (!highlightElement) return;
 
-    // Check if the highlight is in the viewport
     const rect = highlightElement.getBoundingClientRect();
     const isInViewport =
       rect.top >= 0 &&
@@ -129,21 +70,19 @@ export const useHighlightSelection = () => {
         (window.innerHeight || document.documentElement.clientHeight) &&
       rect.right <= (window.innerWidth || document.documentElement.clientWidth);
 
-    // show menu for regular highlight only
     if (!isHighlightComment(highlight)) {
       setSelectionStore('highlightsUnderSelection', [highlight]);
       setGeneralPopupLocation({
         pageIndex: highlight.pageNum,
         element: highlightElement,
       });
-      setLocationStore('annotation', {
+      pdf.navigation.commands.setAnnotationLocation({
         type: 'annotation',
         pageIndex: highlight.pageNum,
         id: highlight.uuid,
       });
     }
 
-    // If not in viewport, scroll to the highlight
     if (!isInViewport) {
       setTimeout(
         () =>

@@ -179,7 +179,7 @@ function LoadingDocumentSpinnerEffect() {
 
 export function Document() {
   const pdf = usePdfDocument();
-  const { signals, stores, derived } = pdf.state;
+  const { signals, derived } = pdf.state;
   const [documentSize, setDocumentSize] = createSignal<DOMRect>();
   const [documentContainerRef, setDocumentContainerRef] =
     createSignal<HTMLDivElement>();
@@ -365,7 +365,6 @@ export function Document() {
 
   const isPopupOpen = createMemo(derived.popupOpen);
   const setGeneralPopupLocation = signals.generalPopupLocation[1];
-  const setLocationStore = stores.location[1];
 
   const handleSelection = async (selection: Selection, pageIndex: number) => {
     const viewer = getRootViewer();
@@ -401,14 +400,13 @@ export function Document() {
 
     const selectionString = selection.toString();
     if (selectionString.trim().length === 0) {
-      setLocationStore('annotation', undefined);
-      setLocationStore('precise', undefined);
+      pdf.navigation.commands.setAnnotationLocation(undefined);
+      pdf.navigation.commands.setPreciseLocation(undefined);
       return;
     }
-    // let shouldHandleDefinition = isValidTerm(selectionString);
 
-    setLocationStore('annotation', undefined);
-    setLocationStore('precise', {
+    pdf.navigation.commands.setAnnotationLocation(undefined);
+    pdf.navigation.commands.setPreciseLocation({
       type: 'precise',
       pageIndex: pageIndex + 1,
       ...location,
@@ -416,7 +414,6 @@ export function Document() {
 
     setSelectionHighlights(selection);
 
-    // set anchor element for the definition popup
     setGeneralPopupLocation({ pageIndex, element });
   };
 
@@ -549,7 +546,12 @@ export function Document() {
 
   const goToLinkLocation = useGoToLinkLocation();
   createEffect(() => {
-    if (signals.locationChanged[0]() || !derived.viewerReady()) return;
+    if (
+      !pdf.navigation.allowsInitialUrlNavigation() ||
+      !derived.viewerReady()
+    ) {
+      return;
+    }
     goToLinkLocation(pdf.locationParams());
   });
 
@@ -602,7 +604,7 @@ export function Document() {
   );
 
   createEffect(() => {
-    setLocationStore('general', {
+    pdf.navigation.commands.setGeneralLocation({
       type: 'general',
       pageIndex: derived.currentPageNumber(),
       y: 0,

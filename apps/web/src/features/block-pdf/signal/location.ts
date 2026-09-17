@@ -43,13 +43,6 @@ export enum LocationType {
   Annotation = 'annotation',
 }
 
-type LocationTypeMap = {
-  general: GeneralLocation;
-  precise: PreciseLocation;
-  annotation: AnnotationLocation;
-  search: SearchLocation;
-};
-
 /**
  * Types of PDF locations, ordered by increasing precision.
  */
@@ -121,41 +114,17 @@ const useIsViewerReadyForScroll = () => {
 export function usePendingLocationNavigationEffect() {
   const pdf = usePdfDocument();
   const [rootViewer] = pdf.state.signals.rootViewer;
-  const [pendingLocationParams] = pdf.state.signals.pendingLocationParams;
   const goToLinkLocationFromParams = useGoToLinkLocationFromParams();
   const isViewerReady = useIsViewerReadyForScroll();
 
   createEffect(() => {
-    const params = pendingLocationParams();
+    const params = pdf.navigation.pendingParams();
     if (isViewerReady() && params) {
       rootViewer()?.clearAllOverlays();
 
       void goToLinkLocationFromParams(params);
     }
   });
-}
-
-export function useSetLocationStore() {
-  const [, setLocation] = usePdfDocument().state.stores.location;
-
-  const setLocationStore = <T extends PdfLocationType>(
-    type: T,
-    location: Omit<LocationTypeMap[T], 'type'> | undefined
-  ): void => {
-    if (type === 'precise') {
-      setLocation('annotation', undefined);
-    }
-
-    const l: LocationTypeMap[T] | undefined = location
-      ? ({
-          ...location,
-          type,
-        } as LocationTypeMap[T])
-      : undefined;
-    setLocation(type, l);
-  };
-
-  return createCallback(setLocationStore);
 }
 
 /**
@@ -232,7 +201,6 @@ export function selectLocationForFidelity(
 
 export function useCreateShareUrl() {
   const pdf = usePdfDocument();
-  const [locationStore] = pdf.state.stores.location;
   const referralCode = useReferralCode();
 
   const createShareUrl = (
@@ -240,9 +208,9 @@ export function useCreateShareUrl() {
     copy: boolean = true
   ): string => {
     const locations = {
-      general: locationStore.general,
-      precise: locationStore.precise,
-      annotation: locationStore.annotation,
+      general: pdf.navigation.locations.general,
+      precise: pdf.navigation.locations.precise,
+      annotation: pdf.navigation.locations.annotation,
     };
     const selectedLocation = selectLocationForFidelity(fidelity, locations);
     const url = locationToUrl(selectedLocation);
@@ -450,7 +418,6 @@ async function applyCustomHighlights(
     return;
   }
 
-  // Log pageMatches and pageMatchesLength for debugging
   const pageMatches = findController.pageMatches;
   const pageMatchesLength = findController.pageMatchesLength;
 
@@ -496,17 +463,11 @@ async function applyCustomHighlights(
   viewer.markPageHighlightsSelected(pageIndex);
 }
 
-/**
- * Go to the given location in the pdf viewer
- *
- * @param location - The location to go to
- */
 function useGoToPdfLocation() {
   const pdf = usePdfDocument();
   const [rootViewer] = pdf.state.signals.rootViewer;
   const [findControllerStateEventSignal] =
     pdf.state.signals.updateFindControlState;
-  const [, setSearchLocationPending] = pdf.state.signals.searchLocationPending;
 
   const go = async (location: PdfLocation): Promise<void> => {
     const viewer = rootViewer();
@@ -537,7 +498,6 @@ function useGoToPdfLocation() {
         });
         return;
       case 'search':
-        // Go to the page of the match
         await viewer.scrollTo({
           pageNumber: location.pageIndex,
           yPos: 0,
@@ -578,7 +538,6 @@ function useGoToPdfLocation() {
           return;
         }
 
-        // Break early if we can't find the match
         if (findControllerStateEvent.state === FindState.NOT_FOUND) {
           console.warn('unable to find match', { location });
           // TODO: fallback to raw query
@@ -615,7 +574,6 @@ function useGoToPdfLocation() {
         findController._highlightMatches = false;
         findController._updatePage(pageIdx);
 
-        // Apply custom highlights based on macro_em tags
         await applyCustomHighlights(
           viewer,
           currentScrollTop,
@@ -643,9 +601,9 @@ function useGoToPdfLocation() {
 
   return async (location: PdfLocation) => {
     if (location.type === 'search') {
-      setSearchLocationPending(true);
+      pdf.navigation.commands.beginSearchLocationNavigation();
       await go(location);
-      setSearchLocationPending(false);
+      pdf.navigation.commands.endSearchLocationNavigation();
       return;
     }
 
@@ -656,21 +614,22 @@ function useGoToPdfLocation() {
 const useGoToPreviousLocation = () => {
   const pdf = usePdfDocument();
   const [viewer] = pdf.state.signals.rootViewer;
-  const [viewLocation] = pdf.state.signals.viewLocation;
   const isViewerReady = useIsViewerReadyForScroll();
 
   return async () => {
     const rootViewer = viewer();
 
-    await waitForSignal(viewLocation, (location) => !!location, 300).then(
-      (prevLocationHash) => {
-        waitForSignal(isViewerReady).then(() => {
-          if (rootViewer && prevLocationHash) {
-            rootViewer.goToLocationHash(prevLocationHash);
-          }
-        });
-      }
-    );
+    await waitForSignal(
+      pdf.navigation.persistedViewLocation,
+      (location) => !!location,
+      300
+    ).then((prevLocationHash) => {
+      waitForSignal(isViewerReady).then(() => {
+        if (rootViewer && prevLocationHash) {
+          rootViewer.goToLocationHash(prevLocationHash);
+        }
+      });
+    });
   };
 };
 
