@@ -307,4 +307,6 @@ Content can be open in only one split or inline preview/detail view at a time.
 Selecting it elsewhere leaves the current detail and navigation history
 unchanged and shows a **Content already open** toast. Close or navigate away
 from the owning view before opening it elsewhere. The same rule applies to mouse
-selection, keyboard preview navigation, and detail breadcrumbs.
+selection, keyboard preview navigation, and detail breadcrumbs. Touch layouts
+never render inline previews or detail views: a tap opens the entity in the
+split, so the toast only appears when the content is genuinely open elsewhere.

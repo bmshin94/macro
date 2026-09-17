@@ -6,7 +6,6 @@ import { PreviewPanel } from '@components/app/PreviewPanel';
 import { useSplitPanelOrThrow } from '@components/app/split-layout/layoutUtils';
 import { SplitPanel } from '@components/app/split-panel';
 import { StaticMarkdownContext } from '@core/component/LexicalMarkdown/component/core/StaticMarkdown';
-import { isTouchDevice } from '@core/mobile/isTouchDevice';
 import { ListEntityMetadataQueryProvider } from '@entity';
 import SpinnerIcon from '@phosphor/spinner.svg';
 import { createElementSize } from '@solid-primitives/resize-observer';
@@ -35,7 +34,8 @@ export type ChannelsViewProps = {
 function ChannelsViewRoot() {
   const panel = useSplitPanelOrThrow();
   const orchestrator = useGlobalBlockOrchestrator();
-  const { state, setAsideWidth, setMobileTab, setRailMode } = useChannelsView();
+  const { state, mobileLayout, setAsideWidth, setMobileTab, setRailMode } =
+    useChannelsView();
   const [workspace, setWorkspace] = createSignal<HTMLDivElement>();
   const [railSearchOpen, setRailSearchOpen] = createSignal(false);
   const workspaceSize = createElementSize(workspace);
@@ -65,8 +65,7 @@ function ChannelsViewRoot() {
 
   const sources = useChannelsSources(
     (scope) => {
-      if (isTouchDevice())
-        return scope !== 'search' && state.mobileTab === scope;
+      if (mobileLayout()) return scope !== 'search' && state.mobileTab === scope;
       if (railSearchOpen()) return scope === 'search';
       if (scope === 'search') return false;
       if (scope === 'recents') return state.tab === 'recents';
@@ -91,7 +90,7 @@ function ChannelsViewRoot() {
   const selectedChannelQuery = useChannelByIdQuery(
     () => state.selectedChannelId,
     () =>
-      !isTouchDevice() &&
+      !mobileLayout() &&
       state.selectedChannelId !== undefined &&
       loadedSelectedChannel() === undefined
   );
@@ -117,7 +116,7 @@ function ChannelsViewRoot() {
         <SplitPanel.Root>
           <SplitPanel.Body>
             <Show
-              when={isTouchDevice()}
+              when={mobileLayout()}
               fallback={
                 <div ref={setWorkspace} class="size-full min-h-0 bg-panel">
                   <ViewShell.Root

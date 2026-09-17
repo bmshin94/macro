@@ -8,6 +8,7 @@ import {
 } from '@app/components/navigation-stack/NavigationStack';
 import { createPreviewSelectionGuard } from '@components/app/createPreviewSelectionGuard';
 import type { PreviewPanelSelection } from '@components/app/PreviewPanel';
+import { isTouchDevice } from '@core/mobile/isTouchDevice';
 
 export type EntityDetailTarget = PreviewPanelSelection & {
   fallbackName?: string;
@@ -87,6 +88,19 @@ export type EntityDetailNavigationStackOutletProps = NavigationStackOutletProps<
   EntityDetailNavigationOptions
 >;
 
+/**
+ * Inline detail is a desktop affordance. Touch layouts open every entity in
+ * the split, and a modifier click asks for a split explicitly. A view passes
+ * `shouldNavigate` to replace this policy.
+ */
+function opensInline(options?: EntityDetailNavigationOptions) {
+  const event = options?.event;
+  return (
+    !isTouchDevice() &&
+    !(event?.shiftKey || event?.metaKey || event?.ctrlKey || event?.altKey)
+  );
+}
+
 function Root(props: EntityDetailNavigationStackRootProps) {
   const selectPreview = createPreviewSelectionGuard();
   return (
@@ -94,6 +108,11 @@ function Root(props: EntityDetailNavigationStackRootProps) {
       {...props}
       beforeChange={(target) =>
         props.beforeChange?.(target) !== false && selectPreview(target)
+      }
+      shouldNavigate={(target, options) =>
+        props.shouldNavigate
+          ? props.shouldNavigate(target, options)
+          : opensInline(options)
       }
     />
   );

@@ -16,6 +16,8 @@ export type NavigationStackEntry<TData> = {
 export type NavigationStackState<TData, TNavigateOptions = unknown> = {
   entries: Store<NavigationStackEntry<TData>[]>;
   active: () => NavigationStackEntry<TData> | undefined;
+  /** Whether `navigate` would open inline; callers with a split path ask first. */
+  shouldNavigate: (data: TData, options?: TNavigateOptions) => boolean;
   navigate: (data: TData, options?: TNavigateOptions) => boolean;
   push: (data: TData) => NavigationStackEntry<TData> | undefined;
   replace: (data: TData) => NavigationStackEntry<TData> | undefined;
@@ -86,8 +88,11 @@ function Root<TData = unknown, TNavigateOptions = unknown>(
     return entry;
   };
 
+  const shouldNavigate = (data: TData, options?: TNavigateOptions) =>
+    props.shouldNavigate?.(data, options) !== false;
+
   const navigate = (data: TData, options?: TNavigateOptions) => {
-    if (props.shouldNavigate?.(data, options) === false) return false;
+    if (!shouldNavigate(data, options)) return false;
     return push(data) !== undefined;
   };
 
@@ -156,6 +161,10 @@ function Root<TData = unknown, TNavigateOptions = unknown>(
       value={{
         entries: entries as Store<NavigationStackEntry<unknown>[]>,
         active: active as () => NavigationStackEntry<unknown> | undefined,
+        shouldNavigate: shouldNavigate as (
+          data: unknown,
+          options?: unknown
+        ) => boolean,
         navigate: navigate as (data: unknown, options?: unknown) => boolean,
         push: push as (
           data: unknown

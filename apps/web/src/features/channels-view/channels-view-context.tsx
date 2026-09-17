@@ -3,6 +3,7 @@ import { createPreviewSelectionGuard } from '@components/app/createPreviewSelect
 import { useSplitPanelOrThrow } from '@components/app/split-layout/layoutUtils';
 import { createAssertedContextProvider } from '@core/context/createContext';
 import { useUserId } from '@core/context/user';
+import { isTouchDevice } from '@core/mobile/isTouchDevice';
 import type { ContextProviderProps } from '@solid-primitives/context';
 import { createStore, type Store } from 'solid-js/store';
 import {
@@ -29,6 +30,8 @@ type ChannelsViewProviderProps = ContextProviderProps & {
 
 export type ChannelsViewContext = {
   state: Store<ChannelsViewState>;
+  /** The mobile list opens channels in the split; only desktop renders the inline preview. */
+  mobileLayout: () => boolean;
   setTab: (tab: ChannelsTab) => void;
   setMobileTab: (tab: ChannelsQueryScope) => void;
   setSelectedChannelId: (channelId: string | undefined) => void;
@@ -99,9 +102,14 @@ export const [ChannelsViewProvider, useChannelsView] =
         })
       );
 
+      const mobileLayout = () => isTouchDevice();
       const selectPreview = createPreviewSelectionGuard();
       const setSelectedChannelId = (id: string | undefined) => {
-        if (!selectPreview(id ? { type: 'channel', id } : undefined)) return;
+        // The mobile layout keeps the selection for row highlighting only, so
+        // there is no preview to claim.
+        const preview =
+          id && !mobileLayout() ? { type: 'channel' as const, id } : undefined;
+        if (!selectPreview(preview)) return;
         setState('selectedChannelId', id);
       };
       const initialChannelId = state.selectedChannelId;
@@ -110,6 +118,7 @@ export const [ChannelsViewProvider, useChannelsView] =
 
       return {
         state,
+        mobileLayout,
         setTab: (tab) => setState('tab', tab),
         setMobileTab: (tab) => setState('mobileTab', tab),
         setSelectedChannelId,
