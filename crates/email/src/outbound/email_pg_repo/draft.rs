@@ -64,9 +64,13 @@ pub(crate) async fn insert_message(
 /// marked as outgoing back to an unsent draft, and drop its pending scheduled
 /// row.
 ///
-/// The whole revert hinges on `is_sent = false`: a message the scheduled worker
-/// already delivered is left exactly as it is, message row and scheduled row
-/// both, so a send can never be undone after the fact.
+/// The whole revert hinges on the send not having happened: a message the
+/// scheduled worker already delivered (`is_sent`), or is delivering right now
+/// (`processing` on its scheduled row), is left exactly as it is, message row
+/// and scheduled row both. `get_message_to_send` does not re-check `is_draft`,
+/// so a worker that has claimed the row will send the mail whatever this does —
+/// reverting underneath it would deliver the email *and* leave a live draft to
+/// send again.
 #[tracing::instrument(skip(pool), err)]
 pub(crate) async fn revert_sent_message_to_draft(
     pool: &PgPool,
@@ -80,6 +84,10 @@ pub(crate) async fn revert_sent_message_to_draft(
         UPDATE email_messages
         SET is_draft = true, is_sent = false, updated_at = NOW()
         WHERE id = $1 AND link_id = $2 AND is_sent = false
+          AND NOT EXISTS (
+              SELECT 1 FROM email_scheduled_messages esm
+              WHERE esm.link_id = $2 AND esm.message_id = $1 AND esm.processing = true
+          )
         RETURNING thread_id
         "#,
         message_id,

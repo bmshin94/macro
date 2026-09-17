@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE email_messages\n        SET is_draft = true, is_sent = false, updated_at = NOW()\n        WHERE id = $1 AND link_id = $2 AND is_sent = false\n          AND NOT EXISTS (\n              SELECT 1 FROM email_scheduled_messages esm\n              WHERE esm.link_id = $2 AND esm.message_id = $1 AND esm.processing = true\n          )\n        RETURNING thread_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "thread_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0c9503e137870dbc59e346dd3accd665bede81bebda2688aa0131f3d6b7de0ae"
+}

@@ -355,6 +355,53 @@ async fn revert_leaves_an_already_delivered_message_alone(
     Ok(())
 }
 
+/// A worker that has claimed the scheduled row will deliver the mail whether or
+/// not this revert runs (`get_message_to_send` does not re-check `is_draft`), so
+/// reverting underneath it would send the email and leave a live draft behind.
+#[sqlx::test(
+    migrator = "MACRO_DB_MIGRATIONS",
+    fixtures(path = "../../../../fixtures", scripts("email_draft"))
+)]
+async fn revert_leaves_a_message_a_worker_is_delivering_alone(
+    pool: Pool<Postgres>,
+) -> anyhow::Result<()> {
+    let link = link()?;
+    let draft_id = Uuid::parse_str(DRAFT_MESSAGE_ID)?;
+    let repo = EmailPgRepo::new(pool.clone());
+    let service = service(pool.clone(), crate::domain::ports::NoOpEnqueuer);
+
+    service
+        .send_message_impl(&link, &[link.clone()], send_input(Some(draft_id)))
+        .await?;
+
+    sqlx::query!(
+        r#"
+        UPDATE email_scheduled_messages SET processing = true
+        WHERE link_id = $1 AND message_id = $2
+        "#,
+        link.id,
+        draft_id,
+    )
+    .execute(&pool)
+    .await?;
+
+    repo.revert_sent_message_to_draft(draft_id, link.id).await?;
+
+    let (is_draft, is_sent) = message_flags(&pool, draft_id).await?;
+    assert!(
+        !is_draft,
+        "a send in flight must not become a draft that can be sent again"
+    );
+    assert!(!is_sent);
+    assert_eq!(
+        scheduled_row_count(&pool, draft_id).await?,
+        1,
+        "the worker still needs its row to mark the send as sent"
+    );
+
+    Ok(())
+}
+
 /// A message that was never inserted (or belongs to another inbox) must not
 /// make the revert fail — it runs on a path that is already handling an error.
 #[sqlx::test(
