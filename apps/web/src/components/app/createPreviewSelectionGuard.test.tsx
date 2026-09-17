@@ -77,15 +77,14 @@ it('blocks breadcrumbs back to content opened elsewhere without changing history
   first.unmount();
 });
 
-it('allows concurrent Markdown previews and revisiting the owning email preview', () => {
+it('treats Markdown as single-instance and allows revisiting the owning preview', () => {
   const first = setup();
   const second = setup();
   const document = { type: 'document', fileType: 'md', id: 'doc' } as const;
   expect(first.stack.reset(document)).toBeDefined();
-  expect(second.stack.reset(document)).toBeDefined();
-  first.stack.reset({ type: 'email', id: 'email' });
-  expect(first.stack.reset({ type: 'email', id: 'email' })).toBeDefined();
-  expect(toast.alert).not.toHaveBeenCalled();
+  expect(second.stack.reset(document)).toBeUndefined();
+  expect(toast.alert).toHaveBeenCalledWith('Content already open');
+  expect(first.stack.reset(document)).toBeDefined();
   first.unmount();
   second.unmount();
 });

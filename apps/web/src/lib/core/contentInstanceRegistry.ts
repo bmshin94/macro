@@ -7,16 +7,6 @@ export type ContentIdentity = {
 };
 export type ContentOwner = object | string | symbol;
 
-/** Single-instance by default. CRDT-backed Markdown (including tasks) can opt in. */
-const multipleInstanceTypes: Partial<Record<BlockName, boolean>> = { md: true };
-
-export function allowsMultipleContentInstances(type: ContentIdentity['type']) {
-  return (
-    type !== 'component' &&
-    multipleInstanceTypes[resolveBlockAlias(type)] === true
-  );
-}
-
 export function sameContentIdentity(a: ContentIdentity, b: ContentIdentity) {
   if (a.type === 'component' || b.type === 'component') return false;
   return (
@@ -39,7 +29,6 @@ export function createContentInstanceRegistry() {
       };
     },
     isOpenElsewhere(content: ContentIdentity, owner?: ContentOwner) {
-      if (allowsMultipleContentInstances(content.type)) return false;
       return [...sources].some((source) =>
         source().some(
           (entry) =>

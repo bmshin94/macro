@@ -23,10 +23,7 @@ import {
 import type { BlockMethodsFor } from './blockMethodRegistry';
 import { LoadingBlock } from './component/LoadingBlock';
 import { blocks as BLOCK_REGISTRY } from './constant/allBlocks';
-import {
-  allowsMultipleContentInstances,
-  createContentInstanceRegistry,
-} from './contentInstanceRegistry';
+import { createContentInstanceRegistry } from './contentInstanceRegistry';
 import { BlockEffectRunner } from './internal/BlockEffectRunner';
 import { BlockLoader } from './internal/BlockLoader';
 import type { Source } from './source';
@@ -324,7 +321,7 @@ export type BlockOrchestrator = {
    * - A managed block instance is discoverable by the orchestrator
    * - A managed block instance is "managed" / "owned" by the orchestrator
    * - A managed block instance can expose external api's to the orchestrator
-   * - Instances are unique unless their content type allows concurrent instances.
+   * - *A managed block instance is unique on type and id*
    *
    * NOTE: Use this for mounting full blocks, for example in a layout
    * WARN: DO NOT use this for block previews of block-in-block scenarios
@@ -356,7 +353,6 @@ export type BlockOrchestrator = {
 export function createBlockOrchestrator(): BlockOrchestrator {
   const [blocks, setBlocks] = createStore<BlockWithHandleMap>({});
   const instances = new Map<string, BlockInstance>();
-  const concurrentInstances = new Map<string, Set<BlockInstance>>();
 
   const registerBlock = <T extends BlockName>(
     type: T,
@@ -421,7 +417,7 @@ export function createBlockOrchestrator(): BlockOrchestrator {
   ): BlockInstance {
     const key = keyOf(type, id);
     const existing = instances.get(key);
-    if (existing && !allowsMultipleContentInstances(type)) return existing;
+    if (existing) return existing;
 
     const ownedHandle = registerBlock(type, id);
 
@@ -440,16 +436,7 @@ export function createBlockOrchestrator(): BlockOrchestrator {
       ownedHandle,
       opts,
       onCleanup: () => {
-        const siblings = concurrentInstances.get(key);
-        siblings?.delete(instance);
-        const remaining = siblings && [...siblings].at(-1);
-        if (remaining) {
-          instances.set(key, remaining);
-          setBlocks(id, { type, id, handle: remaining.handle });
-        } else {
-          concurrentInstances.delete(key);
-          deregisterBlock(type, id);
-        }
+        deregisterBlock(type, id);
       },
     });
 
@@ -481,11 +468,6 @@ export function createBlockOrchestrator(): BlockOrchestrator {
     };
 
     instances.set(key, instance);
-    if (allowsMultipleContentInstances(type)) {
-      const siblings = concurrentInstances.get(key) ?? new Set<BlockInstance>();
-      siblings.add(instance);
-      concurrentInstances.set(key, siblings);
-    }
     return instance;
   }
 
@@ -510,13 +492,8 @@ export function createBlockOrchestrator(): BlockOrchestrator {
 
   return {
     contentInstances: createContentInstanceRegistry(),
-    isBlockMounted: (type, id) => {
-      const key = keyOf(type, id);
-      const siblings = concurrentInstances.get(key);
-      return siblings
-        ? [...siblings].some((instance) => instance.isMounted())
-        : (instances.get(key)?.isMounted() ?? false);
-    },
+    isBlockMounted: (type, id) =>
+      instances.get(keyOf(type, id))?.isMounted() ?? false,
     getBlockHandle,
     createBlockInstance: createManagedBlockInstance,
     rekeyBlockInstance,

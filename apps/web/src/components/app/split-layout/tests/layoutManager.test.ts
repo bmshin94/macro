@@ -153,20 +153,6 @@ describe('layoutManager', () => {
     });
   });
 
-  it('opens independent Markdown splits under the per-type policy', () => {
-    createRoot((dispose) => {
-      const manager = createSplitLayout(createMockOrchestrator(), [
-        { type: 'md', id: 'doc' },
-      ]);
-      manager.openWithSplit(
-        { type: 'md', id: 'doc' },
-        { preferNewSplit: true }
-      );
-      expect(manager.splits()).toHaveLength(2);
-      dispose();
-    });
-  });
-
   describe('swapSplit', () => {
     it('swaps adjacent splits and delegates the panel reorder to Resize', () => {
       createRoot((dispose) => {

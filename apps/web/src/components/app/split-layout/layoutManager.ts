@@ -13,10 +13,7 @@ import type { ResizeZoneCtx } from '@core/component/Resize/types';
 import { toast } from '@core/component/Toast/Toast';
 import { isBlockAlias, resolveBlockAlias } from '@core/constant/allBlocks';
 import { settingsTabToSlug } from '@core/constant/settingsTabsConfig';
-import {
-  allowsMultipleContentInstances,
-  sameContentIdentity,
-} from '@core/contentInstanceRegistry';
+import { sameContentIdentity } from '@core/contentInstanceRegistry';
 import { isTouchDevice } from '@core/mobile/isTouchDevice';
 import type {
   BlockInstanceHandle,
@@ -201,7 +198,7 @@ export type SplitState = {
 export type CreateNewSplitOptions = {
   content?: SplitContent;
   activate?: boolean;
-  /** Shell components only; entity blocks follow the shared per-type policy. */
+  /** Shell components only; entity blocks are always single-instance. */
   allowDuplicate?: boolean;
   referredFrom: ReferredFrom;
   insertIndex?: number;
@@ -216,7 +213,7 @@ export type OpenWithSplitOptions = {
   mergeHistory?: boolean;
   activate?: boolean;
   referredFrom?: ReferredFrom;
-  /** Shell components only; entity blocks follow the shared per-type policy. */
+  /** Shell components only; entity blocks are always single-instance. */
   allowDuplicate?: boolean;
   replaceWhenFull?: boolean;
   /** If true, prefers opening in a new split. May still replace if layout is at capacity. */
@@ -655,7 +652,6 @@ function isDuplicateSplit(
   content: SplitContent,
   isExcluded: (split: SplitState) => boolean = () => false
 ): boolean {
-  if (allowsMultipleContentInstances(content.type)) return false;
   return splits
     .filter((s) => !isExcluded(s))
     .some((split) => sameContentIdentity(split.content, content));
@@ -2171,9 +2167,7 @@ export function createSplitLayout(
     if (
       existingSplit &&
       !promotedPreviewPair &&
-      (content.type !== 'component' || !options.allowDuplicate) &&
-      (!allowsMultipleContentInstances(content.type) ||
-        options.handle?.id === existingSplit.id)
+      (content.type !== 'component' || !options.allowDuplicate)
     ) {
       // A controller selection can resolve to content already mounted in its
       // own viewer (notably two rows from one channel). Refresh the viewer's
