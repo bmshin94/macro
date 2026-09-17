@@ -114,6 +114,9 @@ async fn serve(
 /// Retry transport failures, server errors, and temporary HTTP refusals.
 /// Other 4xx responses require an operator to fix configuration or credentials.
 fn worth_redialing(error: &tungstenite::Error) -> bool {
+    if matches!(error, tungstenite::Error::Url(_)) {
+        return false;
+    }
     let tungstenite::Error::Http(response) = error else {
         return true;
     };

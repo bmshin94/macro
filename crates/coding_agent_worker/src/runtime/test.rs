@@ -123,4 +123,13 @@ fn retry_policy_distinguishes_temporary_refusals_from_invalid_credentials() {
         assert_eq!(worth_redialing(&error), retry, "HTTP {status}");
     }
     assert!(worth_redialing(&tungstenite::Error::ConnectionClosed));
+    assert!(worth_redialing(&tungstenite::Error::Io(
+        std::io::ErrorKind::ConnectionRefused.into(),
+    )));
+    for error in [
+        tungstenite::error::UrlError::UnsupportedUrlScheme,
+        tungstenite::error::UrlError::UnableToConnect("invalid credential header".to_owned()),
+    ] {
+        assert!(!worth_redialing(&tungstenite::Error::Url(error)));
+    }
 }
