@@ -8,7 +8,11 @@ vi.mock('./block', () => ({
   ValidNestingCombinations: {},
 }));
 vi.mock('./constant/allBlocks', () => ({
-  blocks: { channel: { component: () => <div>Channel content</div> } },
+  resolveBlockAlias: (type: string) => type,
+  blocks: {
+    channel: { component: () => <div>Channel content</div> },
+    md: { component: () => <div>Markdown content</div> },
+  },
 }));
 vi.mock('./internal/BlockLoader', () => ({ BlockLoader: () => null }));
 vi.mock('./internal/BlockEffectRunner', () => ({
@@ -40,4 +44,26 @@ it('keeps one live mount and preserves its handle when a duplicate unmounts', as
   const reopenedView = render(reopened.element);
   expect(reopenedView.container.textContent).toBe('Channel content');
   reopenedView.unmount();
+});
+
+it('gives concurrent Markdown instances separate handles and keeps the survivor registered', async () => {
+  const orchestrator = createBlockOrchestrator();
+  const first = orchestrator.createBlockInstance('md', 'doc');
+  const firstView = render(first.element);
+  const second = orchestrator.createBlockInstance('md', 'doc');
+  expect(first).not.toBe(second);
+  expect(first.handle).not.toBe(second.handle);
+  expect(orchestrator.isBlockMounted('md', 'doc')).toBe(true);
+  const secondView = render(second.element);
+  expect(firstView.container.textContent).toBe('Markdown content');
+  expect(secondView.container.textContent).toBe('Markdown content');
+  const navigate = vi.fn();
+  first.handle.registerMethod('goToLocationFromParams', navigate);
+  secondView.unmount();
+  const handle = await orchestrator.getBlockHandle('doc', 'md');
+  await handle?.goToLocationFromParams({});
+  expect(navigate).toHaveBeenCalledOnce();
+  expect(orchestrator.isBlockMounted('md', 'doc')).toBe(true);
+  firstView.unmount();
+  expect(orchestrator.isBlockMounted('md', 'doc')).toBe(false);
 });

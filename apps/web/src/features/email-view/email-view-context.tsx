@@ -188,6 +188,15 @@ export const [EmailViewProvider, useEmailView] = createAssertedContextProvider<
   };
 
   const openThread = (thread: EmailThreadTarget) => {
+    if (
+      !navigationStack.reset(
+        createEntityDetailTarget(
+          { type: 'email', id: thread.id },
+          thread.fallbackName
+        )
+      )
+    )
+      return;
     const row = source
       .items()
       .find((item) => item.kind === 'entity' && item.entity.id === thread.id);
@@ -197,12 +206,6 @@ export const [EmailViewProvider, useEmailView] = createAssertedContextProvider<
     }
 
     setState('openThreadId', thread.id);
-    navigationStack.reset(
-      createEntityDetailTarget(
-        { type: 'email', id: thread.id },
-        thread.fallbackName
-      )
-    );
   };
 
   const closeThread = () => {

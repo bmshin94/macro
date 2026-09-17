@@ -1,4 +1,5 @@
 import { makePersistedState } from '@app/lib/persistence';
+import { createPreviewSelectionGuard } from '@components/app/createPreviewSelectionGuard';
 import { useSplitPanelOrThrow } from '@components/app/split-layout/layoutUtils';
 import { createAssertedContextProvider } from '@core/context/createContext';
 import { useUserId } from '@core/context/user';
@@ -98,12 +99,20 @@ export const [ChannelsViewProvider, useChannelsView] =
         })
       );
 
+      const selectPreview = createPreviewSelectionGuard();
+      const setSelectedChannelId = (id: string | undefined) => {
+        if (!selectPreview(id ? { type: 'channel', id } : undefined)) return;
+        setState('selectedChannelId', id);
+      };
+      const initialChannelId = state.selectedChannelId;
+      setState('selectedChannelId', undefined);
+      setSelectedChannelId(initialChannelId);
+
       return {
         state,
         setTab: (tab) => setState('tab', tab),
         setMobileTab: (tab) => setState('mobileTab', tab),
-        setSelectedChannelId: (channelId) =>
-          setState('selectedChannelId', channelId),
+        setSelectedChannelId,
         setGroupOpen: (group, open) => setState('expandedGroups', group, open),
         setSortBy: (group, sort) => setState('sortBy', group, sort),
         setSlimGroupEnabled: (group, enabled) =>

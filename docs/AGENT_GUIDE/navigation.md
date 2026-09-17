@@ -300,3 +300,12 @@ refreshes the session credential and restores the saved selection.
 Claude sessions expose **Open in Claude** in the header
 toolbar (or its overflow menu). With a live runtime, messages sent in Claude are
 polled into Macro about every two seconds; disconnected runtimes must resume first.
+
+### Content already open
+
+Email and other single-instance content can be open in only one split or inline
+preview/detail view at a time. Selecting it elsewhere leaves the current detail
+and navigation history unchanged and shows a **Content already open** toast.
+Close or navigate away from the owning view before opening it elsewhere.
+Markdown documents and tasks permit concurrent instances. The same rule applies
+to mouse selection, keyboard preview navigation, and detail breadcrumbs.

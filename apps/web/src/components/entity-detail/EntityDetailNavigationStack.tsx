@@ -6,6 +6,7 @@ import {
   useMaybeNavigationStack,
   useNavigationStack,
 } from '@app/components/navigation-stack/NavigationStack';
+import { createPreviewSelectionGuard } from '@components/app/createPreviewSelectionGuard';
 import type { PreviewPanelSelection } from '@components/app/PreviewPanel';
 
 export type EntityDetailTarget = PreviewPanelSelection & {
@@ -87,9 +88,13 @@ export type EntityDetailNavigationStackOutletProps = NavigationStackOutletProps<
 >;
 
 function Root(props: EntityDetailNavigationStackRootProps) {
+  const selectPreview = createPreviewSelectionGuard();
   return (
     <NavigationStack.Root<EntityDetailTarget, EntityDetailNavigationOptions>
       {...props}
+      beforeChange={(target) =>
+        props.beforeChange?.(target) !== false && selectPreview(target)
+      }
     />
   );
 }

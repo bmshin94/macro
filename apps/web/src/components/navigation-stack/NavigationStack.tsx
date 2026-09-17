@@ -17,9 +17,9 @@ export type NavigationStackState<TData, TNavigateOptions = unknown> = {
   entries: Store<NavigationStackEntry<TData>[]>;
   active: () => NavigationStackEntry<TData> | undefined;
   navigate: (data: TData, options?: TNavigateOptions) => boolean;
-  push: (data: TData) => NavigationStackEntry<TData>;
-  replace: (data: TData) => NavigationStackEntry<TData>;
-  reset: (data: TData) => NavigationStackEntry<TData>;
+  push: (data: TData) => NavigationStackEntry<TData> | undefined;
+  replace: (data: TData) => NavigationStackEntry<TData> | undefined;
+  reset: (data: TData) => NavigationStackEntry<TData> | undefined;
   pop: () => void;
   popTo: (value: string) => void;
   clear: () => void;
@@ -54,6 +54,8 @@ export type NavigationStackRootProps<
   TNavigateOptions = unknown,
 > = ParentProps<{
   defaultValue?: readonly TData[];
+  /** Validates the resulting active entry before any state change, including history. */
+  beforeChange?: (data: TData | undefined) => boolean;
   shouldNavigate?: (data: TData, options?: TNavigateOptions) => boolean;
   onChange?: (entries: readonly NavigationStackEntry<TData>[]) => void;
 }>;
@@ -69,12 +71,15 @@ function Root<TData = unknown, TNavigateOptions = unknown>(
     data,
   });
   const [entries, setEntries] = createStore<NavigationStackEntry<TData>[]>(
-    props.defaultValue?.map(createEntry) ?? []
+    props.defaultValue
+      ?.filter((data) => props.beforeChange?.(data) !== false)
+      .map(createEntry) ?? []
   );
   const active = () => entries.at(-1);
   const notifyChange = () => props.onChange?.([...entries]);
 
   const push = (data: TData) => {
+    if (props.beforeChange?.(data) === false) return;
     const entry = createEntry(data);
     setEntries(entries.length, entry);
     notifyChange();
@@ -83,12 +88,12 @@ function Root<TData = unknown, TNavigateOptions = unknown>(
 
   const navigate = (data: TData, options?: TNavigateOptions) => {
     if (props.shouldNavigate?.(data, options) === false) return false;
-    push(data);
-    return true;
+    return push(data) !== undefined;
   };
 
   const replace = (data: TData) => {
     if (entries.length === 0) return push(data);
+    if (props.beforeChange?.(data) === false) return;
 
     const entry = createEntry(data);
     setEntries(
@@ -101,6 +106,7 @@ function Root<TData = unknown, TNavigateOptions = unknown>(
   };
 
   const reset = (data: TData) => {
+    if (props.beforeChange?.(data) === false) return;
     const entry = createEntry(data);
     setEntries(
       produce((draft) => {
@@ -113,6 +119,7 @@ function Root<TData = unknown, TNavigateOptions = unknown>(
 
   const pop = () => {
     if (entries.length === 0) return;
+    if (props.beforeChange?.(entries.at(-2)?.data) === false) return;
     setEntries(
       produce((draft) => {
         draft.pop();
@@ -124,6 +131,7 @@ function Root<TData = unknown, TNavigateOptions = unknown>(
   const popTo = (value: string) => {
     const index = entries.findIndex((entry) => entry.value === value);
     if (index < 0 || index === entries.length - 1) return;
+    if (props.beforeChange?.(entries[index].data) === false) return;
     setEntries(
       produce((draft) => {
         draft.splice(index + 1);
@@ -134,6 +142,7 @@ function Root<TData = unknown, TNavigateOptions = unknown>(
 
   const clear = () => {
     if (entries.length === 0) return;
+    if (props.beforeChange?.(undefined) === false) return;
     setEntries(
       produce((draft) => {
         draft.splice(0);
@@ -148,9 +157,15 @@ function Root<TData = unknown, TNavigateOptions = unknown>(
         entries: entries as Store<NavigationStackEntry<unknown>[]>,
         active: active as () => NavigationStackEntry<unknown> | undefined,
         navigate: navigate as (data: unknown, options?: unknown) => boolean,
-        push: push as (data: unknown) => NavigationStackEntry<unknown>,
-        replace: replace as (data: unknown) => NavigationStackEntry<unknown>,
-        reset: reset as (data: unknown) => NavigationStackEntry<unknown>,
+        push: push as (
+          data: unknown
+        ) => NavigationStackEntry<unknown> | undefined,
+        replace: replace as (
+          data: unknown
+        ) => NavigationStackEntry<unknown> | undefined,
+        reset: reset as (
+          data: unknown
+        ) => NavigationStackEntry<unknown> | undefined,
         pop,
         popTo,
         clear,
