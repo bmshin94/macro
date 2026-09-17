@@ -8,6 +8,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 import {
   createEffect,
   createResource,
+  createSignal,
   type JSX,
   onCleanup,
   onMount,
@@ -24,7 +25,8 @@ import { PdfViewerProvider, usePdfViewer } from '../context/pdf-viewer-context';
 import {
   type LocationBlockParams,
   type LocationSearchParams,
-  usePendingLocationNavigationEffect,
+  useGoToLinkLocation,
+  useGoToLinkLocationFromParams,
 } from '../signal/location';
 import { usePdfSave } from '../signal/save';
 import { useUpdateColorsEffect } from '../signal/setting';
@@ -103,18 +105,23 @@ function PdfDocumentBehavior(props: PdfDocumentProps) {
   const pdf = usePdfDocument();
   const pdfViewer = usePdfViewer();
   const comments = usePdfCommentProjection();
-  usePendingLocationNavigationEffect();
   useSyncActivePlaceableWithCommentThread();
   const savePdf = usePdfSave();
+  const [pendingLocationParams, setPendingLocationParams] =
+    createSignal<LocationBlockParams>();
+  const goToInitialLocation = useGoToLinkLocation();
+  const goToLocationFromParams = useGoToLinkLocationFromParams();
+  let imperativeNavigationQueued = false;
 
   props.registerMethods?.({
     goToLocationFromParams: async (params) => {
-      pdf.navigation.commands.queueImperativeParams(params);
+      imperativeNavigationQueued = true;
+      setPendingLocationParams({ ...params });
     },
   });
 
   createEffect(() => {
-    pdf.navigation.commands.setPersistedViewLocation(
+    pdf.setPersistedViewLocation(
       pdf.isNested() ? undefined : props.viewLocation
     );
 
@@ -130,6 +137,25 @@ function PdfDocumentBehavior(props: PdfDocumentProps) {
     }
 
     pdf.model.commands.hydrateFromServer(parsed.data);
+  });
+
+  createEffect(() => {
+    if (imperativeNavigationQueued || !pdfViewer.root.isReady()) return;
+    void goToInitialLocation(pdf.locationParams());
+  });
+
+  createEffect(() => {
+    const params = pendingLocationParams();
+    if (
+      !params ||
+      !pdfViewer.root.isReady() ||
+      !pdfViewer.root.hasVisiblePages()
+    ) {
+      return;
+    }
+    setPendingLocationParams(undefined);
+    pdfViewer.root.instance()?.clearAllOverlays();
+    void goToLocationFromParams(params);
   });
 
   const [preprocessResource] = createResource(() => {

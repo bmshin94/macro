@@ -116,6 +116,29 @@ describe('PdfDocumentProvider', () => {
     expect(second.model.revision()).toBe(0);
   });
 
+  it('owns persisted and share locations without a navigation bucket', () => {
+    const contexts = setup('document-1', 'document-2');
+    const first = contexts.get('document-1')!;
+    const second = contexts.get('document-2')!;
+    const shareLocation = {
+      type: 'precise',
+      pageIndex: 3,
+      y: 0.2,
+      x: 0.3,
+      width: 0.4,
+      height: 0.5,
+    } as const;
+
+    first.setPersistedViewLocation('#page=3');
+    first.setShareLocation(shareLocation);
+
+    expect('navigation' in first).toBe(false);
+    expect(first.persistedViewLocation()).toBe('#page=3');
+    expect(first.shareLocation()).toBe(shareLocation);
+    expect(second.persistedViewLocation()).toBeUndefined();
+    expect(second.shareLocation()).toBeUndefined();
+  });
+
   it('isolates markup and interaction between document providers', () => {
     const contexts = setup('document-1', 'document-2');
     const first = contexts.get('document-1')!;

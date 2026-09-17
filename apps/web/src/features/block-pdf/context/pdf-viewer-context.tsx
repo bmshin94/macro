@@ -15,8 +15,11 @@ export type PdfViewerContextValue = PdfViewerRuntime & {
   setRootElement: (element: HTMLElement | undefined) => void;
   pageClicksDisabled: Accessor<boolean>;
   textSelectionActive: Accessor<boolean>;
+  searchNavigationPending: Accessor<boolean>;
   beginTextSelection: () => void;
   endTextSelection: () => void;
+  beginSearchNavigation: () => void;
+  endSearchNavigation: () => void;
   runWithPageClicksDisabled: (operation: () => void) => void;
 };
 
@@ -27,6 +30,8 @@ export const PdfViewerProvider: ParentComponent = (props) => {
   const [rootElement, setRootElement] = createSignal<HTMLElement>();
   const [pageClicksDisabled, setPageClicksDisabled] = createSignal(false);
   const [textSelectionActive, setTextSelectionActive] = createSignal(false);
+  const [searchNavigationPending, setSearchNavigationPending] =
+    createSignal(false);
 
   const value: PdfViewerContextValue = {
     ...runtime,
@@ -34,11 +39,18 @@ export const PdfViewerProvider: ParentComponent = (props) => {
     setRootElement,
     pageClicksDisabled,
     textSelectionActive,
+    searchNavigationPending,
     beginTextSelection() {
       setTextSelectionActive(true);
     },
     endTextSelection() {
       setTextSelectionActive(false);
+    },
+    beginSearchNavigation() {
+      setSearchNavigationPending(true);
+    },
+    endSearchNavigation() {
+      setSearchNavigationPending(false);
     },
     runWithPageClicksDisabled(operation) {
       setPageClicksDisabled(true);

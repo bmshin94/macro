@@ -2,7 +2,6 @@ import type { FindBarController } from '@core/component/createFindBarController'
 import { FindBar } from '@core/component/FindBar';
 import { IS_MAC } from '@core/constant/isMac';
 import { createEffect, createSignal, onCleanup, Show, untrack } from 'solid-js';
-import { usePdfDocument } from '../context/pdf-document-context';
 import { usePdfViewer } from '../context/pdf-viewer-context';
 import {
   useJumpToResult,
@@ -12,13 +11,13 @@ import {
 } from '../signal/search';
 
 export function SimpleSearch() {
-  const pdf = usePdfDocument();
-  const rootElement = usePdfViewer().rootElement;
+  const pdfViewer = usePdfViewer();
+  const rootElement = pdfViewer.rootElement;
   const searchStart = useSearchStart();
   const searchResults = useSearchResults();
   const jumpToResult = useJumpToResult();
   const closeSearchBar = useSearchClose();
-  const locationPending = pdf.navigation.isSearchLocationPending;
+  const locationPending = pdfViewer.searchNavigationPending;
   const [inputEl, setInputEl] = createSignal<HTMLInputElement>();
   const [isOpen, setIsOpen] = createSignal(false);
   const [searchText, setSearchText] = createSignal('');

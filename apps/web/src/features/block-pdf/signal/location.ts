@@ -9,7 +9,7 @@ import { useReferralCode } from '@core/context/user';
 import { buildSimpleEntityUrl } from '@core/util/url';
 import { waitForSignal } from '@core/util/waitForSignal';
 import { createCallback } from '@solid-primitives/rootless';
-import { type Accessor, createEffect } from 'solid-js';
+import type { Accessor } from 'solid-js';
 import { z } from 'zod';
 import { usePdfDocument } from '../context/pdf-document-context';
 import { usePdfViewer } from '../context/pdf-viewer-context';
@@ -82,6 +82,8 @@ export interface AnnotationLocation {
   id: string;
 }
 
+export type PdfShareLocation = PreciseLocation | AnnotationLocation;
+
 export interface SearchLocation {
   type: 'search';
   pageIndex: number;
@@ -107,22 +109,6 @@ const useIsViewerReadyForScroll = () => {
   const rootViewer = usePdfViewer().root;
   return () => rootViewer.isReady() && rootViewer.hasVisiblePages();
 };
-
-export function usePendingLocationNavigationEffect() {
-  const pdf = usePdfDocument();
-  const rootViewer = usePdfViewer().root.instance;
-  const goToLinkLocationFromParams = useGoToLinkLocationFromParams();
-  const isViewerReady = useIsViewerReadyForScroll();
-
-  createEffect(() => {
-    const params = pdf.navigation.pendingParams();
-    if (isViewerReady() && params) {
-      rootViewer()?.clearAllOverlays();
-
-      void goToLinkLocationFromParams(params);
-    }
-  });
-}
 
 /**
  * Converts a location into URL parameters for sharing.
@@ -198,16 +184,23 @@ export function selectLocationForFidelity(
 
 export function useCreateShareUrl() {
   const pdf = usePdfDocument();
+  const rootViewer = usePdfViewer().root;
   const referralCode = useReferralCode();
 
   const createShareUrl = (
     fidelity: PdfLocationType,
     copy: boolean = true
   ): string => {
+    const shareLocation = pdf.shareLocation();
     const locations = {
-      general: pdf.navigation.locations.general,
-      precise: pdf.navigation.locations.precise,
-      annotation: pdf.navigation.locations.annotation,
+      general: {
+        type: 'general',
+        pageIndex: rootViewer.currentPageNumber(),
+        y: 0,
+      } satisfies GeneralLocation,
+      precise: shareLocation?.type === 'precise' ? shareLocation : undefined,
+      annotation:
+        shareLocation?.type === 'annotation' ? shareLocation : undefined,
     };
     const selectedLocation = selectLocationForFidelity(fidelity, locations);
     const url = locationToUrl(selectedLocation);
@@ -461,8 +454,8 @@ async function applyCustomHighlights(
 }
 
 function useGoToPdfLocation() {
-  const pdf = usePdfDocument();
-  const rootRuntime = usePdfViewer().root;
+  const pdfViewer = usePdfViewer();
+  const rootRuntime = pdfViewer.root;
   const rootViewer = rootRuntime.instance;
   const findControllerStateEventSignal = rootRuntime.findControlState;
 
@@ -598,9 +591,12 @@ function useGoToPdfLocation() {
 
   return async (location: PdfLocation) => {
     if (location.type === 'search') {
-      pdf.navigation.commands.beginSearchLocationNavigation();
-      await go(location);
-      pdf.navigation.commands.endSearchLocationNavigation();
+      pdfViewer.beginSearchNavigation();
+      try {
+        await go(location);
+      } finally {
+        pdfViewer.endSearchNavigation();
+      }
       return;
     }
 
@@ -617,7 +613,7 @@ const useGoToPreviousLocation = () => {
     const rootViewer = viewer();
 
     await waitForSignal(
-      pdf.navigation.persistedViewLocation,
+      pdf.persistedViewLocation,
       (location) => !!location,
       300
     ).then((prevLocationHash) => {

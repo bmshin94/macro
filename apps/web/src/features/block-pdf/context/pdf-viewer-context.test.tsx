@@ -192,6 +192,12 @@ describe('PdfViewerProvider', () => {
     context.endTextSelection();
     expect(context.textSelectionActive()).toBe(false);
 
+    expect(context.searchNavigationPending()).toBe(false);
+    context.beginSearchNavigation();
+    expect(context.searchNavigationPending()).toBe(true);
+    context.endSearchNavigation();
+    expect(context.searchNavigationPending()).toBe(false);
+
     const observed: boolean[] = [];
     context.runWithPageClicksDisabled(() => {
       observed.push(context.pageClicksDisabled());

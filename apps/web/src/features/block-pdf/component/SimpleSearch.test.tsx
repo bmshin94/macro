@@ -8,7 +8,6 @@ import {
 } from '@solidjs/testing-library';
 import { createSignal, Show } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PdfDocumentProvider } from '../context/pdf-document-context';
 import { PdfViewerProvider, usePdfViewer } from '../context/pdf-viewer-context';
 import { SimpleSearch } from './SimpleSearch';
 
@@ -16,11 +15,6 @@ const search = vi.hoisted(() => ({
   close: vi.fn(),
   jumpToResult: vi.fn(),
   start: vi.fn(),
-}));
-
-vi.mock('../queries/annotations', () => ({
-  getPdfAnchors: vi.fn(async () => []),
-  getPdfComments: vi.fn(async () => []),
 }));
 
 vi.mock('../signal/search', () => ({
@@ -53,35 +47,29 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function SearchOwner() {
+function SearchOwner(props: { documentId: string }) {
   const pdfViewer = usePdfViewer();
   return (
-    <div data-testid="search-root" ref={pdfViewer.setRootElement}>
+    <div
+      data-testid="search-root"
+      data-document-id={props.documentId}
+      ref={pdfViewer.setRootElement}
+    >
       <SimpleSearch />
     </div>
   );
 }
 
 describe('SimpleSearch', () => {
-  it('keeps search state local to its keyed document owner', async () => {
+  it('keeps search state local to its keyed viewer owner', async () => {
     const [documentId, setDocumentId] = createSignal('document-1');
 
     render(() => (
       <Show when={documentId()} keyed>
         {(id) => (
-          <PdfDocumentProvider
-            documentId={id}
-            documentName={`${id}.pdf`}
-            permissions={{
-              canComment: true,
-              canEdit: true,
-              isOwner: true,
-            }}
-          >
-            <PdfViewerProvider>
-              <SearchOwner />
-            </PdfViewerProvider>
-          </PdfDocumentProvider>
+          <PdfViewerProvider>
+            <SearchOwner documentId={id} />
+          </PdfViewerProvider>
         )}
       </Show>
     ));

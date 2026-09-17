@@ -22,6 +22,7 @@ import { createCallback } from '@solid-primitives/rootless';
 import { debounce } from '@solid-primitives/scheduled';
 import { cn } from '@ui';
 import {
+  batch,
   createDeferred,
   createEffect,
   createMemo,
@@ -39,19 +40,15 @@ import { Portal } from 'solid-js/web';
 import { usePdfDocument } from '../context/pdf-document-context';
 import { usePdfViewer } from '../context/pdf-viewer-context';
 import { PageModel } from '../model/Page';
-import { useGoToLinkLocation } from '../signal/location';
 import {
   initializePdfViewer,
   useIsPopup,
   ViewerPopupProvider,
 } from '../signal/pdfViewer';
 import { usePdfSaveLocation, useSaveModificationData } from '../signal/save';
-import {
-  useBeginViewerTextSelection,
-  useOverlayClicksDisabled,
-} from '../signal/viewerInteraction';
 import { useLoadAnnotations } from '../store/annotations';
 import { useSetSelectionHighlights } from '../store/highlight';
+import { PayloadMode } from '../type/placeables';
 import { type IPageOverlayProps, PageOverlay } from './PageOverlay';
 import { SimpleSearch } from './SimpleSearch';
 
@@ -179,14 +176,21 @@ function LoadingDocumentSpinnerEffect() {
 export function Document() {
   const pdf = usePdfDocument();
   const pdfViewer = usePdfViewer();
-  const beginViewerTextSelection = useBeginViewerTextSelection();
   const [documentSize, setDocumentSize] = createSignal<DOMRect>();
   const [documentContainerRef, setDocumentContainerRef] =
     createSignal<HTMLDivElement>();
   const [destroying, setDestroying] = createSignal(false);
   const getRootViewer = pdfViewer.root.instance;
   const getPopupViewer = pdfViewer.popup.instance;
-  const disableClick = useOverlayClicksDisabled();
+  const disableClick = () =>
+    pdf.markup.mode() !== PayloadMode.NoMode || pdfViewer.textSelectionActive();
+  const beginViewerTextSelection = () => {
+    if (pdfViewer.textSelectionActive()) return;
+    batch(() => {
+      pdf.clearSelectedCommentThread();
+      pdfViewer.beginTextSelection();
+    });
+  };
   const blockElement = pdfViewer.rootElement;
 
   let rootViewer: PDFViewer | undefined;
@@ -319,13 +323,11 @@ export function Document() {
 
     const selectionString = selection.toString();
     if (selectionString.trim().length === 0) {
-      pdf.navigation.commands.setAnnotationLocation(undefined);
-      pdf.navigation.commands.setPreciseLocation(undefined);
+      pdf.setShareLocation(undefined);
       return;
     }
 
-    pdf.navigation.commands.setAnnotationLocation(undefined);
-    pdf.navigation.commands.setPreciseLocation({
+    pdf.setShareLocation({
       type: 'precise',
       pageIndex: pageIndex + 1,
       ...location,
@@ -463,17 +465,6 @@ export function Document() {
     });
   });
 
-  const goToLinkLocation = useGoToLinkLocation();
-  createEffect(() => {
-    if (
-      !pdf.navigation.allowsInitialUrlNavigation() ||
-      !pdfViewer.root.isReady()
-    ) {
-      return;
-    }
-    goToLinkLocation(pdf.locationParams());
-  });
-
   const [initialized, setInitialized] = createSignal(false);
   createEffect(
     on(
@@ -521,14 +512,6 @@ export function Document() {
       { defer: true }
     )
   );
-
-  createEffect(() => {
-    pdf.navigation.commands.setGeneralLocation({
-      type: 'general',
-      pageIndex: pdfViewer.root.currentPageNumber(),
-      y: 0,
-    });
-  });
 
   if (ENABLE_PDF_MODIFICATION_DATA_AUTOSAVE && !pdf.isNested()) {
     const isSaving = createDeferred(pdf.persistence.isSaving);

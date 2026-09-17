@@ -38,10 +38,6 @@ import {
 } from '../signal/definitionPopup';
 import { LocationType, useCreateShareUrl } from '../signal/location';
 import { useIsPopup } from '../signal/pdfViewer';
-import {
-  useOverlayClicksDisabled,
-  useViewerTextSelectionDisabled,
-} from '../signal/viewerInteraction';
 import { useAddNewHighlights, useRemoveHighlight } from '../store/highlight';
 import TocUtils from '../util/TocUtils';
 import { AbsoluteDefinitionLookups } from './AbsoluteDefinitionLookups';
@@ -90,7 +86,8 @@ export function PageOverlay(props: IPageOverlayProps) {
   const isAuth = useIsAuthenticated();
   const createPlaceable = useCreatePlaceable();
   const commentPlaceables = useCommentPlaceables();
-  const overlayClicksDisabled = useOverlayClicksDisabled();
+  const overlayClicksDisabled = () =>
+    mode() !== PayloadMode.NoMode || pdfViewer.textSelectionActive();
   const pageClicksDisabled = pdfViewer.pageClicksDisabled;
 
   const onClick = (e: MouseEvent) => {
@@ -240,7 +237,7 @@ export function PageOverlay(props: IPageOverlayProps) {
     });
   });
 
-  const disableSelect = useViewerTextSelectionDisabled();
+  const disableSelect = () => pdf.selectedCommentThread() != null;
   createEffect(() => {
     const pageViewDiv = pageViewDivProp();
     if (!pageViewDiv) return;

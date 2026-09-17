@@ -1,8 +1,10 @@
 import type { PortalScope } from '@core/component/ScopedPortal';
+import type { GetDocumentResponseDataViewLocation } from '@service-storage/generated/schemas/getDocumentResponseDataViewLocation';
 import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 import {
   type Accessor,
   createContext,
+  createSignal,
   type FlowComponent,
   useContext,
 } from 'solid-js';
@@ -23,17 +25,16 @@ import {
   type PdfInteraction,
 } from '../primitives/pdf-interaction';
 import { createPdfMarkup, type PdfMarkup } from '../primitives/pdf-markup';
-import {
-  createPdfNavigation,
-  type PdfNavigation,
-} from '../primitives/pdf-navigation';
 import { createPdfOutline, type PdfOutline } from '../primitives/pdf-outline';
 import {
   createPdfPersistence,
   type PdfPersistence,
 } from '../primitives/pdf-persistence';
 import { createPdfTabs, type PdfTabs } from '../primitives/pdf-tabs';
-import type { LocationSearchParams } from '../signal/location';
+import type {
+  LocationSearchParams,
+  PdfShareLocation,
+} from '../signal/location';
 
 export type PdfDocumentPermissions = {
   canComment: boolean;
@@ -54,11 +55,18 @@ export type PdfDocumentContextValue = PdfInteraction & {
     isOwner: Accessor<boolean>;
   };
   locationParams: Accessor<LocationSearchParams>;
+  persistedViewLocation: Accessor<
+    GetDocumentResponseDataViewLocation | undefined
+  >;
+  setPersistedViewLocation: (
+    location: GetDocumentResponseDataViewLocation | undefined
+  ) => void;
+  shareLocation: Accessor<PdfShareLocation | undefined>;
+  setShareLocation: (location: PdfShareLocation | undefined) => void;
   annotations: PdfAnnotations;
   definitions: PdfDefinitions;
   markup: PdfMarkup;
   model: PdfDocumentModel;
-  navigation: PdfNavigation;
   persistence: PdfPersistence;
   tabs: PdfTabs;
   outline: PdfOutline;
@@ -85,7 +93,9 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
   const markup = createPdfMarkup();
   const interaction = createPdfInteraction();
   const model = createPdfDocumentModel();
-  const navigation = createPdfNavigation();
+  const [persistedViewLocation, setPersistedViewLocation] =
+    createSignal<GetDocumentResponseDataViewLocation>();
+  const [shareLocation, setShareLocation] = createSignal<PdfShareLocation>();
   const persistence = createPdfPersistence();
   const tabs = createPdfTabs();
   const outline = createPdfOutline();
@@ -103,12 +113,15 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
       isOwner: () => props.permissions.isOwner,
     },
     locationParams: () => props.locationParams ?? {},
+    persistedViewLocation,
+    setPersistedViewLocation,
+    shareLocation,
+    setShareLocation,
     ...interaction,
     annotations,
     definitions,
     markup,
     model,
-    navigation,
     persistence,
     tabs,
     outline,

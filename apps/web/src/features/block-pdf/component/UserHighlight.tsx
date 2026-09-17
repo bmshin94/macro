@@ -71,7 +71,7 @@ export const useHighlightSelection = () => {
         pageIndex: highlight.pageNum,
         element: highlightElement,
       });
-      pdf.navigation.commands.setAnnotationLocation({
+      pdf.setShareLocation({
         type: 'annotation',
         pageIndex: highlight.pageNum,
         id: highlight.uuid,
