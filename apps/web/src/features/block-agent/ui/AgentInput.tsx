@@ -253,7 +253,9 @@ export function AgentInput(props: AgentInputProps) {
             clipped over the editor (that was Auto sitting on the placeholder). */}
         <ComposerSurface
           class="h-auto transition-[height] duration-150 ease-out motion-reduce:transition-none"
-          style={{ height: height() === undefined ? undefined : `${height()}px` }}
+          style={{
+            height: height() === undefined ? undefined : `${height()}px`,
+          }}
         >
           <Input.DropZone
             onDragStart={(valid) => canAttach() && setIsDraggedOver(valid)}
