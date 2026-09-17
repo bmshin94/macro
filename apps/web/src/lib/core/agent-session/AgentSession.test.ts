@@ -397,6 +397,21 @@ describe('AgentSession', () => {
     live.release();
   });
 
+  it('sends two prompts back to back without speculating the second', async () => {
+    const live = await loadedWith('idle');
+
+    // No await between them: the fold's turn state cannot have moved yet, so
+    // only the session's own record of what it just folded can catch this.
+    const first = live.issue({ type: 'prompt', prompt: 'one' });
+    const second = live.issue({ type: 'prompt', prompt: 'two' });
+    await Promise.all([first, second]);
+    await settle();
+
+    expect(speculations().map((input) => input.action.prompt)).toEqual(['one']);
+    expect(harness.control).toHaveBeenCalledTimes(2);
+    live.release();
+  });
+
   it('re-runs a failed load on the next call only', async () => {
     harness.getLog.mockResolvedValueOnce(err([{ code: 'NOT_FOUND' }]));
     const live = AgentSession.acquire(SESSION);

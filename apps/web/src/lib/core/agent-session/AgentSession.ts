@@ -50,6 +50,15 @@ export type IssueResult = Awaited<
   ReturnType<typeof agentHarnessServiceClient.control>
 >;
 
+/**
+ * Whether this action takes the turn, rather than riding alongside one. ACP
+ * runs a prompt at a time, so these are the ones the harness queues; mirrors
+ * `AgentAction::occupies_turn` in `agent_runtime_protocol`.
+ */
+function occupiesTurn(action: AgentAction): boolean {
+  return action.type === 'prompt' || action.type === 'compact';
+}
+
 export class AgentSession {
   private static readonly open = new Map<string, AgentSession>();
 
@@ -150,6 +159,12 @@ export class AgentSession {
     const actionId = uuidv7();
     const speculated = this.reaches(action);
     if (speculated) {
+      // A prompt we just folded opens a turn, so the next one belongs in the
+      // queue. Recorded here rather than waited for: `turn` otherwise only
+      // moves when the worker answers, and two prompts sent inside that
+      // window would both speculate - the second one showing a bubble the
+      // server's `queued` then takes away again.
+      if (occupiesTurn(action)) this.turn = 'starting';
       void this.enqueue({
         kind: 'speculated',
         actionId,
@@ -207,7 +222,7 @@ export class AgentSession {
    * which is exactly the wait worth showing.
    */
   private reaches(action: AgentAction): boolean {
-    if (action.type !== 'prompt' && action.type !== 'compact') return true;
+    if (!occupiesTurn(action)) return true;
     return (
       this.turn !== 'starting' &&
       this.turn !== 'running' &&
