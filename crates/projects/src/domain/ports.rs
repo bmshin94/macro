@@ -105,10 +105,6 @@ pub trait ProjectRepo: Send + Sync + 'static {
     ) -> impl Future<Output = Result<MutatedProject, Self::Err>> + Send;
 
     /// Edit project fields and optional sharing configuration atomically.
-    ///
-    /// `args.team_share` is the owner-authorized command for an explicit
-    /// `teamShareAccessLevel`; the repository applies it atomically with the
-    /// rest of the edit and rejects a team level that arrives without one.
     fn edit_project(
         &self,
         args: EditProjectArgs,
