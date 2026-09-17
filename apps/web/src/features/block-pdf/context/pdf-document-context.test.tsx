@@ -102,9 +102,6 @@ const updateViewArea = (pageNumber: number): TEvents['updateviewarea'] => {
   };
 };
 
-const flushEffects = () =>
-  new Promise<void>((resolve) => queueMicrotask(resolve));
-
 describe('PdfDocumentProvider state', () => {
   it('reads reactive document proxy props without remounting providers', () => {
     const firstProxy = { name: 'first' } as unknown as PDFDocumentProxy;
@@ -270,47 +267,65 @@ describe('PdfDocumentProvider state', () => {
     expect(second.model.revision()).toBe(0);
   });
 
-  it('coordinates text selection, comment selection, and placeable mode', async () => {
+  it('coordinates text selection, comment selection, and placeable mode', () => {
     const context = setup('document-1').get('document-1')!;
-    const {
-      disableOverlayClick,
-      disableViewerTextSelection,
-      isSelectingViewerText,
-      placeableMode,
-      selectingCommentThread,
-    } = context.state.signals;
+    const { interaction, markup } = context;
 
-    selectingCommentThread[1](42);
-    await flushEffects();
+    interaction.commands.selectCommentThread(42);
     expect({
-      disableOverlayClick: disableOverlayClick[0](),
-      disableViewerTextSelection: disableViewerTextSelection[0](),
-      selectingCommentThread: selectingCommentThread[0](),
+      overlayClicksDisabled: interaction.overlayClicksDisabled(),
+      viewerTextSelectionDisabled: interaction.viewerTextSelectionDisabled(),
+      selectedCommentThread: interaction.selectedCommentThread(),
     }).toEqual({
-      disableOverlayClick: false,
-      disableViewerTextSelection: true,
-      selectingCommentThread: 42,
+      overlayClicksDisabled: false,
+      viewerTextSelectionDisabled: true,
+      selectedCommentThread: 42,
     });
 
-    isSelectingViewerText[1](true);
-    await flushEffects();
+    interaction.commands.beginViewerTextSelection();
     expect({
-      disableOverlayClick: disableOverlayClick[0](),
-      disableViewerTextSelection: disableViewerTextSelection[0](),
-      selectingCommentThread: selectingCommentThread[0](),
+      overlayClicksDisabled: interaction.overlayClicksDisabled(),
+      viewerTextSelectionDisabled: interaction.viewerTextSelectionDisabled(),
+      selectedCommentThread: interaction.selectedCommentThread(),
     }).toEqual({
-      disableOverlayClick: true,
-      disableViewerTextSelection: false,
-      selectingCommentThread: null,
+      overlayClicksDisabled: true,
+      viewerTextSelectionDisabled: false,
+      selectedCommentThread: null,
     });
 
-    isSelectingViewerText[1](false);
-    placeableMode[1](PayloadMode.Thread);
-    await flushEffects();
-    expect(disableOverlayClick[0]()).toBe(true);
+    interaction.commands.endViewerTextSelection();
+    markup.commands.beginPlacement(PayloadMode.Thread);
+    expect(interaction.overlayClicksDisabled()).toBe(true);
 
-    placeableMode[1](PayloadMode.NoMode);
-    await flushEffects();
-    expect(disableOverlayClick[0]()).toBe(false);
+    markup.commands.cancelPlacement();
+    expect(interaction.overlayClicksDisabled()).toBe(false);
+  });
+
+  it('isolates markup and interaction between document providers', () => {
+    const contexts = setup('document-1', 'document-2');
+    const first = contexts.get('document-1')!;
+    const second = contexts.get('document-2')!;
+
+    first.markup.commands.beginPlacement(PayloadMode.Signature);
+    first.markup.commands.activate('placeable-1');
+    first.interaction.commands.selectCommentThread(42);
+
+    expect({
+      firstMode: first.markup.mode(),
+      firstActiveId: first.markup.activeId(),
+      firstSelectedThread: first.interaction.selectedCommentThread(),
+      secondMode: second.markup.mode(),
+      secondActiveId: second.markup.activeId(),
+      secondSelectedThread: second.interaction.selectedCommentThread(),
+      secondOverlayDisabled: second.interaction.overlayClicksDisabled(),
+    }).toEqual({
+      firstMode: PayloadMode.Signature,
+      firstActiveId: 'placeable-1',
+      firstSelectedThread: 42,
+      secondMode: PayloadMode.NoMode,
+      secondActiveId: undefined,
+      secondSelectedThread: null,
+      secondOverlayDisabled: false,
+    });
   });
 });

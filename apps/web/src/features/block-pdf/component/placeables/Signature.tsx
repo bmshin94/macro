@@ -39,19 +39,15 @@ function SignatureEditor(props: SignatureEditorProps) {
     signaturePad = new SignaturePad(canvasRef);
   });
 
-  const [, setActivePlaceable] = pdf.state.signals.activePlaceableId;
   const modifyPayload = useModifyPayload();
   const deletePlaceable = useDeletePlaceable();
 
-  const [, setNewPlaceable] = pdf.state.signals.newPlaceable;
   const updatePlaceable = createCallback((e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    setNewPlaceable((prev) =>
-      prev?.internalId === props.id ? undefined : prev
-    );
-    setActivePlaceable(undefined);
+    pdf.markup.commands.clearDraftIf(props.id);
+    pdf.markup.commands.clearActive();
 
     if (!signaturePad?.isEmpty()) {
       modifyPayload(props.id, PayloadMode.Signature, {

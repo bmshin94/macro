@@ -181,11 +181,10 @@ export const useAddNewHighlights = () => {
 
 export function useRemoveHighlight() {
   const deleteHighlight = useDeleteUnthreadedHighlightResource();
-  const [, setGeneralPopupLocation] =
-    usePdfDocument().state.signals.generalPopupLocation;
+  const interaction = usePdfDocument().interaction;
 
   return (uuid: string) => {
-    setGeneralPopupLocation(null);
+    interaction.commands.closeSelectionMenu();
     deleteHighlight(uuid);
   };
 }

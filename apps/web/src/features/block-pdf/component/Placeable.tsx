@@ -57,10 +57,9 @@ export const Placeable: Component<{
   }, new Set());
 
   const updatePlaceablePosition = useUpdatePlaceablePosition();
-  const setActivePlaceableId = signals.activePlaceableId[1];
   const setActiveCommentThreadId = signals.activeCommentThread[1];
 
-  const [isPopupDrag, setIsPopupDrag] = signals.isPopupDrag;
+  const popupDragActive = pdf.markup.dragActive;
 
   const [mousePosition, setMousePosition] = createSignal({ x: 0, y: 0 });
   const [dragOffset, setDragOffset] = createSignal({ x: 0, y: 0 });
@@ -71,7 +70,7 @@ export const Placeable: Component<{
     clearTimeout(mouseDownTimeout);
   };
   const setMouseDown = (e: MouseEvent) => {
-    setActivePlaceableId(props.id);
+    pdf.markup.commands.activate(props.id);
     setIsResizing(undefined);
     setClickOffset({
       x: e.clientX - xCoord(),
@@ -193,7 +192,7 @@ export const Placeable: Component<{
     if (!props.canEdit) return;
     if (!mouseDown()) return;
     if (isResizing()) return;
-    setActivePlaceableId(props.id);
+    pdf.markup.commands.activate(props.id);
 
     let pdfPageX = e.clientX;
     let pdfPageY = e.clientY;
@@ -264,7 +263,7 @@ export const Placeable: Component<{
     const { x, y } = dragOffset();
     const hasPressed = mouseDown();
     const hasMoved = x !== 0 || y !== 0;
-    setIsPopupDrag(hasPressed || hasMoved);
+    pdf.markup.commands.setDragActive(hasPressed || hasMoved);
   });
 
   onMount(() => {
@@ -275,13 +274,13 @@ export const Placeable: Component<{
       const isDragged =
         mouseDown() && !(dragOffset().x === 0 && dragOffset().y === 0);
       const otherPlaceableDragged =
-        (!isPopup && isPopupDrag()) || (isPopup && !isPopupDrag());
+        (!isPopup && popupDragActive()) || (isPopup && !popupDragActive());
 
       if (!isDragged && otherPlaceableDragged) return;
 
       // outside click
       if (!isDragged) {
-        setActivePlaceableId(undefined);
+        pdf.markup.commands.clearActive();
         return;
       }
 

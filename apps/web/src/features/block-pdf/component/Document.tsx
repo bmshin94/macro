@@ -175,15 +175,13 @@ function LoadingDocumentSpinnerEffect() {
 
 export function Document() {
   const pdf = usePdfDocument();
-  const { signals } = pdf.state;
   const [documentSize, setDocumentSize] = createSignal<DOMRect>();
   const [documentContainerRef, setDocumentContainerRef] =
     createSignal<HTMLDivElement>();
   const [destroying, setDestroying] = createSignal(false);
   const getRootViewer = pdf.viewer.root.instance;
   const getPopupViewer = pdf.viewer.popup.instance;
-  const disableClick = signals.disableOverlayClick[0];
-  const setIsSelecting = signals.isSelectingViewerText[1];
+  const disableClick = pdf.interaction.overlayClicksDisabled;
   const blockElement = pdf.rootElement;
 
   let rootViewer: PDFViewer | undefined;
@@ -282,7 +280,6 @@ export function Document() {
     selection.getRangeAt(0).collapsed;
 
   const isPopupOpen = pdf.viewer.isPopupOpen;
-  const setGeneralPopupLocation = signals.generalPopupLocation[1];
 
   const handleSelection = async (selection: Selection, pageIndex: number) => {
     const viewer = getRootViewer();
@@ -332,14 +329,14 @@ export function Document() {
 
     setSelectionHighlights(selection);
 
-    setGeneralPopupLocation({ pageIndex, element });
+    pdf.interaction.commands.openSelectionMenu({ pageIndex, element });
   };
 
   const selectionHandler: JSX.EventHandler<
     HTMLDivElement,
     MouseEvent | TouchEvent
   > = createCallback((e) => {
-    setIsSelecting(false);
+    pdf.interaction.commands.endViewerTextSelection();
 
     if (!(e.target instanceof HTMLElement)) return;
 
@@ -442,13 +439,13 @@ export function Document() {
     };
 
     const setMouseUp = () => {
-      setIsSelecting(false);
+      pdf.interaction.commands.endViewerTextSelection();
       setMouseDown(false);
     };
 
     const selectStartHandler = () => {
       if (!mouseDown()) return;
-      setIsSelecting(true);
+      pdf.interaction.commands.beginViewerTextSelection();
     };
 
     element.addEventListener('mousedown', mouseDownHandler);

@@ -42,7 +42,6 @@ export const useHighlightSelection = () => {
   const setSelectionStore = stores.selection[1];
   const setActiveThread = signals.activeCommentThread[1];
   const setActiveHighlight = signals.activeHighlight[1];
-  const setGeneralPopupLocation = signals.generalPopupLocation[1];
 
   return (highlightId: string, element?: HTMLElement) => {
     const highlight = derived.highlightsUuidMap()?.[highlightId];
@@ -72,7 +71,7 @@ export const useHighlightSelection = () => {
 
     if (!isHighlightComment(highlight)) {
       setSelectionStore('highlightsUnderSelection', [highlight]);
-      setGeneralPopupLocation({
+      pdf.interaction.commands.openSelectionMenu({
         pageIndex: highlight.pageNum,
         element: highlightElement,
       });
@@ -102,7 +101,8 @@ export function UserHighlight(props: VoidProps<IHighlightObj>) {
   let highlightRef!: HTMLDivElement;
   let textRef!: HTMLDivElement;
 
-  const { signals } = usePdfDocument().state;
+  const pdf = usePdfDocument();
+  const { signals } = pdf.state;
   const isPopup = useIsPopup();
   const popupDispatchCtx = usePopupContextUpdate(isPopup);
   const highlightSelection = useHighlightSelection();
@@ -164,7 +164,6 @@ export function UserHighlight(props: VoidProps<IHighlightObj>) {
     };
   });
 
-  const setGeneralPopupLocation = signals.generalPopupLocation[1];
   const setNoScroll = signals.noScrollToActiveCommentThread[1];
   const clickHandler: JSX.EventHandler<HTMLDivElement, MouseEvent> =
     createCallback((e) => {
@@ -175,7 +174,7 @@ export function UserHighlight(props: VoidProps<IHighlightObj>) {
       popupDispatchCtx({
         type: 'REMOVE_POPUPS',
       });
-      setGeneralPopupLocation(null);
+      pdf.interaction.commands.closeSelectionMenu();
 
       if (props.threadId) {
         setNoScroll(true);

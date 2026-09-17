@@ -63,14 +63,14 @@ function nodeToString(node: Node): string {
 }
 
 export function useResetSelection() {
-  const { signals, stores } = usePdfDocument().state;
+  const pdf = usePdfDocument();
+  const { signals, stores } = pdf.state;
   const setActiveHighlight = signals.activeHighlight[1];
-  const setGeneralPopupLocation = signals.generalPopupLocation[1];
   const setSelection = stores.selection[1];
 
   return (selection?: Selection) => {
     selection?.removeAllRanges();
-    setGeneralPopupLocation(null);
+    pdf.interaction.commands.closeSelectionMenu();
     setSelection({
       highlightsUnderSelection: [],
       selection: null,

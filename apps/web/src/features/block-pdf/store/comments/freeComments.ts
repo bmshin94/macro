@@ -127,9 +127,9 @@ const useServerCommentPlaceables = () => {
 };
 
 export const useNewThreadPlaceable = () => {
-  const [newPlaceable] = usePdfDocument().state.signals.newPlaceable;
+  const draft = usePdfDocument().markup.draft;
   return createMemo<IThreadPlaceable | undefined>(() => {
-    const value = newPlaceable();
+    const value = draft();
     if (!value || !isThreadPlaceable(value)) return undefined;
     return value;
   });
@@ -141,10 +141,10 @@ export const useCommentPlaceables = () => {
 
   return createMemo<IThreadPlaceable[]>(() => {
     const serverArr = serverCommentPlaceables();
-    const newPlaceable = newThreadPlaceable();
-    if (!newPlaceable) return serverArr;
+    const draft = newThreadPlaceable();
+    if (!draft) return serverArr;
 
-    return [newPlaceable, ...serverArr];
+    return [draft, ...serverArr];
   });
 };
 
@@ -206,10 +206,10 @@ export const useFreeComments = () => {
 };
 
 export const useDeleteNewFreeComment = () => {
-  const { activePlaceableId, newPlaceable } = usePdfDocument().state.signals;
+  const markup = usePdfDocument().markup;
 
   return () => {
-    newPlaceable[1](undefined);
-    activePlaceableId[1](undefined);
+    markup.commands.clearDraft();
+    markup.commands.clearActive();
   };
 };

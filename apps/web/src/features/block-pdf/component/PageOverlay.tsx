@@ -75,7 +75,7 @@ export function PageOverlay(props: IPageOverlayProps) {
   const commentAccess = pdf.permissions.canComment;
   const isDocumentOwner = pdf.permissions.isOwner;
 
-  const [mode, setMode] = signals.placeableMode;
+  const mode = pdf.markup.mode;
   const getPopupViewer = pdf.viewer.popup.instance;
   const getRootViewer = pdf.viewer.root.instance;
   const isPopup = useIsPopup();
@@ -85,12 +85,12 @@ export function PageOverlay(props: IPageOverlayProps) {
   const isAuth = useIsAuthenticated();
   const createPlaceable = useCreatePlaceable();
   const commentPlaceables = useCommentPlaceables();
-  const disableOverlayClick = signals.disableOverlayClick[0];
+  const overlayClicksDisabled = pdf.interaction.overlayClicksDisabled;
   const setActiveThreadId = signals.activeCommentThread[1];
-  const disablePageViewClick = signals.disablePageViewClick[0];
+  const pageClicksDisabled = pdf.interaction.pageClicksDisabled;
 
   const onClick = (e: MouseEvent) => {
-    if (disablePageViewClick()) return;
+    if (pageClicksDisabled()) return;
 
     if (mode() !== PayloadMode.NoMode) {
       return;
@@ -238,7 +238,7 @@ export function PageOverlay(props: IPageOverlayProps) {
     });
   });
 
-  const disableSelect = signals.disableViewerTextSelection[0];
+  const disableSelect = pdf.interaction.viewerTextSelectionDisabled;
   createEffect(() => {
     const pageViewDiv = pageViewDivProp();
     if (!pageViewDiv) return;
@@ -252,7 +252,7 @@ export function PageOverlay(props: IPageOverlayProps) {
   onMount(() => {
     const resetMode = (_e: MouseEvent) => {
       setActiveThreadId(null);
-      setMode(PayloadMode.NoMode);
+      pdf.markup.commands.cancelPlacement();
     };
     const el = pdf.rootElement();
     if (!el) return;
@@ -389,33 +389,28 @@ export function PageOverlay(props: IPageOverlayProps) {
     },
   });
 
-  const aiProps = {
-    attachmentId: pdf.documentId(),
-  };
-
-  const newPlaceable = signals.newPlaceable[0];
-  const newPlaceableId = () => newPlaceable()?.internalId;
-  const isNewPlaceableSelector = createSelector(newPlaceableId);
-  const activePlaceableId = signals.activePlaceableId[0];
-  const isActivePlaceableSelector = createSelector(activePlaceableId);
+  const draft = pdf.markup.draft;
+  const draftId = () => draft()?.internalId;
+  const isNewPlaceableSelector = createSelector(draftId);
+  const activeId = pdf.markup.activeId;
+  const isActivePlaceableSelector = createSelector(activeId);
   const ownedCommentSelector = useOwnedCommentPlaceableSelector();
 
   const showPopup = createMemo(() => {
     const shouldshow =
       !isPopup &&
       !pdf.viewer.isPopupOpen() &&
-      !!signals.generalPopupLocation[0]();
-    if (!shouldshow) {
-      signals.popupSelectedText[1](undefined);
-      signals.popupCompletion[1](undefined);
-    }
+      !!pdf.interaction.selectionMenuLocation();
     return shouldshow;
   });
 
   return (
     <div
       ref={pageOverlayRef}
-      class={cn('pageOverlayInner', disableOverlayClick() && 'noClickOverlay')}
+      class={cn(
+        'pageOverlayInner',
+        overlayClicksDisabled() && 'noClickOverlay'
+      )}
       on:click={(e) => {
         if (mode() !== PayloadMode.NoMode) {
           createPlaceable(e);
@@ -431,15 +426,14 @@ export function PageOverlay(props: IPageOverlayProps) {
         }}
         class="bg-transparent top-0 left-0 absolute"
       >
-        <Show when={showPopup() && signals.generalPopupLocation[0]()}>
-          {(generalPopupLocation) => (
-            <Show when={generalPopupLocation().pageIndex === props.pageIndex}>
+        <Show when={showPopup() && pdf.interaction.selectionMenuLocation()}>
+          {(selectionMenuLocation) => (
+            <Show when={selectionMenuLocation().pageIndex === props.pageIndex}>
               <PDFPopup
                 commentProps={commentProps()}
                 highlightProps={highlightProps()}
                 shareLinkProps={shareLinkProps()}
-                anchorRef={/*@once*/ generalPopupLocation().element}
-                aiProps={aiProps}
+                anchorRef={/*@once*/ selectionMenuLocation().element}
               />
             </Show>
           )}

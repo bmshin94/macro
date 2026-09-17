@@ -657,16 +657,15 @@ function useMakeTextAnnotation() {
  */
 export function useSyncActivePlaceableWithCommentThread() {
   const placeableIdMap = usePlaceableIdMap();
-  const {
-    activePlaceableId: [activePlaceableId, setActivePlaceableId],
-    activeCommentThread: [activeCommentThread],
-  } = usePdfDocument().state.signals;
+  const pdf = usePdfDocument();
+  const activeId = pdf.markup.activeId;
+  const [activeCommentThread] = pdf.state.signals.activeCommentThread;
 
   createEffect(() => {
     const activeThreadId = activeCommentThread();
-    const activePlaceableIdValue = activePlaceableId();
-    const activePlaceable = activePlaceableIdValue
-      ? placeableIdMap()[activePlaceableIdValue]
+    const activeIdValue = activeId();
+    const activePlaceable = activeIdValue
+      ? placeableIdMap()[activeIdValue]
       : null;
 
     if (
@@ -674,7 +673,7 @@ export function useSyncActivePlaceableWithCommentThread() {
       activePlaceable &&
       isThreadPlaceable(activePlaceable)
     ) {
-      setActivePlaceableId(undefined);
+      pdf.markup.commands.clearActive();
     }
     if (activeThreadId == null) return;
 
@@ -685,7 +684,7 @@ export function useSyncActivePlaceableWithCommentThread() {
     );
 
     if (matchingFreeCommentPlaceable) {
-      setActivePlaceableId(matchingFreeCommentPlaceable.internalId);
+      pdf.markup.commands.activate(matchingFreeCommentPlaceable.internalId);
     }
   });
 }
@@ -695,9 +694,6 @@ export function useCreatePlaceable() {
   const makeTextAnnotation = useMakeTextAnnotation();
   const makeSignature = useMakeSignature();
   const pdf = usePdfDocument();
-  const [mode, setMode] = pdf.state.signals.placeableMode;
-  const [, setActivePlaceableId] = pdf.state.signals.activePlaceableId;
-  const [, setNewPlaceable] = pdf.state.signals.newPlaceable;
   const [, setActiveCommentThread] = pdf.state.signals.activeCommentThread;
 
   return async (e: MouseEvent) => {
@@ -709,7 +705,7 @@ export function useCreatePlaceable() {
     }
 
     const index = PageModel.getPageIndex(pageRef)!;
-    switch (mode()) {
+    switch (pdf.markup.mode()) {
       case PayloadMode.Thread:
         placeable = makeThread(e, pageRef, index);
         break;
@@ -729,11 +725,11 @@ export function useCreatePlaceable() {
       } else {
         setActiveCommentThread(-1);
       }
-      setActivePlaceableId(placeable.internalId);
-      setNewPlaceable(placeable);
+      pdf.markup.commands.activate(placeable.internalId);
+      pdf.markup.commands.setDraft(placeable);
     });
 
-    setMode(PayloadMode.NoMode);
+    pdf.markup.commands.cancelPlacement();
 
     e.stopPropagation();
     e.preventDefault();
@@ -743,8 +739,8 @@ export function useCreatePlaceable() {
 export function useModifyPlaceable() {
   const model = usePdfDocument().model;
 
-  return (index: number, newPlaceable: IPlaceable) => {
-    return model.commands.updatePlaceable(index, newPlaceable);
+  return (index: number, updatedPlaceable: IPlaceable) => {
+    return model.commands.updatePlaceable(index, updatedPlaceable);
   };
 }
 
@@ -766,7 +762,7 @@ export function useModifyPayload() {
     if (!existingPlaceable) return false;
     if (payloadType !== existingPlaceable.payloadType) return false;
 
-    const newPlaceable = {
+    const updatedPlaceable = {
       ...existingPlaceable,
       payload: {
         ...existingPlaceable.payload,
@@ -774,14 +770,13 @@ export function useModifyPayload() {
       },
     } as IPlaceable;
 
-    return modifyPlaceable(index, newPlaceable);
+    return modifyPlaceable(index, updatedPlaceable);
   };
 }
 
 export function useDeletePlaceable() {
   const pdf = usePdfDocument();
   const modificationData = pdf.model.modificationData;
-  const [, setActivePlaceable] = pdf.state.signals.activePlaceableId;
   const placeableIdMap = usePlaceableIdMap();
   const deleteComment = useDeleteComment();
 
@@ -806,7 +801,7 @@ export function useDeletePlaceable() {
 
     const deleted = pdf.model.commands.removePlaceable(index);
     if (deleted) {
-      setActivePlaceable((prev) => (prev === uuid ? undefined : prev));
+      pdf.markup.commands.clearActiveIf(uuid);
     }
     return deleted;
   });
@@ -816,7 +811,6 @@ export function useUpdatePlaceablePosition() {
   const modifyPlaceable = useModifyPlaceable();
   const editPdfFreeCommentAnchor = useEditPdfFreeCommentAnchor();
   const pdf = usePdfDocument();
-  const [, setNewPlaceable] = pdf.state.signals.newPlaceable;
   const modificationData = pdf.model.modificationData;
   const placeableIdMap = usePlaceableIdMap();
 
@@ -869,57 +863,57 @@ export function useUpdatePlaceablePosition() {
         widthPct,
         heightPct,
       };
-      let newPlaceable = {
+      let updatedPlaceable = {
         ...placeable,
         position: newPosition,
       };
 
       if (!samePage) {
-        newPlaceable = {
-          ...newPlaceable,
+        updatedPlaceable = {
+          ...updatedPlaceable,
           pageRange: new Set([pageNum]),
           originalPage: pageNum,
         };
-        if (isThreadPlaceable(newPlaceable)) {
-          if ((newPlaceable as IThreadPlaceable).isNew) {
-            setNewPlaceable(newPlaceable);
+        if (isThreadPlaceable(updatedPlaceable)) {
+          if ((updatedPlaceable as IThreadPlaceable).isNew) {
+            pdf.markup.commands.setDraft(updatedPlaceable);
             return;
           } else {
             return editPdfFreeCommentAnchor(uuid, {
-              xPct: newPlaceable.position.xPct,
-              yPct: newPlaceable.position.yPct,
-              widthPct: newPlaceable.position.widthPct,
-              heightPct: newPlaceable.position.heightPct,
+              xPct: updatedPlaceable.position.xPct,
+              yPct: updatedPlaceable.position.yPct,
+              widthPct: updatedPlaceable.position.widthPct,
+              heightPct: updatedPlaceable.position.heightPct,
               page: pageNum,
             });
           }
         }
-        switch (newPlaceable.payloadType) {
+        switch (updatedPlaceable.payloadType) {
           case PayloadMode.FreeTextAnnotation:
           case PayloadMode.Signature:
             break;
           default:
-            console.error('Unhandled payload type', newPlaceable.payload);
+            console.error('Unhandled payload type', updatedPlaceable.payload);
             return false;
         }
       }
 
-      if (isThreadPlaceable(newPlaceable)) {
-        if (newPlaceable.isNew) {
-          setNewPlaceable(newPlaceable);
+      if (isThreadPlaceable(updatedPlaceable)) {
+        if (updatedPlaceable.isNew) {
+          pdf.markup.commands.setDraft(updatedPlaceable);
           return;
         } else {
           return editPdfFreeCommentAnchor(uuid, {
-            xPct: newPlaceable.position.xPct,
-            yPct: newPlaceable.position.yPct,
-            widthPct: newPlaceable.position.widthPct,
-            heightPct: newPlaceable.position.heightPct,
+            xPct: updatedPlaceable.position.xPct,
+            yPct: updatedPlaceable.position.yPct,
+            widthPct: updatedPlaceable.position.widthPct,
+            heightPct: updatedPlaceable.position.heightPct,
           });
         }
       }
 
       const index = internalIdToIndex(modificationData.placeables, uuid);
-      return modifyPlaceable(index, newPlaceable);
+      return modifyPlaceable(index, updatedPlaceable);
     }
   );
 }

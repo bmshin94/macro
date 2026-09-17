@@ -204,19 +204,19 @@ export const useDeleteNewHighlightComment = () => {
 };
 
 export function useCreateHighlightCommentAtSelection() {
-  const { signals, stores } = usePdfDocument().state;
+  const pdf = usePdfDocument();
+  const { signals, stores } = pdf.state;
   const [selection] = stores.selection;
   const [, setHighlights] = stores.highlights;
   const currentPageViewport = useCurrentPageViewport();
   const deleteNewComments = useDeleteNewComments();
 
   return createCallback((_e: MouseEvent) => {
-    signals.disablePageViewClick[1](true);
-    try {
+    pdf.interaction.commands.runWithPageClicksDisabled(() => {
       deleteNewComments();
 
       // TODO: make the general popup location reactive to the active highlight/term state instead of requiring a manual reset
-      signals.generalPopupLocation[1](null);
+      pdf.interaction.commands.closeSelectionMenu();
 
       // create comment from existing highlight
       const highlightUnderSelection = selection.highlightsUnderSelection.at(0);
@@ -273,9 +273,7 @@ export function useCreateHighlightCommentAtSelection() {
         })
       );
       signals.activeCommentThread[1](-1);
-    } finally {
-      signals.disablePageViewClick[1](false);
-    }
+    });
   });
 }
 

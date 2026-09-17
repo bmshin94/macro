@@ -8,7 +8,6 @@ export const useOwnedCommentPlaceableSelector = () => {
   const pdf = usePdfDocument();
   const userId = useUserId();
   const [anchors] = pdf.state.resources.anchors;
-  const [newPlaceable] = pdf.state.signals.newPlaceable;
   const ownedCommentAnchorUuids = createMemo(() => {
     const currentUserId = userId();
     if (!currentUserId) {
@@ -23,7 +22,7 @@ export const useOwnedCommentPlaceableSelector = () => {
             anchor.anchorType === 'placeable' && anchor.owner === currentUserId
         )
         .map((anchor) => anchor.uuid) ?? [];
-    const newComment = newPlaceable();
+    const newComment = pdf.markup.draft();
     if (
       newComment &&
       isThreadPlaceable(newComment) &&

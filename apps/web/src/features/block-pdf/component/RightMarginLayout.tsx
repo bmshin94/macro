@@ -78,7 +78,8 @@ const useCommentsContext = (
 };
 
 function CommentsAndSuggestions(props: { pageIndex: number }) {
-  const { signals } = usePdfDocument().state;
+  const pdf = usePdfDocument();
+  const { signals } = pdf.state;
   const { threads, setThreadHeight } = usePageCommentLayout(
     () => props.pageIndex
   );
@@ -86,9 +87,9 @@ function CommentsAndSuggestions(props: { pageIndex: number }) {
   const [activeCommentThread, setActiveThreadId] = signals.activeCommentThread;
   const isActiveThreadSelector = createSelector(activeCommentThread);
 
-  const [selectedThreadId, setSelectedThreadId] =
-    signals.selectingCommentThread;
-  const isSelectingThreadSelector = createSelector(selectedThreadId);
+  const isSelectingThreadSelector = createSelector(
+    pdf.interaction.selectedCommentThread
+  );
 
   const commentTheme = (threadId: number | null) => {
     const isSelecting = isSelectingThreadSelector(threadId);
@@ -104,7 +105,7 @@ function CommentsAndSuggestions(props: { pageIndex: number }) {
 
   const handleThreadMouseDown = (threadId: number) => (e: MouseEvent) => {
     e.stopPropagation();
-    setSelectedThreadId(threadId);
+    pdf.interaction.commands.selectCommentThread(threadId);
 
     const handleMouseUp = (e: MouseEvent) => {
       e.stopPropagation();
