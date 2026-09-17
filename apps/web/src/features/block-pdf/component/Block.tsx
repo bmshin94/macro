@@ -3,7 +3,6 @@ import { SidePanel } from '@components/app/side-panel';
 import { blockDataSignalAs, useBlockId, useIsNestedBlock } from '@core/block';
 import { DocumentBlockContainer } from '@core/component/DocumentBlockContainer';
 import { createMethodRegistration } from '@core/orchestrator';
-import { blockHotkeyScopeSignal } from '@core/signal/blockElement';
 import { blockHandleSignal, blockMetadataSignal } from '@core/signal/load';
 import {
   useCanComment,
@@ -52,7 +51,6 @@ export default function BlockPdf() {
         viewLocation={data()?.viewLocation}
         modificationData={data()?.documentMetadata.modificationData}
         isNested={isNested}
-        hotkeyScope={blockHotkeyScopeSignal.get()}
         portalScope="block"
         permissions={{
           canComment: canComment(),

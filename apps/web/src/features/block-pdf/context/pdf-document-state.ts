@@ -1,6 +1,5 @@
 import type { Completion } from '@core/client/completion';
 import type { ThreadId } from '@core/comments/commentType';
-import type { ThreeColumnLayout } from '@core/util/threeColumnLayout';
 import type { GetDocumentResponseDataViewLocation } from '@service-storage/generated/schemas/getDocumentResponseDataViewLocation';
 import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 import type { Accessor } from 'solid-js';
@@ -22,7 +21,6 @@ import type {
   GeneralLocation,
   LocationBlockParams,
   PreciseLocation,
-  SearchLocation,
 } from '../signal/location';
 import type { TabInfo } from '../signal/tab';
 import type {
@@ -99,12 +97,10 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
     general: GeneralLocation | undefined;
     precise: PreciseLocation | undefined;
     annotation: AnnotationLocation | undefined;
-    search: SearchLocation | undefined;
   }>({
     general: undefined,
     precise: undefined,
     annotation: undefined,
-    search: undefined,
   });
   const generalPopupLocation = createSignal<{
     pageIndex: number;
@@ -119,21 +115,14 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
   const isSelectingViewerText = createSignal(false);
   const selectingCommentThread = createSignal<number | null>(null);
 
-  const search = createSignal('');
-  const isSearchOpen = createSignal(false);
-
   const placeableMode = createSignal<PayloadType>(PayloadMode.NoMode);
   const showTabBar = createSignal(false);
   const activePlaceableId = createSignal<string>();
   const newPlaceable = createSignal<IPlaceable>();
-  const fontPreference = createSignal<
-    'Times New Roman' | 'Courier' | 'Helvetica'
-  >('Times New Roman');
 
   const numOperations = createSignal(0);
   const savingCount = createSignal(0);
   const isSaving = createSignal(false);
-  const modificationDataSaveRequired = createSignal(false);
   const serverModificationData = createSignal<IModificationDataOnServer>();
 
   const tabId = createSignal(0);
@@ -159,29 +148,15 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
   const overlayViewsChangedPopup =
     createSignal<TEvents['overlayViewsChanged']>();
   const visiblePagesChangedPopup = createSignal<TEvents['updateviewarea']>();
-  const viewerHasVisiblePages = createSignal(false);
   const pageHeight = createStore<Partial<Record<number, number>>>({});
-  const destroying = createSignal(false);
-
-  const viewerThreeColumnLayout = createSignal<ThreeColumnLayout>({
-    isInitialized: false,
-    leftWidth: 352,
-    rightWidth: 293,
-    rightMargin: 6,
-    centerWidth: -1,
-    windowWidth: -1,
-    marginWidth: -1,
-  });
 
   const highlights = createStore<HighlightPageMap>({});
   const selection = createStore<{
     highlightsUnderSelection: IHighlight[];
     selection: Selection | null;
-    selectionString: string;
   }>({
     highlightsUnderSelection: [],
     selection: null,
-    selectionString: '',
   });
   const activeHighlight = createSignal<string | null>(null);
   const hoverHighlight = createSignal<string | null>(null);
@@ -233,16 +208,10 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
     const loaded = pagesLoaded[0]();
     return !!loaded && loaded.pagesCount > 0;
   });
-  const highlightList = createMemo(() => {
-    const result: IHighlight[] = [];
-    for (const pageHighlights of Object.values(highlights[0] ?? {})) {
-      if (!pageHighlights) continue;
-      for (const highlight of Object.values(pageHighlights)) {
-        if (highlight) result.push(highlight);
-      }
-    }
-    return result;
-  });
+  const viewerHasVisiblePages = () => {
+    const ids = visiblePagesChanged[0]()?.visiblePages.ids;
+    return !!ids && ids.size > 0;
+  };
   const highlightsUuidMap = createMemo(() => {
     const result: HighlightUuidMap = {};
     for (const pageHighlights of Object.values(highlights[0] ?? {})) {
@@ -271,10 +240,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
     disableViewerTextSelection[1](selectingCommentThread[0]() != null);
   });
   createEffect(() => {
-    const ids = visiblePagesChanged[0]()?.visiblePages.ids;
-    viewerHasVisiblePages[1](!!ids && ids.size > 0);
-  });
-  createEffect(() => {
     const event = overlayViewsChanged[0]();
     if (!event) return;
     const updated: Partial<Record<number, number>> = {};
@@ -298,17 +263,13 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       disablePageViewClick,
       isSelectingViewerText,
       selectingCommentThread,
-      search,
-      isSearchOpen,
       placeableMode,
       showTabBar,
       activePlaceableId,
       newPlaceable,
-      fontPreference,
       numOperations,
       savingCount,
       isSaving,
-      modificationDataSaveRequired,
       serverModificationData,
       tabId,
       activeTabId,
@@ -327,9 +288,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       pageChangingPopup,
       overlayViewsChangedPopup,
       visiblePagesChangedPopup,
-      viewerHasVisiblePages,
-      destroying,
-      viewerThreeColumnLayout,
       activeHighlight,
       hoverHighlight,
       popupSelectedText,
@@ -367,7 +325,7 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       popupCurrentPageNumber,
       popupCurrentScale,
       viewerReady,
-      highlightList,
+      viewerHasVisiblePages,
       highlightsUuidMap,
       commentMap,
     },

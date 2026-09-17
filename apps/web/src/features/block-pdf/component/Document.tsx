@@ -163,10 +163,9 @@ function InnerDocument() {
   return <Show when={showOverlays()}>{pageOverlays()}</Show>;
 }
 
-/** Shows the document loading spinner without unloading the PDF Viewer */
 function LoadingDocumentSpinnerEffect() {
   const viewerHasVisiblePages =
-    usePdfDocument().state.signals.viewerHasVisiblePages[0];
+    usePdfDocument().state.derived.viewerHasVisiblePages;
   return (
     <Show when={!viewerHasVisiblePages()}>
       <div class="flex absolute size-full z-viewer-document-loading-spinner">
@@ -184,7 +183,7 @@ export function Document() {
   const [documentSize, setDocumentSize] = createSignal<DOMRect>();
   const [documentContainerRef, setDocumentContainerRef] =
     createSignal<HTMLDivElement>();
-  const [destroying, setDestroying] = signals.destroying;
+  const [destroying, setDestroying] = createSignal(false);
   const [getRootViewer, setRootViewer] = signals.rootViewer;
   const [getPopupViewer, setPopupViewer] = signals.popupViewer;
   const disableClick = signals.disableOverlayClick[0];
@@ -620,18 +619,12 @@ export function Document() {
     const isSaving = createDeferred(signals.isSaving[0]);
     const currentOperations = createDeferred(signals.numOperations[0]);
     const [savedOperations, setSavedOperations] = createSignal(0);
-    const setSaveRequired = signals.modificationDataSaveRequired[1];
     createEffect(() => {
       if (isSaving()) return;
 
       const currOps = currentOperations();
       const savedOps = savedOperations();
-      if (currOps > savedOps) {
-        setSaveRequired(true);
-      } else {
-        setSaveRequired(false);
-        return;
-      }
+      if (currOps <= savedOps) return;
 
       saveModificationData().then(() => setSavedOperations(currOps));
     });

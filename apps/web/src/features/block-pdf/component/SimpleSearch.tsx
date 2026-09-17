@@ -18,12 +18,10 @@ export function SimpleSearch() {
   const closeSearchBar = useSearchClose();
   const [locationPending] = pdf.state.signals.searchLocationPending;
   const [inputEl, setInputEl] = createSignal<HTMLInputElement>();
-
-  const [isOpen, setIsOpen] = pdf.state.signals.isSearchOpen;
-  const [searchText, setSearchText] = pdf.state.signals.search;
+  const [isOpen, setIsOpen] = createSignal(false);
+  const [searchText, setSearchText] = createSignal('');
   const [isPending, setIsPending] = createSignal(false);
 
-  // Re-run the active search when the bar opens (or re-opens with prior text).
   createEffect(() => {
     if (untrack(locationPending)) return;
     const text = untrack(searchText);
@@ -74,8 +72,6 @@ export function SimpleSearch() {
     setIsOpen(false);
   };
 
-  // PDF.js owns the search state (queries, results, cursor). Expose it as a
-  // FindBarController so it can drive the shared <FindBar> UI.
   const controller: FindBarController = {
     isOpen,
     query: searchText,

@@ -12,7 +12,6 @@ import {
   type LocationSearchParams,
   URL_PARAMS,
 } from '@block-pdf/signal/location';
-import { useSplitPanelOrThrow } from '@components/app/split-layout/layoutUtils';
 import {
   getPermissions,
   hasPermissions,
@@ -68,7 +67,6 @@ export function PdfDetailDocument(
     children?: (context: PdfDetailContext) => JSX.Element;
   }
 ) {
-  const panel = useSplitPanelOrThrow();
   const [searchParams] = useSearchParams();
   const permissions = () => getPermissions(props.data.userAccessLevel);
 
@@ -91,7 +89,6 @@ export function PdfDetailDocument(
         documentProxy={props.data.documentProxy}
         viewLocation={props.data.viewLocation}
         modificationData={props.data.documentMetadata.modificationData}
-        hotkeyScope={panel.splitHotkeyScope}
         portalScope="split"
         permissions={{
           canComment: hasPermissions(permissions(), Permissions.CAN_COMMENT),

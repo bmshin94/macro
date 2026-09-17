@@ -74,7 +74,6 @@ export function useResetSelection() {
     setSelection({
       highlightsUnderSelection: [],
       selection: null,
-      selectionString: '',
     });
     setActiveHighlight(null);
   };

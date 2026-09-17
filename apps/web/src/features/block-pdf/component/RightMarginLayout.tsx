@@ -1,6 +1,7 @@
 import {
   GUTTER_MARGIN,
   MIN_RIGHT_COLUMN_WIDTH,
+  THREAD_WIDTH,
 } from '@block-pdf/signal/viewerThreeColumnLayout';
 import {
   useCreateComment,
@@ -17,29 +18,17 @@ import { useUserId } from '@core/context/user';
 import { createMemo, createSelector, For } from 'solid-js';
 import { usePdfDocument } from '../context/pdf-document-context';
 
+const rightMarginStyle = {
+  minWidth: `${MIN_RIGHT_COLUMN_WIDTH}px`,
+  width: `${THREAD_WIDTH - GUTTER_MARGIN * 2}px`,
+  right: `${-THREAD_WIDTH + GUTTER_MARGIN}px`,
+};
+
 export function RightMarginLayout(props: { pageNumber: number }) {
-  const [viewerThreeColumnLayout] =
-    usePdfDocument().state.signals.viewerThreeColumnLayout;
-  const styles = createMemo(() => {
-    const { centerWidth, marginWidth, rightWidth } = viewerThreeColumnLayout();
-    if (!centerWidth) return {};
-    const baseStyles = {
-      minWidth: MIN_RIGHT_COLUMN_WIDTH + 'px',
-      width: rightWidth - GUTTER_MARGIN * 2 + 'px',
-    };
-
-    const right =
-      rightWidth <= MIN_RIGHT_COLUMN_WIDTH ? -marginWidth : -rightWidth;
-    return {
-      right: right + GUTTER_MARGIN + 'px',
-      ...baseStyles,
-    };
-  });
-
   return (
     <div
       class="rightMargin absolute [transition: width 0.05s linear, right 0.05s linear]"
-      style={styles()}
+      style={rightMarginStyle}
     >
       <CommentsAndSuggestions pageNumber={props.pageNumber} />
     </div>

@@ -23,7 +23,6 @@ export type PdfDocumentContextValue = {
   documentVersionId: Accessor<number | undefined>;
   documentName: Accessor<string>;
   isNested: Accessor<boolean>;
-  hotkeyScope: Accessor<string>;
   portalScope: Accessor<PortalScope>;
   permissions: {
     canComment: Accessor<boolean>;
@@ -41,7 +40,6 @@ export type PdfDocumentProviderProps = {
   documentVersionId?: number;
   documentName: string;
   isNested?: boolean;
-  hotkeyScope: string;
   portalScope?: PortalScope;
   permissions: PdfDocumentPermissions;
   locationParams?: LocationSearchParams;
@@ -59,7 +57,6 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
     documentVersionId: () => props.documentVersionId,
     documentName: () => props.documentName,
     isNested: () => props.isNested ?? false,
-    hotkeyScope: () => props.hotkeyScope,
     portalScope: () => props.portalScope ?? 'split',
     permissions: {
       canComment: () => props.permissions.canComment,

@@ -1,7 +1,7 @@
 import { cleanup, render } from '@solidjs/testing-library';
 import { For } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { TEvents } from '../PdfViewer/EventBus';
+import type { IVisiblePage, TEvents } from '../PdfViewer/EventBus';
 import { PayloadMode } from '../type/placeables';
 import {
   type PdfDocumentContextValue,
@@ -29,7 +29,6 @@ function setup(...documentIds: string[]) {
         <PdfDocumentProvider
           documentId={documentId}
           documentName={`${documentId}.pdf`}
-          hotkeyScope="test"
           permissions={{
             canComment: true,
             canEdit: true,
@@ -55,8 +54,39 @@ function viewerSnapshot(context: PdfDocumentContextValue) {
     popupCurrentPageNumber: context.state.derived.popupCurrentPageNumber(),
     popupCurrentScale: context.state.derived.popupCurrentScale() ?? null,
     viewerReady: context.state.derived.viewerReady(),
+    viewerHasVisiblePages: context.state.derived.viewerHasVisiblePages(),
   };
 }
+
+const updateViewArea = (pageNumber: number): TEvents['updateviewarea'] => {
+  const page = {
+    id: pageNumber,
+    x: 0,
+    y: 0,
+    view: {} as IVisiblePage['view'],
+    percent: 100,
+    widthPercent: 100,
+  };
+  return {
+    source: {},
+    location: {
+      pageNumber,
+      scale: 1,
+      top: 0,
+      left: 0,
+      rotation: 0,
+      pdfOpenParams: '',
+      unscaledYPos: 0,
+      viewportScale: 1,
+    },
+    visiblePages: {
+      first: page,
+      last: page,
+      views: [page],
+      ids: new Set([pageNumber]),
+    },
+  };
+};
 
 const flushEffects = () =>
   new Promise<void>((resolve) => queueMicrotask(resolve));
@@ -77,6 +107,7 @@ describe('PdfDocumentProvider state', () => {
       previous: 3,
       pageLabel: null,
     } satisfies TEvents['pagechanging']);
+    first.state.signals.visiblePagesChanged[1](updateViewArea(4));
 
     expect(viewerSnapshot(first)).toEqual({
       popupOpen: false,
@@ -88,6 +119,7 @@ describe('PdfDocumentProvider state', () => {
       popupCurrentPageNumber: 1,
       popupCurrentScale: null,
       viewerReady: true,
+      viewerHasVisiblePages: true,
     });
     expect(viewerSnapshot(second)).toEqual({
       popupOpen: false,
@@ -99,6 +131,7 @@ describe('PdfDocumentProvider state', () => {
       popupCurrentPageNumber: 1,
       popupCurrentScale: null,
       viewerReady: false,
+      viewerHasVisiblePages: false,
     });
   });
 
@@ -147,6 +180,7 @@ describe('PdfDocumentProvider state', () => {
       popupCurrentPageNumber: 6,
       popupCurrentScale: 1.5,
       viewerReady: true,
+      viewerHasVisiblePages: false,
     });
   });
 

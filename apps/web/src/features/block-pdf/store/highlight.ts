@@ -102,7 +102,6 @@ export const useClearSelectionHighlights = () => {
       reconcile({
         highlightsUnderSelection: [],
         selection: null,
-        selectionString: '',
       })
     );
   };
@@ -119,7 +118,6 @@ export const useSetSelectionHighlights = () => {
     setSelectionStore({
       highlightsUnderSelection: [],
       selection,
-      selectionString: selection.toString(),
     });
 
     batch(() => {

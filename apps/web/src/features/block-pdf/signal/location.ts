@@ -111,9 +111,10 @@ export type PdfOrderInfo = z.infer<typeof PdfOrderInfoSchema>;
 
 const useIsViewerReadyForScroll = () => {
   const pdf = usePdfDocument();
-  const [viewerHasVisiblePages] = pdf.state.signals.viewerHasVisiblePages;
   return createMemo(
-    () => pdf.state.derived.viewerReady() && viewerHasVisiblePages()
+    () =>
+      pdf.state.derived.viewerReady() &&
+      pdf.state.derived.viewerHasVisiblePages()
   );
 };
 
@@ -127,7 +128,6 @@ export function usePendingLocationNavigationEffect() {
   createEffect(() => {
     const params = pendingLocationParams();
     if (isViewerReady() && params) {
-      // TODO: do we need to clear all overlays here
       rootViewer()?.clearAllOverlays();
 
       void goToLinkLocationFromParams(params);
@@ -235,13 +235,6 @@ export function useCreateShareUrl() {
   const [locationStore] = pdf.state.stores.location;
   const referralCode = useReferralCode();
 
-  /**
-   * Creates a shareable URL with location information at the specified fidelity level.
-   *
-   * @param fidelity - Desired fidelity level for the share URL
-   * @param copy - Whether to copy the URL to the clipboard
-   * @returns URL string with location parameters
-   */
   const createShareUrl = (
     fidelity: PdfLocationType,
     copy: boolean = true
@@ -250,7 +243,6 @@ export function useCreateShareUrl() {
       general: locationStore.general,
       precise: locationStore.precise,
       annotation: locationStore.annotation,
-      search: locationStore.search,
     };
     const selectedLocation = selectLocationForFidelity(fidelity, locations);
     const url = locationToUrl(selectedLocation);

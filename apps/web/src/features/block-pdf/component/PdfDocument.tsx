@@ -64,7 +64,6 @@ export type PdfDocumentProps = {
   viewLocation?: GetDocumentResponseDataViewLocation;
   modificationData?: unknown;
   isNested?: boolean;
-  hotkeyScope: string;
   portalScope?: PortalScope;
   permissions: PdfDocumentPermissions;
   locationParams?: LocationSearchParams;
@@ -81,7 +80,6 @@ export function PdfDocument(props: PdfDocumentProps) {
           documentVersionId={props.documentVersionId}
           documentName={props.documentName}
           isNested={props.isNested}
-          hotkeyScope={props.hotkeyScope}
           portalScope={props.portalScope}
           permissions={props.permissions}
           locationParams={props.locationParams}

@@ -573,7 +573,6 @@ const textAnnotationProperties = {
 
 function useMakeTextAnnotation() {
   const getViewer = useGetPopupContextViewer();
-  const [fontPreference] = usePdfDocument().state.signals.fontPreference;
   const currentScale = useCurrentScale();
 
   return (
@@ -584,13 +583,10 @@ function useMakeTextAnnotation() {
   ): ITextBoxPlaceable => {
     const curViewer = getViewer();
     const curScale = currentScale();
-    const fontFamily = fontPreference();
+    const fontFamily = DEFAULT_APPEARANCE_PAYLOAD.family;
     let position: IPlaceablePosition;
 
     if (e) {
-      // At default zoom and font size, 250px can hold ~15-20 characters horizontally
-      // We want to vertically position so that the center of our textbox is at the center
-      // of the text cursor caret.
       const cursorOffsetY = 14;
       const cursorOffsetX = 14;
 
@@ -615,7 +611,6 @@ function useMakeTextAnnotation() {
         rotation: 0,
       };
     } else {
-      // Create a new text box at the top left of the page (e.g. on copy/paste with no MouseEvent)
       const { width, height } = pageRef.getBoundingClientRect();
       position = {
         xPct: 0.01,
