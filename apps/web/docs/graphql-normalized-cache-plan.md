@@ -309,6 +309,13 @@ apps/web/src/lib/graphql-cache/ # JS glue
 - Turso backend for both Tauri native filesystem storage and browser OPFS:
   WAL mode, batch transactions, and physical reset on incompatible storage;
   tested natively and in headless Chromium.
+- Recovery browser fixtures require a matched production/test-hook WASM pair.
+  Run `just build-cache-wasm-browser-production` from `apps/web` to rebuild both;
+  a standalone Vite build reuses the generated artifacts. The fixture compares
+  embedded `cacheBuildInfo()` metadata (package version, GraphQL schema hash,
+  compatibility epoch, record format, and storage schema) before creating the
+  fixture database and again before fault injection. This matched-build check
+  is intentionally stricter than normal cache compatibility.
 - Deferred: stale-namespace DB cleanup (browser), `scan_prefix`/
   `approx_size` for GC (hardening phase).
 
