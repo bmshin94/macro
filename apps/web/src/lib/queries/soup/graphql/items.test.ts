@@ -75,7 +75,10 @@ vi.mock('@queries/client', async () => {
 
 import { queryClient } from '@queries/client';
 import { createGraphqlSoupAstItemsQuery } from './items';
-import { GRAPHQL_SOUP_DELETE_MUTATION_KEY } from './optimistic-deletions';
+import {
+  createGraphqlSoupDeletion,
+  GRAPHQL_SOUP_DELETE_MUTATION_KEY,
+} from './optimistic-deletions';
 
 type FakeExecution = {
   variables: Record<string, unknown>;
@@ -247,7 +250,11 @@ describe('createGraphqlSoupAstItemsQuery', () => {
       let reject!: (error: Error) => void;
       const mutation = queryClient.getMutationCache().build(queryClient, {
         mutationKey: GRAPHQL_SOUP_DELETE_MUTATION_KEY,
-        onMutate: () => ({ graphqlDeletedIds: ['a', 'b'] }),
+        onMutate: () => ({
+          graphqlDeletion: createGraphqlSoupDeletion(['a', 'b']),
+        }),
+        onSettled: (_data, _error, _vars, context) =>
+          context?.graphqlDeletion.release(),
         mutationFn: () =>
           new Promise<void>((_resolve, fail) => {
             reject = fail;

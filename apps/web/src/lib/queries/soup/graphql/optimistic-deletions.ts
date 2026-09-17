@@ -1,38 +1,127 @@
-import { useMutationState } from '@tanstack/solid-query';
-import { createMemo } from 'solid-js';
+import { skipToken, useMutationState, useQuery } from '@tanstack/solid-query';
+import { type Accessor, createMemo, createSignal } from 'solid-js';
 import { queryClient } from '../../client';
 import type { SoupAstItemsData } from '../items';
+import { refreshActiveGraphqlSoupQueries } from './active-queries';
+import { graphqlSoupKeys } from './keys';
 
 export const GRAPHQL_SOUP_DELETE_MUTATION_KEY = [
   'graphql-soup',
   'delete',
 ] as const;
 
-/** Only GraphQL-enabled bulk deletes opt into the display overlay. */
-export type GraphqlSoupDeleteContext = {
-  graphqlDeletedIds?: readonly string[];
+export const GRAPHQL_SOUP_DELETE_RETENTION_MS = 60_000;
+const REVALIDATION_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1_000;
+const RETAINED_DELETIONS_KEY = graphqlSoupKeys.retainedDeletions.queryKey;
+type RetainedDeletionIds = Array<Accessor<readonly string[]>>;
+
+export type GraphqlSoupDeletion = {
+  ids: Accessor<readonly string[]>;
+  /** Restore failed ids immediately and revalidate the confirmed deletions. */
+  settle: (deletedIds: readonly string[]) => void;
+  release: () => void;
 };
 
-/** Reflect pending REST deletions in GraphQL views without rewriting cache data.
- * Failed deletes roll back naturally when the mutation leaves pending. Successful
- * deletes stay hidden until mutation-driven network revalidation finishes.
+/** Per-operation state outlives the mutation and its observers until revalidation. */
+export function createGraphqlSoupDeletion(
+  ids: readonly string[]
+): GraphqlSoupDeletion {
+  const [deletedIds, setDeletedIds] = createSignal(ids);
+  let settled = false;
+  let released = false;
+  let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  const release = () => {
+    if (released) return;
+    released = true;
+    clearTimeout(expiryTimer);
+    clearTimeout(retryTimer);
+    setDeletedIds([]);
+    queryClient.setQueryData<RetainedDeletionIds>(
+      RETAINED_DELETIONS_KEY,
+      (retained) => retained?.filter((ids) => ids !== deletedIds)
+    );
+  };
+  const revalidate = async (attempt: number): Promise<void> => {
+    try {
+      await refreshActiveGraphqlSoupQueries({ throwOnError: true });
+      release();
+    } catch {
+      if (released || attempt + 1 >= REVALIDATION_ATTEMPTS) return;
+      retryTimer = setTimeout(
+        () => {
+          retryTimer = undefined;
+          void revalidate(attempt + 1);
+        },
+        RETRY_DELAY_MS * 2 ** attempt
+      );
+    }
+  };
+  return {
+    ids: deletedIds,
+    release,
+    settle: (successfulIds) => {
+      if (settled || released) return;
+      settled = true;
+      setDeletedIds([...new Set(successfulIds)]);
+      if (successfulIds.length === 0) {
+        release();
+        // Reconcile uncertain failures without retaining a failed deletion.
+        if (ids.length > 0) void revalidate(0);
+        return;
+      }
+      // A mutation observer can detach before the API finishes, starting its
+      // GC clock early. Keep confirmed ids outside that mutation's lifetime.
+      queryClient.setQueryData<RetainedDeletionIds>(
+        RETAINED_DELETIONS_KEY,
+        (retained) => [...(retained ?? []), deletedIds]
+      );
+      // Cleanup is independent of hung refresh promises and query lifetime.
+      expiryTimer = setTimeout(release, GRAPHQL_SOUP_DELETE_RETENTION_MS);
+      void revalidate(0);
+    },
+  };
+}
+
+/** Only GraphQL-enabled bulk deletes opt into the display overlay. */
+export type GraphqlSoupDeleteContext = {
+  graphqlDeletion?: GraphqlSoupDeletion;
+};
+
+/** Reflect pending and confirmed REST deletions in GraphQL views. Completed
+ * mutations retain their own tombstones until strict revalidation or expiry.
  */
 export function usePendingGraphqlSoupDeleteIds() {
-  const pending = useMutationState(
+  const retained = useQuery(
+    () => ({
+      queryKey: RETAINED_DELETIONS_KEY,
+      queryFn: skipToken,
+      initialData: [] as RetainedDeletionIds,
+      // One empty index may live for the client session; its entries always have
+      // bounded lifetimes, even when no view is mounted to observe this query.
+      gcTime: Infinity,
+    }),
+    () => queryClient
+  );
+  const deletions = useMutationState(
     () => ({
       filters: {
         mutationKey: GRAPHQL_SOUP_DELETE_MUTATION_KEY,
         exact: true,
-        status: 'pending' as const,
       },
       select: (mutation) =>
         (mutation.state.context as GraphqlSoupDeleteContext | undefined)
-          ?.graphqlDeletedIds,
+          ?.graphqlDeletion?.ids,
     }),
     () => queryClient
   );
   return createMemo<ReadonlySet<string>>(
-    () => new Set(pending().flatMap((ids) => ids ?? []))
+    () =>
+      new Set([
+        ...deletions().flatMap((ids) => ids?.() ?? []),
+        ...(retained.isSuccess ? retained.data.flatMap((ids) => ids()) : []),
+      ])
   );
 }
 

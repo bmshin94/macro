@@ -52,7 +52,10 @@ vi.mock('@queries/client', async () => {
 
 import { queryClient } from '@queries/client';
 import { createGraphqlGroupedSoupAstItemsQuery } from '@queries/soup/graphql/grouped-items';
-import { GRAPHQL_SOUP_DELETE_MUTATION_KEY } from '@queries/soup/graphql/optimistic-deletions';
+import {
+  createGraphqlSoupDeletion,
+  GRAPHQL_SOUP_DELETE_MUTATION_KEY,
+} from '@queries/soup/graphql/optimistic-deletions';
 import {
   groupedSoupInputKey,
   groupedSoupLogicalViewKey,
@@ -210,7 +213,11 @@ describe('createGraphqlGroupedSoupQueries', () => {
       .getMutationCache()
       .build(queryClient, {
         mutationKey: GRAPHQL_SOUP_DELETE_MUTATION_KEY,
-        onMutate: () => ({ graphqlDeletedIds: ['a-1', 'a-2'] }),
+        onMutate: () => ({
+          graphqlDeletion: createGraphqlSoupDeletion(['a-1', 'a-2']),
+        }),
+        onSettled: (_data, _error, _vars, context) =>
+          context?.graphqlDeletion.release(),
         mutationFn: () =>
           new Promise<void>((resolve) => {
             finish = resolve;
