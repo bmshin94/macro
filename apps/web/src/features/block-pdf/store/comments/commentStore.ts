@@ -7,7 +7,7 @@ import { useHighlightComments } from './highlightComments';
 
 export const useIsActiveThreadSelector = () => {
   const isSelected = createSelector(
-    usePdfDocument().interaction.activeCommentThreadId,
+    usePdfDocument().activeCommentThreadId,
     (id: ThreadId | null, activeId) => {
       if (id == null) return false;
       return id === activeId;

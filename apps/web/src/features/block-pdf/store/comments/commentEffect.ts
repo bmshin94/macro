@@ -9,8 +9,7 @@ import {
 
 const useDeleteNewCommentEffect = () => {
   const deleteNewComments = useDeleteNewComments();
-  const activeCommentThreadId =
-    usePdfDocument().interaction.activeCommentThreadId;
+  const activeCommentThreadId = usePdfDocument().activeCommentThreadId;
 
   createEffect(() => {
     const activeThreadId = activeCommentThreadId();
@@ -24,9 +23,8 @@ const useScrollToActiveThreadEffect = () => {
   const scrollToCommentThread = useScrollToCommentThread();
   const pdf = usePdfDocument();
   const comments = usePdfComments().all;
-  const activeCommentThreadId = pdf.interaction.activeCommentThreadId;
-  const activeThreadScrollingSuppressed =
-    pdf.interaction.activeThreadScrollingSuppressed;
+  const activeCommentThreadId = pdf.activeCommentThreadId;
+  const activeThreadScrollingSuppressed = pdf.activeThreadScrollingSuppressed;
 
   createEffect(() => {
     if (activeThreadScrollingSuppressed()) return;

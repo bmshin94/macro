@@ -84,8 +84,8 @@ export function PageOverlay(props: IPageOverlayProps) {
   const isAuth = useIsAuthenticated();
   const createPlaceable = useCreatePlaceable();
   const commentPlaceables = useCommentPlaceables();
-  const overlayClicksDisabled = pdf.interaction.overlayClicksDisabled;
-  const pageClicksDisabled = pdf.interaction.pageClicksDisabled;
+  const overlayClicksDisabled = pdf.overlayClicksDisabled;
+  const pageClicksDisabled = pdf.pageClicksDisabled;
 
   const onClick = (e: MouseEvent) => {
     if (pageClicksDisabled()) return;
@@ -234,7 +234,7 @@ export function PageOverlay(props: IPageOverlayProps) {
     });
   });
 
-  const disableSelect = pdf.interaction.viewerTextSelectionDisabled;
+  const disableSelect = pdf.viewerTextSelectionDisabled;
   createEffect(() => {
     const pageViewDiv = pageViewDivProp();
     if (!pageViewDiv) return;
@@ -247,7 +247,7 @@ export function PageOverlay(props: IPageOverlayProps) {
 
   onMount(() => {
     const resetMode = (_e: MouseEvent) => {
-      pdf.interaction.commands.clearActiveCommentThread();
+      pdf.clearActiveCommentThread();
       pdf.markup.commands.cancelPlacement();
     };
     const el = pdf.rootElement();
@@ -269,7 +269,7 @@ export function PageOverlay(props: IPageOverlayProps) {
     return textModes.includes(mode) ? 'pointer' : 'text';
   };
 
-  const annotationSelection = pdf.interaction.annotationSelection;
+  const annotationSelection = pdf.annotationSelection;
 
   const addNewHighlights = useAddNewHighlights();
   const doEdit = useDoEdit();
@@ -309,14 +309,12 @@ export function PageOverlay(props: IPageOverlayProps) {
     batch(() => {
       setTimeout(doEdit);
       addNewHighlights(highlightsUnderSelection);
-      pdf.interaction.commands.replaceSelectedHighlights(
-        highlightsUnderSelection
-      );
+      pdf.replaceSelectedHighlights(highlightsUnderSelection);
 
       const selection = highlightsUnderSelection.at(0);
       if (!selection) return;
 
-      pdf.interaction.commands.activateHighlight(selection.uuid);
+      pdf.activateHighlight(selection.uuid);
     });
   };
 
@@ -331,7 +329,7 @@ export function PageOverlay(props: IPageOverlayProps) {
       selectedHighlights.forEach((highlight) =>
         removeHighlight(highlight.uuid)
       );
-      pdf.interaction.commands.replaceSelectedHighlights([]);
+      pdf.replaceSelectedHighlights([]);
     });
   };
 
@@ -397,9 +395,7 @@ export function PageOverlay(props: IPageOverlayProps) {
 
   const showPopup = createMemo(() => {
     const shouldshow =
-      !isPopup &&
-      !pdf.viewer.isPopupOpen() &&
-      !!pdf.interaction.selectionMenuLocation();
+      !isPopup && !pdf.viewer.isPopupOpen() && !!pdf.selectionMenuLocation();
     return shouldshow;
   });
 
@@ -425,7 +421,7 @@ export function PageOverlay(props: IPageOverlayProps) {
         }}
         class="bg-transparent top-0 left-0 absolute"
       >
-        <Show when={showPopup() && pdf.interaction.selectionMenuLocation()}>
+        <Show when={showPopup() && pdf.selectionMenuLocation()}>
           {(selectionMenuLocation) => (
             <Show when={selectionMenuLocation().pageIndex === props.pageIndex}>
               <PDFPopup
@@ -535,12 +531,8 @@ function UserHighlightNodes(props: {
 
   const viewportHeight = createMemo(() => props.viewport.height);
   const viewportWidth = createMemo(() => props.viewport.width);
-  const isActiveHighlightSelector = createSelector(
-    pdf.interaction.activeHighlightId
-  );
-  const isActiveThreadSelector = createSelector(
-    pdf.interaction.activeCommentThreadId
-  );
+  const isActiveHighlightSelector = createSelector(pdf.activeHighlightId);
+  const isActiveThreadSelector = createSelector(pdf.activeCommentThreadId);
 
   return (
     <For each={thisPageHighlights()}>

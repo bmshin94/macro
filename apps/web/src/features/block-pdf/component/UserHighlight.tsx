@@ -18,10 +18,10 @@ export const highlightIdSelector = (highlightId: string) =>
   `[data-highlight-id="${highlightId}"]`;
 
 export const useResetUserHighlights = () => {
-  const interaction = usePdfDocument().interaction;
+  const pdf = usePdfDocument();
 
   return createCallback(() => {
-    interaction.commands.clearUserHighlightFocus();
+    pdf.clearUserHighlightFocus();
   });
 };
 
@@ -31,7 +31,6 @@ const isHighlightComment = (highlight: IHighlight) =>
 // TODO: handle highlight selection in a different document
 export const useHighlightSelection = () => {
   const pdf = usePdfDocument();
-  const interaction = pdf.interaction;
 
   return (highlightId: string, element?: HTMLElement) => {
     const highlight = pdf.annotations.highlightsByUuid()[highlightId];
@@ -40,13 +39,13 @@ export const useHighlightSelection = () => {
     if (isHighlightComment(highlight)) {
       const threadId = highlight.thread?.threadId;
       if (threadId == null) {
-        interaction.commands.clearActiveCommentThread();
+        pdf.clearActiveCommentThread();
       } else {
-        interaction.commands.activateCommentThread(threadId);
+        pdf.activateCommentThread(threadId);
       }
     } else {
-      interaction.commands.activateHighlight(highlightId);
-      interaction.commands.clearActiveCommentThread();
+      pdf.activateHighlight(highlightId);
+      pdf.clearActiveCommentThread();
     }
 
     const highlightElement =
@@ -65,8 +64,8 @@ export const useHighlightSelection = () => {
       rect.right <= (window.innerWidth || document.documentElement.clientWidth);
 
     if (!isHighlightComment(highlight)) {
-      interaction.commands.replaceSelectedHighlights([highlight]);
-      interaction.commands.openSelectionMenu({
+      pdf.replaceSelectedHighlights([highlight]);
+      pdf.openSelectionMenu({
         pageIndex: highlight.pageNum,
         element: highlightElement,
       });
@@ -95,7 +94,6 @@ export function UserHighlight(props: VoidProps<IHighlightObj>) {
   let textRef!: HTMLDivElement;
 
   const pdf = usePdfDocument();
-  const interaction = pdf.interaction;
   const isPopup = useIsPopup();
   const popupDispatchCtx = usePopupContextUpdate(isPopup);
   const highlightSelection = useHighlightSelection();
@@ -136,8 +134,7 @@ export function UserHighlight(props: VoidProps<IHighlightObj>) {
   };
 
   const isHover = createMemo(
-    () =>
-      interaction.hoveredHighlightId() === (props.threadId || props.highlightId)
+    () => pdf.hoveredHighlightId() === (props.threadId || props.highlightId)
   );
 
   const alphaColor = createMemo((): IColor => {
@@ -163,27 +160,24 @@ export function UserHighlight(props: VoidProps<IHighlightObj>) {
       popupDispatchCtx({
         type: 'REMOVE_POPUPS',
       });
-      pdf.interaction.commands.closeSelectionMenu();
+      pdf.closeSelectionMenu();
 
       if (props.threadId) {
-        interaction.commands.suppressActiveThreadScrolling();
+        pdf.suppressActiveThreadScrolling();
         if (props.isActive) {
-          interaction.commands.clearActiveCommentThread();
+          pdf.clearActiveCommentThread();
         } else {
-          interaction.commands.activateCommentThread(props.threadId);
+          pdf.activateCommentThread(props.threadId);
         }
-        setTimeout(
-          () => interaction.commands.restoreActiveThreadScrolling(),
-          10
-        );
+        setTimeout(() => pdf.restoreActiveThreadScrolling(), 10);
       } else {
-        interaction.commands.clearActiveCommentThread();
+        pdf.clearActiveCommentThread();
         highlightSelection(
           props.highlightId,
           e.target instanceof HTMLElement ? e.target : undefined
         );
       }
-      interaction.commands.activateHighlight(props.highlightId);
+      pdf.activateHighlight(props.highlightId);
     });
 
   return (
@@ -210,10 +204,8 @@ export function UserHighlight(props: VoidProps<IHighlightObj>) {
             props.isActive && props.threadId ? '2px solid #FACC15' : undefined,
         }}
         on:click={clickHandler}
-        onMouseOver={() =>
-          interaction.commands.hoverHighlight(props.highlightId)
-        }
-        onMouseOut={() => interaction.commands.clearHoveredHighlight()}
+        onMouseOver={() => pdf.hoverHighlight(props.highlightId)}
+        onMouseOut={() => pdf.clearHoveredHighlight()}
       >
         <div
           ref={textRef}

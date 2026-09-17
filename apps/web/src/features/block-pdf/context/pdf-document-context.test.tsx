@@ -270,36 +270,37 @@ describe('PdfDocumentProvider', () => {
 
   it('coordinates text selection, comment selection, and placeable mode', () => {
     const context = setup('document-1').get('document-1')!;
-    const { interaction, markup } = context;
+    const { markup } = context;
 
-    interaction.commands.selectCommentThread(42);
+    expect('interaction' in context).toBe(false);
+    context.selectCommentThread(42);
     expect({
-      overlayClicksDisabled: interaction.overlayClicksDisabled(),
-      viewerTextSelectionDisabled: interaction.viewerTextSelectionDisabled(),
-      selectedCommentThread: interaction.selectedCommentThread(),
+      overlayClicksDisabled: context.overlayClicksDisabled(),
+      viewerTextSelectionDisabled: context.viewerTextSelectionDisabled(),
+      selectedCommentThread: context.selectedCommentThread(),
     }).toEqual({
       overlayClicksDisabled: false,
       viewerTextSelectionDisabled: true,
       selectedCommentThread: 42,
     });
 
-    interaction.commands.beginViewerTextSelection();
+    context.beginViewerTextSelection();
     expect({
-      overlayClicksDisabled: interaction.overlayClicksDisabled(),
-      viewerTextSelectionDisabled: interaction.viewerTextSelectionDisabled(),
-      selectedCommentThread: interaction.selectedCommentThread(),
+      overlayClicksDisabled: context.overlayClicksDisabled(),
+      viewerTextSelectionDisabled: context.viewerTextSelectionDisabled(),
+      selectedCommentThread: context.selectedCommentThread(),
     }).toEqual({
       overlayClicksDisabled: true,
       viewerTextSelectionDisabled: false,
       selectedCommentThread: null,
     });
 
-    interaction.commands.endViewerTextSelection();
+    context.endViewerTextSelection();
     markup.commands.beginPlacement(PayloadMode.Thread);
-    expect(interaction.overlayClicksDisabled()).toBe(true);
+    expect(context.overlayClicksDisabled()).toBe(true);
 
     markup.commands.cancelPlacement();
-    expect(interaction.overlayClicksDisabled()).toBe(false);
+    expect(context.overlayClicksDisabled()).toBe(false);
   });
 
   it('isolates markup and interaction between document providers', () => {
@@ -309,16 +310,16 @@ describe('PdfDocumentProvider', () => {
 
     first.markup.commands.beginPlacement(PayloadMode.Signature);
     first.markup.commands.activate('placeable-1');
-    first.interaction.commands.selectCommentThread(42);
+    first.selectCommentThread(42);
 
     expect({
       firstMode: first.markup.mode(),
       firstActiveId: first.markup.activeId(),
-      firstSelectedThread: first.interaction.selectedCommentThread(),
+      firstSelectedThread: first.selectedCommentThread(),
       secondMode: second.markup.mode(),
       secondActiveId: second.markup.activeId(),
-      secondSelectedThread: second.interaction.selectedCommentThread(),
-      secondOverlayDisabled: second.interaction.overlayClicksDisabled(),
+      secondSelectedThread: second.selectedCommentThread(),
+      secondOverlayDisabled: second.overlayClicksDisabled(),
     }).toEqual({
       firstMode: PayloadMode.Signature,
       firstActiveId: 'placeable-1',

@@ -67,6 +67,6 @@ export function useResetSelection() {
 
   return (selection?: Selection) => {
     selection?.removeAllRanges();
-    pdf.interaction.commands.resetSelection();
+    pdf.resetSelection();
   };
 }

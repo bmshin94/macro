@@ -37,7 +37,7 @@ describe('createPdfInteraction', () => {
     expect(interaction.overlayClicksDisabled()).toBe(true);
 
     setPlacementMode(PayloadMode.NoMode);
-    interaction.commands.selectCommentThread(42);
+    interaction.selectCommentThread(42);
     expect({
       overlayClicksDisabled: interaction.overlayClicksDisabled(),
       viewerTextSelectionDisabled: interaction.viewerTextSelectionDisabled(),
@@ -51,8 +51,8 @@ describe('createPdfInteraction', () => {
   it('coordinates viewer and comment text selection synchronously', () => {
     const { interaction, dispose } = setup();
 
-    interaction.commands.selectCommentThread(42);
-    interaction.commands.beginViewerTextSelection();
+    interaction.selectCommentThread(42);
+    interaction.beginViewerTextSelection();
 
     expect({
       viewerTextSelectionActive: interaction.viewerTextSelectionActive(),
@@ -66,9 +66,9 @@ describe('createPdfInteraction', () => {
       viewerTextSelectionDisabled: false,
     });
 
-    interaction.commands.selectCommentThread(7);
-    interaction.commands.beginViewerTextSelection();
-    interaction.commands.endViewerTextSelection();
+    interaction.selectCommentThread(7);
+    interaction.beginViewerTextSelection();
+    interaction.endViewerTextSelection();
 
     expect({
       viewerTextSelectionActive: interaction.viewerTextSelectionActive(),
@@ -80,7 +80,7 @@ describe('createPdfInteraction', () => {
       viewerTextSelectionDisabled: true,
     });
 
-    interaction.commands.clearSelectedCommentThread();
+    interaction.clearSelectedCommentThread();
     expect(interaction.selectedCommentThread()).toBeNull();
     dispose();
   });
@@ -89,13 +89,13 @@ describe('createPdfInteraction', () => {
     const { interaction, dispose } = setup();
     const element = document.createElement('div');
 
-    interaction.commands.openSelectionMenu({ pageIndex: 3, element });
+    interaction.openSelectionMenu({ pageIndex: 3, element });
     expect(interaction.selectionMenuLocation()).toEqual({
       pageIndex: 3,
       element,
     });
 
-    interaction.commands.closeSelectionMenu();
+    interaction.closeSelectionMenu();
     expect(interaction.selectionMenuLocation()).toBeNull();
     dispose();
   });
@@ -104,13 +104,13 @@ describe('createPdfInteraction', () => {
     const { interaction, dispose } = setup();
     const observed: boolean[] = [];
 
-    interaction.commands.runWithPageClicksDisabled(() => {
+    interaction.runWithPageClicksDisabled(() => {
       observed.push(interaction.pageClicksDisabled());
     });
     observed.push(interaction.pageClicksDisabled());
 
     expect(() =>
-      interaction.commands.runWithPageClicksDisabled(() => {
+      interaction.runWithPageClicksDisabled(() => {
         observed.push(interaction.pageClicksDisabled());
         throw new Error('failed');
       })
@@ -132,17 +132,17 @@ describe('createPdfInteraction', () => {
     const highlight = { uuid: 'highlight-1' } as IHighlight;
     const menuElement = document.createElement('div');
 
-    interaction.commands.setNativeSelection(nativeSelection);
-    interaction.commands.replaceSelectedHighlights([highlight]);
-    interaction.commands.openSelectionMenu({
+    interaction.setNativeSelection(nativeSelection);
+    interaction.replaceSelectedHighlights([highlight]);
+    interaction.openSelectionMenu({
       pageIndex: 2,
       element: menuElement,
     });
-    interaction.commands.activateHighlight(highlight.uuid);
-    interaction.commands.hoverHighlight(highlight.uuid);
-    interaction.commands.activateCommentThread(-1);
-    interaction.commands.markConvertedHighlightDraft(highlight.uuid);
-    interaction.commands.suppressActiveThreadScrolling();
+    interaction.activateHighlight(highlight.uuid);
+    interaction.hoverHighlight(highlight.uuid);
+    interaction.activateCommentThread(-1);
+    interaction.markConvertedHighlightDraft(highlight.uuid);
+    interaction.suppressActiveThreadScrolling();
 
     expect({
       selection: interaction.annotationSelection(),
@@ -165,7 +165,7 @@ describe('createPdfInteraction', () => {
       activeThreadScrollingSuppressed: true,
     });
 
-    interaction.commands.resetSelection();
+    interaction.resetSelection();
     expect({
       selection: interaction.annotationSelection(),
       menu: interaction.selectionMenuLocation(),
@@ -183,9 +183,9 @@ describe('createPdfInteraction', () => {
       hoveredHighlightId: 'highlight-1',
     });
 
-    interaction.commands.clearUserHighlightFocus();
-    interaction.commands.clearConvertedHighlightDraft();
-    interaction.commands.restoreActiveThreadScrolling();
+    interaction.clearUserHighlightFocus();
+    interaction.clearConvertedHighlightDraft();
+    interaction.restoreActiveThreadScrolling();
     expect({
       activeCommentThreadId: interaction.activeCommentThreadId(),
       hoveredHighlightId: interaction.hoveredHighlightId(),
@@ -206,14 +206,14 @@ describe('createPdfInteraction', () => {
     const first = setup();
     const second = setup();
 
-    first.interaction.commands.beginViewerTextSelection();
-    first.interaction.commands.openSelectionMenu({
+    first.interaction.beginViewerTextSelection();
+    first.interaction.openSelectionMenu({
       pageIndex: 1,
       element: document.createElement('div'),
     });
-    first.interaction.commands.activateHighlight('highlight-1');
-    first.interaction.commands.activateCommentThread(-1);
-    first.interaction.commands.suppressActiveThreadScrolling();
+    first.interaction.activateHighlight('highlight-1');
+    first.interaction.activateCommentThread(-1);
+    first.interaction.suppressActiveThreadScrolling();
 
     expect({
       firstSelecting: first.interaction.viewerTextSelectionActive(),

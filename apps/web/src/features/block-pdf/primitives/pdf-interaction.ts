@@ -146,7 +146,7 @@ export function createPdfInteraction(placementMode: Accessor<PayloadType>) {
     pageClicksDisabled,
     viewerTextSelectionActive,
     selectedCommentThread,
-    commands,
+    ...commands,
   };
 }
 

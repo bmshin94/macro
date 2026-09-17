@@ -14,7 +14,7 @@ export const useSetSelectionHighlights = () => {
   return (selection: Selection) => {
     if (selection.isCollapsed) return;
 
-    pdf.interaction.commands.setNativeSelection(selection);
+    pdf.setNativeSelection(selection);
 
     batch(() => {
       const selectedHighlights: IHighlight[] = [];
@@ -33,7 +33,7 @@ export const useSetSelectionHighlights = () => {
         );
         selectedHighlights.push(...overlappingHighlights);
       }
-      pdf.interaction.commands.replaceSelectedHighlights(selectedHighlights);
+      pdf.replaceSelectedHighlights(selectedHighlights);
     });
   };
 };
@@ -50,10 +50,10 @@ export const useAddNewHighlights = () => {
 
 export function useRemoveHighlight() {
   const deleteHighlight = useDeleteUnthreadedHighlightResource();
-  const interaction = usePdfDocument().interaction;
+  const pdf = usePdfDocument();
 
   return (uuid: string) => {
-    interaction.commands.closeSelectionMenu();
+    pdf.closeSelectionMenu();
     deleteHighlight(uuid);
   };
 }

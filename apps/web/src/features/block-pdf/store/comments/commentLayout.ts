@@ -148,7 +148,7 @@ export function computePageCommentLayout({
 
 export function usePageCommentLayout(pageIndex: Accessor<number>) {
   const pdf = usePdfDocument();
-  const activeCommentThreadId = pdf.interaction.activeCommentThreadId;
+  const activeCommentThreadId = pdf.activeCommentThreadId;
   const comments = usePdfComments().all;
   const pageHeights = pdf.viewer.root.pageHeights;
   const [threadHeights, setThreadHeights] = createStore<Partial<ThreadHeights>>(

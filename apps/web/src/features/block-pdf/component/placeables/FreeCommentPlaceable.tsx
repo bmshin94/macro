@@ -8,15 +8,13 @@ export const FreeCommentPlaceable: Component<{
   payload: NonNullable<IThreadPlaceable['payload']>;
 }> = (props) => {
   const isActiveThreadSelector = useIsActiveThreadSelector();
-  const interaction = usePdfDocument().interaction;
+  const pdf = usePdfDocument();
 
   return (
     <CommentIndicator
       threadId={props.payload.threadId}
       isActive={isActiveThreadSelector(props.payload.threadId)}
-      setActive={() =>
-        interaction.commands.activateCommentThread(props.payload.threadId)
-      }
+      setActive={() => pdf.activateCommentThread(props.payload.threadId)}
       numComments={props.payload.comments.length}
     />
   );
@@ -32,7 +30,7 @@ function CommentIndicator(props: {
   isActive: boolean;
   setActive?: () => void;
 }) {
-  const interaction = usePdfDocument().interaction;
+  const pdf = usePdfDocument();
 
   return (
     <div
@@ -43,11 +41,11 @@ function CommentIndicator(props: {
           : 'bg-[oklch(0.93_0.034_272.788)] text-[oklch(0.585_0.233_277.117)] hover:bg-[oklch(0.87_0.065_274.039)] hover:text-[oklch(0.511_0.262_276.966)]'
       )}
       on:mousedown={() => {
-        interaction.commands.suppressActiveThreadScrolling();
+        pdf.suppressActiveThreadScrolling();
         props.setActive?.();
       }}
       on:mouseup={() => {
-        interaction.commands.restoreActiveThreadScrolling();
+        pdf.restoreActiveThreadScrolling();
       }}
     >
       {props.numComments > 1 && !props.isActive && (

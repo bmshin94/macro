@@ -142,7 +142,6 @@ export const useDeleteNewHighlightComment = () => {
   const handleHighlightSelection = useHighlightSelection();
   const pdf = usePdfDocument();
   const annotations = pdf.annotations;
-  const interaction = pdf.interaction;
   const commentsById = usePdfComments().byId;
 
   return () => {
@@ -156,9 +155,9 @@ export const useDeleteNewHighlightComment = () => {
       return;
     }
 
-    if (highlight.uuid === interaction.convertedHighlightThreadDraftId()) {
+    if (highlight.uuid === pdf.convertedHighlightThreadDraftId()) {
       annotations.commands.revertTemporaryHighlightCommentDraft(highlight.uuid);
-      interaction.commands.clearConvertedHighlightDraft();
+      pdf.clearConvertedHighlightDraft();
       setTimeout(() => handleHighlightSelection(highlight.uuid));
       return;
     }
@@ -169,23 +168,21 @@ export const useDeleteNewHighlightComment = () => {
 
 export function useCreateHighlightCommentAtSelection() {
   const pdf = usePdfDocument();
-  const annotationSelection = pdf.interaction.annotationSelection;
+  const annotationSelection = pdf.annotationSelection;
   const currentPageViewport = useCurrentPageViewport();
   const deleteNewComments = useDeleteNewComments();
 
   return createCallback((_e: MouseEvent) => {
-    pdf.interaction.commands.runWithPageClicksDisabled(() => {
+    pdf.runWithPageClicksDisabled(() => {
       deleteNewComments();
-      pdf.interaction.commands.closeSelectionMenu();
+      pdf.closeSelectionMenu();
 
       const highlightUnderSelection =
         annotationSelection().selectedHighlights.at(0);
       if (highlightUnderSelection) {
         batch(() => {
-          pdf.interaction.commands.markConvertedHighlightDraft(
-            highlightUnderSelection.uuid
-          );
-          pdf.interaction.commands.activateCommentThread(-1);
+          pdf.markConvertedHighlightDraft(highlightUnderSelection.uuid);
+          pdf.activateCommentThread(-1);
           pdf.annotations.commands.beginExistingHighlightCommentDraft(
             highlightUnderSelection
           );
@@ -217,7 +214,7 @@ export function useCreateHighlightCommentAtSelection() {
       }
 
       pdf.annotations.commands.beginNewHighlightCommentDrafts(highlights);
-      pdf.interaction.commands.activateCommentThread(-1);
+      pdf.activateCommentThread(-1);
     });
   });
 }

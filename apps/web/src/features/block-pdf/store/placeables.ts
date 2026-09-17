@@ -553,7 +553,7 @@ export function useSyncActivePlaceableWithCommentThread() {
   const placeableIdMap = usePlaceableIdMap();
   const pdf = usePdfDocument();
   const activeId = pdf.markup.activeId;
-  const activeCommentThreadId = pdf.interaction.activeCommentThreadId;
+  const activeCommentThreadId = pdf.activeCommentThreadId;
 
   createEffect(() => {
     const activeThreadId = activeCommentThreadId();
@@ -616,7 +616,7 @@ export function useCreatePlaceable() {
       if (!isThreadPlaceable(placeable)) {
         pdf.model.commands.appendPlaceable(placeable);
       } else {
-        pdf.interaction.commands.activateCommentThread(-1);
+        pdf.activateCommentThread(-1);
       }
       pdf.markup.commands.activate(placeable.internalId);
       pdf.markup.commands.setDraft(placeable);

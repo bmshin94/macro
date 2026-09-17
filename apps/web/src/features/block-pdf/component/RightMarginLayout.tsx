@@ -44,9 +44,9 @@ const useCommentsContext = (
   const commentsById = usePdfComments().byId;
   const setActiveThread = (threadId: number | null) => {
     if (threadId == null) {
-      pdf.interaction.commands.clearActiveCommentThread();
+      pdf.clearActiveCommentThread();
     } else {
-      pdf.interaction.commands.activateCommentThread(threadId);
+      pdf.activateCommentThread(threadId);
     }
   };
 
@@ -89,13 +89,9 @@ function CommentsAndSuggestions(props: { pageIndex: number }) {
     () => props.pageIndex
   );
 
-  const isActiveThreadSelector = createSelector(
-    pdf.interaction.activeCommentThreadId
-  );
+  const isActiveThreadSelector = createSelector(pdf.activeCommentThreadId);
 
-  const isSelectingThreadSelector = createSelector(
-    pdf.interaction.selectedCommentThread
-  );
+  const isSelectingThreadSelector = createSelector(pdf.selectedCommentThread);
 
   const commentTheme = (threadId: number | null) => {
     const isSelecting = isSelectingThreadSelector(threadId);
@@ -111,11 +107,11 @@ function CommentsAndSuggestions(props: { pageIndex: number }) {
 
   const handleThreadMouseDown = (threadId: number) => (e: MouseEvent) => {
     e.stopPropagation();
-    pdf.interaction.commands.selectCommentThread(threadId);
+    pdf.selectCommentThread(threadId);
 
     const handleMouseUp = (e: MouseEvent) => {
       e.stopPropagation();
-      pdf.interaction.commands.activateCommentThread(threadId);
+      pdf.activateCommentThread(threadId);
       document.removeEventListener('mouseup', handleMouseUp, true);
     };
     document.addEventListener('mouseup', handleMouseUp, true);

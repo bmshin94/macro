@@ -377,7 +377,7 @@ export const Placeable: Component<{
         if (!props.canEdit) return;
 
         if (!isThreadPlaceable(props.placeable)) {
-          pdf.interaction.commands.clearActiveCommentThread();
+          pdf.clearActiveCommentThread();
         }
         setMouseDown(e);
       }}

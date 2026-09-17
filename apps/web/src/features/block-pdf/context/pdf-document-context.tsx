@@ -46,7 +46,7 @@ export type PdfDocumentPermissions = {
   isOwner: boolean;
 };
 
-export type PdfDocumentContextValue = {
+export type PdfDocumentContextValue = PdfInteraction & {
   documentId: Accessor<string>;
   documentProxy: Accessor<PDFDocumentProxy | undefined>;
   documentVersionId: Accessor<number | undefined>;
@@ -63,7 +63,6 @@ export type PdfDocumentContextValue = {
   setRootElement: (element: HTMLElement | undefined) => void;
   annotations: PdfAnnotations;
   definitions: PdfDefinitions;
-  interaction: PdfInteraction;
   markup: PdfMarkup;
   model: PdfDocumentModel;
   navigation: PdfNavigation;
@@ -116,9 +115,9 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
     locationParams: () => props.locationParams ?? {},
     rootElement,
     setRootElement,
+    ...interaction,
     annotations,
     definitions,
-    interaction,
     markup,
     model,
     navigation,

@@ -180,7 +180,7 @@ export function Document() {
   const [destroying, setDestroying] = createSignal(false);
   const getRootViewer = pdf.viewer.root.instance;
   const getPopupViewer = pdf.viewer.popup.instance;
-  const disableClick = pdf.interaction.overlayClicksDisabled;
+  const disableClick = pdf.overlayClicksDisabled;
   const blockElement = pdf.rootElement;
 
   let rootViewer: PDFViewer | undefined;
@@ -327,14 +327,14 @@ export function Document() {
 
     setSelectionHighlights(selection);
 
-    pdf.interaction.commands.openSelectionMenu({ pageIndex, element });
+    pdf.openSelectionMenu({ pageIndex, element });
   };
 
   const selectionHandler: JSX.EventHandler<
     HTMLDivElement,
     MouseEvent | TouchEvent
   > = createCallback((e) => {
-    pdf.interaction.commands.endViewerTextSelection();
+    pdf.endViewerTextSelection();
 
     if (!(e.target instanceof HTMLElement)) return;
 
@@ -437,13 +437,13 @@ export function Document() {
     };
 
     const setMouseUp = () => {
-      pdf.interaction.commands.endViewerTextSelection();
+      pdf.endViewerTextSelection();
       setMouseDown(false);
     };
 
     const selectStartHandler = () => {
       if (!mouseDown()) return;
-      pdf.interaction.commands.beginViewerTextSelection();
+      pdf.beginViewerTextSelection();
     };
 
     element.addEventListener('mousedown', mouseDownHandler);
