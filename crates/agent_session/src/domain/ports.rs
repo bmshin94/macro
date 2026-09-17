@@ -214,6 +214,9 @@ pub struct OpenExternalAgentSession {
 /// and nothing to announce.
 #[derive(Debug, Clone)]
 pub struct OpenManagedSession {
+    /// Caller-minted session id, when the opener must reuse a specific
+    /// identity. `None` mints one.
+    pub id: Option<AgentSessionId>,
     /// The user who owns the session and is credited for its messages.
     pub owner: MacroUserIdStr<'static>,
     /// First prompt to deliver once the sandbox is attached. `None` opens an
@@ -225,6 +228,8 @@ pub struct OpenManagedSession {
     /// Ad-hoc instructions for the default managed persona. Ignored when a
     /// persisted persona profile is selected.
     pub instructions: Option<String>,
+    /// Model override. `None` keeps the persona or deployment default.
+    pub model: Option<String>,
 }
 
 /// Opens sessions, however they are served. Implemented by the harness, which

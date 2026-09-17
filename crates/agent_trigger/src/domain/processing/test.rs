@@ -58,6 +58,7 @@ fn run_request() -> AiRoutineMacroEvent {
         owner: owner(),
         name: "Morning digest".to_owned(),
         model: "configured-model".to_owned(),
+        session_id: Uuid::from_u128(8),
         prompt: "You summarise the owner's inbox.".to_owned(),
         user_prompt: "Summarise what arrived overnight.".to_owned(),
         requested_at: Utc::now(),
@@ -91,6 +92,10 @@ async fn a_run_request_opens_exactly_one_routine_session() {
         "Summarise what arrived overnight."
     );
     assert_eq!(event.payload["metadata"]["trigger"], "manual");
+    assert_eq!(
+        event.payload["metadata"]["session_id"],
+        json!(Uuid::from_u128(8))
+    );
 }
 
 #[tokio::test]

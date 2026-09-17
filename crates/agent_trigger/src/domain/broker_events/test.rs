@@ -119,6 +119,7 @@ fn routine_request() -> AiRoutineRunRequested {
             .into_owned(),
         name: "Morning digest".to_owned(),
         model: "configured-model".to_owned(),
+        session_id: Uuid::from_u128(8),
         prompt: "You summarise the owner's inbox.".to_owned(),
         user_prompt: "Summarise what arrived overnight.".to_owned(),
         requested_at: Utc::now(),
@@ -136,6 +137,7 @@ fn serializes_a_new_routine_session() {
     assert_eq!(value["metadata"]["source"], "routine");
     assert_eq!(value["metadata"]["routine_id"], json!(Uuid::from_u128(7)));
     assert_eq!(value["metadata"]["trigger"], "schedule");
+    assert_eq!(value["metadata"]["session_id"], json!(Uuid::from_u128(8)));
 }
 
 #[test]

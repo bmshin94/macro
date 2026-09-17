@@ -20,7 +20,7 @@ pub enum RoutedTrigger {
     /// Post the chip for a prompt an external bot's runtime delivers itself.
     Announce(AgentSessionId, AnnouncePrompt),
     /// Open a managed session with no originating mention, as a routine run
-    /// asks for. The session id is minted by the open itself.
+    /// asks for.
     OpenManaged(OpenManagedSession),
 }
 
@@ -100,10 +100,12 @@ pub fn route_agent_trigger(
             // `runtime` is not consulted: with no bot there is nothing it could
             // have resolved, and the default persona is picked by the open.
             Ok(RoutedTrigger::OpenManaged(OpenManagedSession {
+                id: Some(AgentSessionId::new_from_uuid(routine.session_id)),
                 owner: routine.owner,
                 prompt: Some(routine.user_prompt),
                 profile: None,
                 instructions: Some(routine.prompt).filter(|prompt| !prompt.trim().is_empty()),
+                model: Some(routine.model).filter(|model| !model.trim().is_empty()),
             }))
         }
         AgentTriggerTopicEvent::Existing(ExistingAgentSessionEvent::Channel(

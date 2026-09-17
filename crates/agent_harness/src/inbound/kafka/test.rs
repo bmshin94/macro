@@ -68,6 +68,7 @@ fn routine_run(prompt: &str) -> AgentTriggerTopicEvent {
         owner: user(),
         name: "Morning digest".to_owned(),
         model: "configured-model".to_owned(),
+        session_id: Uuid::from_u128(8),
         prompt: prompt.to_owned(),
         user_prompt: "Summarise what arrived overnight.".to_owned(),
         requested_at: Utc::now(),
@@ -302,6 +303,11 @@ fn a_routine_run_opens_a_managed_session_on_the_default_persona() {
         request.instructions.as_deref(),
         Some("You summarise the owner's inbox.")
     );
+    assert_eq!(
+        request.id,
+        Some(AgentSessionId::new_from_uuid(Uuid::from_u128(8)))
+    );
+    assert_eq!(request.model.as_deref(), Some("configured-model"));
     assert!(
         request.profile.is_none(),
         "routines run on the default persona"

@@ -16,6 +16,7 @@ use ai_routines::{AiRoutineMacroEvent, AiRoutineRunRequested, AiRoutineTrigger};
 use anyhow::{Context as _, Result};
 use chrono::Utc;
 use macro_event_broker::{MacroEvent as _, MacroEventBroker};
+use macro_uuid::generate_uuid_v7;
 use serde_json::json;
 
 use crate::domain::models::{
@@ -55,27 +56,16 @@ fn try_claim(action: &ScheduledAction, id: macro_uuid::Uuid) -> Result<()> {
     Ok(())
 }
 
-fn run_request(
-    action: &ScheduledAction,
-    id: macro_uuid::Uuid,
-    trigger: AiRoutineTrigger,
-) -> Result<AiRoutineRunRequested> {
-    match action.kind {
-        ActionKind::Agent => {
-            let task: AgentTask = serde_json::from_value(action.task.clone())
-                .context("invalid agent task definition")?;
-            Ok(AiRoutineRunRequested {
-                routine_id: id,
-                owner: action.owner.clone(),
-                name: action.name.clone(),
-                model: task.model,
-                prompt: task.prompt,
-                user_prompt: task.user_prompt,
-                requested_at: Utc::now(),
-                trigger,
-            })
-        }
-    }
+fn already_published_this_firing(
+    records: &[ActionExecutionRecord],
+    next_run_at: chrono::DateTime<Utc>,
+) -> Option<&ActionExecutionRecord> {
+    records.iter().find(|record| {
+        record.is_success
+            && record.result.get("status").and_then(|value| value.as_str()) == Some("dispatched")
+            && record.start_time >= next_run_at
+            && record.resource_id.is_some()
+    })
 }
 
 async fn publish<Broker: MacroEventBroker>(
@@ -100,10 +90,44 @@ where
             .as_ref()
             .context("cannot execute a scheduled action without an id")?;
         try_claim(&action, id)?;
-        // Built before the claim so a malformed task never holds the claim
-        // for its stale window.
-        let request = run_request(&action, id, self.trigger)?;
+        let task = match action.kind {
+            ActionKind::Agent => serde_json::from_value::<AgentTask>(action.task.clone())
+                .context("invalid agent task definition")?,
+        };
         self.repo.claim_action(&id).await?;
+
+        let records = match self.repo.get_execution_records(&id).await {
+            Ok(records) => records,
+            Err(error) => {
+                tracing::error!(error = ?error, action_id = %id, "failed to load execution records");
+                Vec::new()
+            }
+        };
+        if already_published_this_firing(&records, action.next_run_at).is_some() {
+            if let Err(error) = self.repo.update_next_run_at(&id).await {
+                tracing::error!(error = ?error, action_id = %id, "failed to update next_run_at");
+            }
+            if let Err(error) = self.repo.release_action(&id).await {
+                tracing::error!(error = ?error, action_id = %id, "failed to release action claim");
+            }
+            return Ok(InProgressExecution {
+                action_id: id,
+                chat_id: None,
+            });
+        }
+
+        let session_id = generate_uuid_v7();
+        let request = AiRoutineRunRequested {
+            routine_id: id,
+            owner: action.owner.clone(),
+            name: action.name.clone(),
+            model: task.model,
+            session_id,
+            prompt: task.prompt,
+            user_prompt: task.user_prompt,
+            requested_at: Utc::now(),
+            trigger: self.trigger,
+        };
 
         let start_time = Utc::now();
         let event = AiRoutineMacroEvent::run_requested(request);
@@ -114,7 +138,7 @@ where
         let record = ActionExecutionRecord {
             id: None,
             action_id: id,
-            resource_id: None,
+            resource_id: published.is_ok().then(|| session_id.to_string()),
             start_time,
             end_time,
             is_success: published.is_ok(),

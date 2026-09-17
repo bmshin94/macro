@@ -87,7 +87,9 @@ impl ScheduledActionRepo for FakeRepository {
     }
 
     async fn get_execution_records(&self, _action_id: &Uuid) -> Result<Vec<ActionExecutionRecord>> {
-        Ok(Vec::new())
+        let mut records = self.calls().records.clone();
+        records.sort_by(|left, right| right.start_time.cmp(&left.start_time));
+        Ok(records)
     }
 
     async fn update_next_run_at(&self, id: &Uuid) -> Result<()> {
@@ -211,6 +213,9 @@ async fn a_due_action_is_published_and_its_schedule_advanced() {
     assert_eq!(metadata["prompt"], "You summarise the owner's inbox.");
     assert_eq!(metadata["user_prompt"], "Summarise what arrived overnight.");
     assert_eq!(metadata["trigger"], "schedule");
+    let session_id = metadata["session_id"]
+        .as_str()
+        .expect("a firing names the session it opens");
 
     let calls = repo.calls();
     assert_eq!(calls.claimed, vec![id]);
@@ -221,7 +226,7 @@ async fn a_due_action_is_published_and_its_schedule_advanced() {
     let record = &calls.records[0];
     assert_eq!(record.action_id, id);
     assert!(record.is_success);
-    assert_eq!(record.resource_id, None);
+    assert_eq!(record.resource_id.as_deref(), Some(session_id));
     assert_eq!(record.result["status"], "dispatched");
     assert_eq!(record.result["event_id"], json!(event.payload["event_id"]));
 }
@@ -273,6 +278,7 @@ async fn a_failed_publish_is_recorded_and_the_claim_released() {
     assert_eq!(calls.records.len(), 1);
     let record = &calls.records[0];
     assert!(!record.is_success);
+    assert_eq!(record.resource_id, None);
     assert_eq!(record.result["status"], "dispatch_failed");
     assert!(
         record.result["error"]
@@ -339,4 +345,29 @@ async fn a_malformed_task_is_rejected_before_the_claim() {
         "nothing should be claimed for a task that cannot run"
     );
     assert!(calls.records.is_empty());
+}
+
+#[tokio::test]
+async fn a_second_attempt_at_the_same_due_slot_does_not_publish_again() {
+    let repo = Arc::new(FakeRepository::default());
+    let broker = Arc::new(RecordingBroker::default());
+    let action = due_action();
+
+    executor(&repo, &broker, AiRoutineTrigger::Schedule)
+        .execute_action(action.clone())
+        .await
+        .expect("the first attempt should dispatch");
+    executor(&repo, &broker, AiRoutineTrigger::Schedule)
+        .execute_action(action)
+        .await
+        .expect("the retry should finish bookkeeping");
+
+    assert_eq!(
+        broker.published().len(),
+        1,
+        "the same due slot must not open a second session"
+    );
+    let calls = repo.calls();
+    assert_eq!(calls.next_run_advanced.len(), 2);
+    assert_eq!(calls.records.len(), 1);
 }

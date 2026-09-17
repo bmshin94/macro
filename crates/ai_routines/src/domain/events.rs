@@ -34,9 +34,10 @@ pub struct AiRoutineRunRequested {
     pub owner: MacroUserIdStr<'static>,
     /// The routine's display name.
     pub name: String,
-    /// The model the routine was configured with. Advisory: the consumer's
-    /// runtime decides what it can honour.
+    /// The model the routine was configured with.
     pub model: String,
+    /// Session this firing opens.
+    pub session_id: Uuid,
     /// Standing instructions for the run: the routine's system prompt.
     pub prompt: String,
     /// The first message of the run: the routine's user prompt.

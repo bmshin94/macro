@@ -1691,10 +1691,12 @@ pub async fn create_agent_session_handler<
         let session = state
             .opener
             .open_managed_session(OpenManagedSession {
+                id: None,
                 owner,
                 prompt: request.prompt,
                 profile,
                 instructions,
+                model: None,
             })
             .await?;
         return Ok((
