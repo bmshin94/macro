@@ -11,10 +11,6 @@ import { createStore } from 'solid-js/store';
 import type { IHighlight } from '../model/Highlight';
 import { TermDataStore } from '../PdfViewer/TermDataStore';
 import { getPdfAnchors, getPdfComments } from '../queries/annotations';
-import type {
-  ThreadHeights,
-  ThreadPositionsOnPage,
-} from '../store/comments/commentLayout';
 import type { ISectionPopupContext } from '../store/definitionPopup';
 import type { HighlightPageMap, HighlightUuidMap } from '../store/highlight';
 import type { ITableOfContentsContext } from '../store/tableOfContents';
@@ -94,8 +90,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
   const activeCommentThread = createSignal<ThreadId | null>(null);
   const noScrollToActiveCommentThread = createSignal(false);
   const comments = createStore<CommentStore>([]);
-  const threadHeight = createStore<Partial<ThreadHeights>>({});
-  const threadsOnPagePosition = createStore<ThreadPositionsOnPage>({});
 
   const rootDefinition = createStore<ISectionPopupContext>(
     createDefinitionPopupState()
@@ -161,8 +155,6 @@ export function createPdfDocumentState(documentId: Accessor<string>) {
       highlights,
       selection,
       comments,
-      threadHeight,
-      threadsOnPagePosition,
       rootDefinition,
       popupDefinition,
       tableOfContents,

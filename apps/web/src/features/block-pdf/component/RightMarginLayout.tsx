@@ -3,6 +3,7 @@ import {
   MIN_RIGHT_COLUMN_WIDTH,
   THREAD_WIDTH,
 } from '@block-pdf/signal/viewerThreeColumnLayout';
+import { usePageCommentLayout } from '@block-pdf/store/comments/commentLayout';
 import {
   useCreateComment,
   useDeleteComment,
@@ -15,7 +16,7 @@ import {
   Thread,
 } from '@core/comments/Thread';
 import { useUserId } from '@core/context/user';
-import { createMemo, createSelector, For } from 'solid-js';
+import { createSelector, For } from 'solid-js';
 import { usePdfDocument } from '../context/pdf-document-context';
 
 const rightMarginStyle = {
@@ -24,22 +25,23 @@ const rightMarginStyle = {
   right: `${-THREAD_WIDTH + GUTTER_MARGIN}px`,
 };
 
-export function RightMarginLayout(props: { pageNumber: number }) {
+export function RightMarginLayout(props: { pageIndex: number }) {
   return (
     <div
       class="rightMargin absolute [transition: width 0.05s linear, right 0.05s linear]"
       style={rightMarginStyle}
     >
-      <CommentsAndSuggestions pageNumber={props.pageNumber} />
+      <CommentsAndSuggestions pageIndex={props.pageIndex} />
     </div>
   );
 }
 
-const useCommentsContext = (): CommentsContextType => {
+const useCommentsContext = (
+  setThreadHeight: CommentsContextType['setThreadHeight']
+): CommentsContextType => {
   const pdf = usePdfDocument();
-  const { signals, stores, derived } = pdf.state;
+  const { signals, derived } = pdf.state;
   const setActiveThread = signals.activeCommentThread[1];
-  const setThreadHeight = stores.threadHeight[1];
 
   const createComment = useCreateComment();
   const updateComment = useUpdateComment();
@@ -75,10 +77,10 @@ const useCommentsContext = (): CommentsContextType => {
   return commentsContext;
 };
 
-function CommentsAndSuggestions(props: { pageNumber: number }) {
-  const { signals, stores } = usePdfDocument().state;
-  const threadsOnPage = createMemo(
-    () => stores.threadsOnPagePosition[0][props.pageNumber] ?? []
+function CommentsAndSuggestions(props: { pageIndex: number }) {
+  const { signals } = usePdfDocument().state;
+  const { threads, setThreadHeight } = usePageCommentLayout(
+    () => props.pageIndex
   );
 
   const [activeCommentThread, setActiveThreadId] = signals.activeCommentThread;
@@ -112,11 +114,11 @@ function CommentsAndSuggestions(props: { pageNumber: number }) {
     document.addEventListener('mouseup', handleMouseUp, true);
   };
 
-  const commentsContext = useCommentsContext();
+  const commentsContext = useCommentsContext(setThreadHeight);
 
   return (
     <CommentsContext.Provider value={commentsContext}>
-      <For each={threadsOnPage()}>
+      <For each={threads()}>
         {(root) => (
           <Thread
             comment={root}

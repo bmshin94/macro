@@ -525,7 +525,7 @@ export function PageOverlay(props: IPageOverlayProps) {
         </div>
       </div>
       <Show when={!isPopup}>
-        <RightMarginLayout pageNumber={props.pageIndex} />
+        <RightMarginLayout pageIndex={props.pageIndex} />
       </Show>
     </div>
   );

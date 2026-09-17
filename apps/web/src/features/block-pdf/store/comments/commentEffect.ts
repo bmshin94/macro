@@ -1,14 +1,12 @@
 import { usePdfDocument } from '@block-pdf/context/pdf-document-context';
 import { usePdfCommentRealtimeBehavior } from '@block-pdf/store/commentsResource';
 import { createEffect, createMemo } from 'solid-js';
-import { useCommentLayoutBehavior } from './commentLayout';
 import {
   useDeleteNewComments,
   useScrollToCommentThread,
 } from './commentOperations';
 import { useCommentStoreBehavior } from './commentStore';
 
-// remove the new temporary comment when it is no longer active
 const useDeleteNewCommentEffect = () => {
   const deleteNewComments = useDeleteNewComments();
   const [activeCommentThread] =
@@ -22,7 +20,6 @@ const useDeleteNewCommentEffect = () => {
   });
 };
 
-// scroll to the active comment thread
 const useScrollToActiveThreadEffect = () => {
   const scrollToCommentThread = useScrollToCommentThread();
   const { signals, stores } = usePdfDocument().state;
@@ -50,7 +47,6 @@ const useScrollToActiveThreadEffect = () => {
 
 export const usePdfCommentEffects = () => {
   useCommentStoreBehavior();
-  useCommentLayoutBehavior();
   usePdfCommentRealtimeBehavior();
   useDeleteNewCommentEffect();
   useScrollToActiveThreadEffect();
