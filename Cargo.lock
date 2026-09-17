@@ -3186,7 +3186,6 @@ dependencies = [
  "calendar_events",
  "chrono",
  "connection_gateway_client",
- "doppler-config",
  "email_db_client",
  "email_utils",
  "futures",

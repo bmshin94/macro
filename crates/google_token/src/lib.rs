@@ -1,3 +1,4 @@
+#![deny(missing_docs)]
 //! Shared Google/Gmail access-token acquisition against the Redis cache and
 //! authentication service, reused by the email and calendar hosts.
 

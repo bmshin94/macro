@@ -13,10 +13,6 @@ path = "src/main.rs"
 name = "calendar_service_openapi"
 path = "src/openapi.rs"
 
-[[bin]]
-name = "calendar_service_doppler_config"
-path = "src/doppler_config.rs"
-
 [features]
 connection_gateway = []
 default = ["connection_gateway"]
@@ -34,7 +30,6 @@ calendar_events = { path = "../../crates/calendar_events", features = [
 ] }
 chrono = { workspace = true }
 connection_gateway_client = { path = "../../crates/connection_gateway_client" }
-doppler-config = { workspace = true }
 email_db_client = { path = "../../crates/email_db_client" }
 email_utils = { path = "../../crates/email_utils" }
 futures = { workspace = true }

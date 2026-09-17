@@ -231,7 +231,7 @@ async fn google_backfill(
         Ok(Some(link)) => link,
         Ok(None) => {
             tracing::error!(%link_id, "link not found for calendar backfill; failing job");
-            fail_unclaimed(
+            return fail_unclaimed(
                 ctx,
                 link_id,
                 calendar_job_id,
@@ -239,7 +239,6 @@ async fn google_backfill(
                 "link not found for calendar backfill",
             )
             .await;
-            return Disposition::Ack;
         }
         Err(error) => {
             return Disposition::Retry(error.context("failed to load link for calendar backfill"));
@@ -264,7 +263,7 @@ async fn google_backfill(
         Ok(token) => token,
         Err(error) => {
             if is_reauth_required_error(&error) {
-                fail_unclaimed(
+                return fail_unclaimed(
                     ctx,
                     link_id,
                     calendar_job_id,
@@ -272,7 +271,6 @@ async fn google_backfill(
                     &format!("{error:?}"),
                 )
                 .await;
-                return Disposition::Ack;
             }
             return Disposition::Retry(
                 error.context("failed to fetch token for Google Calendar backfill"),
@@ -338,15 +336,18 @@ async fn run_coordinator(
 }
 
 /// Terminate an unclaimed job whose token fetch or link lookup failed before a
-/// lease could be claimed. Best effort: a failure here is logged, not retried.
+/// lease could be claimed. Returns [`Disposition::Retry`] when the terminal
+/// state cannot be persisted, so the delivery redelivers rather than acking a
+/// job that was left non-terminal.
 async fn fail_unclaimed(
     ctx: &CalendarBackfillContext,
     link_id: Uuid,
     calendar_job_id: Uuid,
     disposition: CalendarBackfillFailureDisposition,
     message: &str,
-) {
-    ctx.failure
+) -> Disposition {
+    match ctx
+        .failure
         .fail_unclaimed(
             CalendarBackfillJobKey {
                 job_id: calendar_job_id,
@@ -356,10 +357,15 @@ async fn fail_unclaimed(
             message,
         )
         .await
-        .inspect_err(|error| {
+    {
+        Ok(_) => Disposition::Ack,
+        Err(error) => {
             tracing::error!(error = ?error, %calendar_job_id, "failed to record terminal calendar backfill failure");
-        })
-        .ok();
+            Disposition::Retry(anyhow::anyhow!(
+                "failed to persist terminal calendar backfill failure: {error:?}"
+            ))
+        }
+    }
 }
 
 fn is_reauth_required_error(error: &anyhow::Error) -> bool {
