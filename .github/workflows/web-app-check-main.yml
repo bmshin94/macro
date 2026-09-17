@@ -164,7 +164,7 @@ jobs:
       with:
         playwright: 'true'
     - name: Test
-      run: bunx vitest
+      run: node ../../node_modules/vitest/vitest.mjs run
       working-directory: apps/web
     - name: Teardown Nix
       if: always()
