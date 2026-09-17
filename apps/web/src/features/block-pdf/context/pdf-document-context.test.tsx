@@ -9,7 +9,6 @@ import {
   type IVisiblePage,
   type TEvents,
 } from '../PdfViewer/EventBus';
-import type { CommentStore } from '../type/comments';
 import type { IModificationDataOnServer } from '../type/coParse';
 import { PayloadMode } from '../type/placeables';
 import {
@@ -104,7 +103,7 @@ const updateViewArea = (pageNumber: number): TEvents['updateviewarea'] => {
   };
 };
 
-describe('PdfDocumentProvider state', () => {
+describe('PdfDocumentProvider', () => {
   it('reads reactive document proxy props without remounting providers', () => {
     const firstProxy = { name: 'first' } as unknown as PDFDocumentProxy;
     const nextProxy = { name: 'next' } as unknown as PDFDocumentProxy;
@@ -331,32 +330,24 @@ describe('PdfDocumentProvider state', () => {
     });
   });
 
-  it('projects annotation indexes and isolates annotation state', () => {
+  it('projects highlight indexes and isolates annotation state', () => {
     const contexts = setup('document-1', 'document-2');
     const first = contexts.get('document-1')!;
     const second = contexts.get('document-2')!;
     const highlight = {
       uuid: 'highlight-1',
       pageNum: 2,
+      hasTempThread: true,
     } as IHighlight;
-    const comment = {
-      id: 17,
-      owner: 'user-1',
-    } as CommentStore[number];
 
-    first.state.stores.highlights[1](2, { 'highlight-1': highlight });
-    first.state.stores.comments[1]([comment]);
+    first.annotations.commands.beginNewHighlightCommentDrafts([highlight]);
 
     expect({
-      highlight: first.state.derived.highlightsUuidMap()['highlight-1'],
-      comment: first.state.derived.commentMap().get(17),
-      secondHighlights: second.state.derived.highlightsUuidMap(),
-      secondComments: [...second.state.derived.commentMap()],
+      highlight: first.annotations.highlightsByUuid()['highlight-1'],
+      secondHighlights: second.annotations.highlightsByUuid(),
     }).toEqual({
       highlight,
-      comment,
       secondHighlights: {},
-      secondComments: [],
     });
   });
 });

@@ -16,11 +16,9 @@ export function useDoEdit() {
 
 export function useHasModificationData() {
   const pdf = usePdfDocument();
-  const { highlights } = pdf.state.stores;
-  const [highlightStoreValue] = highlights;
 
   return () =>
-    Object.keys(highlightStoreValue).length > 0 ||
+    pdf.annotations.hasHighlights() ||
     pdf.model.modificationData.placeables.length > 0;
 }
 

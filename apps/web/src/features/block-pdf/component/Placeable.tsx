@@ -37,7 +37,6 @@ export const Placeable: Component<{
 }> = (props) => {
   const pdf = usePdfDocument();
   const isPopup = useIsPopup();
-  const { signals } = pdf.state;
   const viewer = isPopup ? pdf.viewer.popup : pdf.viewer.root;
   const getViewer = viewer.instance;
 
@@ -57,8 +56,6 @@ export const Placeable: Component<{
   }, new Set());
 
   const updatePlaceablePosition = useUpdatePlaceablePosition();
-  const setActiveCommentThreadId = signals.activeCommentThread[1];
-
   const popupDragActive = pdf.markup.dragActive;
 
   const [mousePosition, setMousePosition] = createSignal({ x: 0, y: 0 });
@@ -152,7 +149,6 @@ export const Placeable: Component<{
     });
   });
 
-  // this lets us change the bounding rects on scroll/zoom
   createEffect(() => {
     if (!visiblePages()) return;
     setPdfPageRects({});
@@ -196,7 +192,6 @@ export const Placeable: Component<{
 
     let pdfPageX = e.clientX;
     let pdfPageY = e.clientY;
-    // prevent the placeable from being dragged outside the viewer bounds
     if (!placeableIntersectsViewer()) {
       const viewerRect = viewerEl.getBoundingClientRect();
 
@@ -235,7 +230,6 @@ export const Placeable: Component<{
   };
 
   const onMouseMove = (e: MouseEvent) => {
-    // bypass the create effect and call the drag handler directly
     if (textAreaRef() === undefined) {
       onMouseMoveDrag(e);
       return;
@@ -278,14 +272,11 @@ export const Placeable: Component<{
 
       if (!isDragged && otherPlaceableDragged) return;
 
-      // outside click
       if (!isDragged) {
         pdf.markup.commands.clearActive();
         return;
       }
 
-      // prevents the comment click outside handler from triggering after
-      // the effect handler resets the blocking on drag position reset
       e.stopImmediatePropagation();
 
       resetPlaceablePosition();
@@ -386,7 +377,7 @@ export const Placeable: Component<{
         if (!props.canEdit) return;
 
         if (!isThreadPlaceable(props.placeable)) {
-          setActiveCommentThreadId(null);
+          pdf.interaction.commands.clearActiveCommentThread();
         }
         setMouseDown(e);
       }}
@@ -400,7 +391,6 @@ export const Placeable: Component<{
             xPct = (xCoord() + dragOffset().x) / scaledPageWidth();
             yPct = (yCoord() + dragOffset().y) / scaledPageHeight();
           } else {
-            // we need to update to the new page coordinate system
             const pageRect = pdfPageRects()[intersectingPage()];
             const { x, y } = mousePosition();
             xPct = (x - pageRect.left - width() / 2) / pageRect.width;

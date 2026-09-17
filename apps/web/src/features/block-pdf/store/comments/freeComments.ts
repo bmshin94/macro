@@ -67,15 +67,13 @@ const getFreeCommentThread = (
 };
 
 const useServerCommentPlaceables = () => {
-  const { resources } = usePdfDocument().state;
-  const [anchors] = resources.anchors;
-  const [commentThreads] = resources.commentThreads;
+  const annotations = usePdfDocument().annotations;
 
   return createMemo<IThreadPlaceable[]>(() => {
-    const anchorsData = anchors();
+    const anchorsData = annotations.anchors();
     if (!anchorsData || anchorsData.length === 0) return [];
 
-    const commentThreadsData = commentThreads();
+    const commentThreadsData = annotations.commentThreads();
     if (!commentThreadsData || commentThreadsData.length === 0) return [];
 
     const freeCommentAnchors = anchorsData.filter(

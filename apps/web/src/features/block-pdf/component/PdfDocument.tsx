@@ -14,6 +14,7 @@ import {
   Show,
 } from 'solid-js';
 import { fromZodError } from 'zod-validation-error';
+import { PdfCommentsProvider } from '../context/pdf-comments-context';
 import {
   type PdfDocumentPermissions,
   PdfDocumentProvider,
@@ -26,7 +27,7 @@ import {
 } from '../signal/location';
 import { usePdfSave } from '../signal/save';
 import { useUpdateColorsEffect } from '../signal/setting';
-import { useSyncHighlightStore } from '../store/highlight';
+import { usePdfCommentProjection } from '../store/comments/commentStore';
 import { useSyncActivePlaceableWithCommentThread } from '../store/placeables';
 import { IModificationDataOnServerSchema } from '../type/coParse';
 import { preprocess } from '../websocket/preprocess';
@@ -80,7 +81,7 @@ export function PdfDocument(props: PdfDocumentProps) {
           permissions={props.permissions}
           locationParams={props.locationParams}
         >
-          <PdfDocumentState {...props} />
+          <PdfDocumentBehavior {...props} />
         </PdfDocumentProvider>
       )}
     </Show>
@@ -95,10 +96,10 @@ export function PdfDocumentContent() {
   );
 }
 
-function PdfDocumentState(props: PdfDocumentProps) {
+function PdfDocumentBehavior(props: PdfDocumentProps) {
   const pdf = usePdfDocument();
+  const comments = usePdfCommentProjection();
   usePendingLocationNavigationEffect();
-  useSyncHighlightStore();
   useSyncActivePlaceableWithCommentThread();
   const savePdf = usePdfSave();
 
@@ -174,13 +175,15 @@ function PdfDocumentState(props: PdfDocumentProps) {
   });
 
   return (
-    <div
-      ref={pdf.setRootElement}
-      class="size-full select-none overscroll-none overflow-hidden flex flex-col"
-      onContextMenu={(event) => event.preventDefault()}
-      data-tut="App"
-    >
-      {props.children}
-    </div>
+    <PdfCommentsProvider comments={comments}>
+      <div
+        ref={pdf.setRootElement}
+        class="size-full select-none overscroll-none overflow-hidden flex flex-col"
+        onContextMenu={(event) => event.preventDefault()}
+        data-tut="App"
+      >
+        {props.children}
+      </div>
+    </PdfCommentsProvider>
   );
 }

@@ -5,11 +5,7 @@ import {
   useDeleteComment,
   useDeleteNewComments,
 } from '@block-pdf/store/comments/commentOperations';
-import type {
-  Annotation,
-  // AnnotationFlag,
-  ShapeType,
-} from '@block-pdf/type/pdfJs';
+import type { Annotation, ShapeType } from '@block-pdf/type/pdfJs';
 import {
   type IPlaceable,
   type IPlaceablePayload,
@@ -20,7 +16,6 @@ import {
   PayloadMode,
   type PayloadType,
 } from '@block-pdf/type/placeables';
-// import { reformatPdfjsDate } from '@block-pdf/util/DateUtils';
 import { normalizeRect } from '@block-pdf/util/pdfjsUtils';
 import { PDF_TO_CSS_UNITS } from '@block-pdf/util/pixelsPerInch';
 import { useUserId } from '@core/context/user';
@@ -79,43 +74,6 @@ function useGetPopupContextViewer() {
 
   return (isPopup ? viewer.popup : viewer.root).instance;
 }
-
-// function convertTextAnnotationToThread(
-//   annotation: Annotation,
-//   pageIndex: number
-// ): IThread {
-//   let editDate: Date = reformatPdfjsDate(
-//     annotation.modificationDate,
-//     annotation.creationDate
-//   );
-//   const comment: IComment = {
-//     content: annotation.contentsObj!.str,
-//     sender: annotation.titleObj?.str ?? '',
-//     editDate: editDate,
-//     id: annotation.id,
-//   };
-//   const newThread: IThread = {
-//     headID: annotation.id,
-//     page: pageIndex,
-//     comments: [comment],
-//     isResolved: annotation.annotationFlags === AnnotationFlag.HIDDEN,
-//   };
-//   return newThread;
-// }
-
-// function convertTextAnnotationToComment(annotation: Annotation) {
-//   let editDate: Date = reformatPdfjsDate(
-//     annotation.modificationDate,
-//     annotation.creationDate
-//   );
-//   const comment: IComment = {
-//     content: annotation.contentsObj!.str,
-//     sender: annotation.titleObj?.str ?? '',
-//     editDate: editDate,
-//     id: annotation.id,
-//   };
-//   return comment;
-// }
 
 function convertRawRGBToColor(
   r: string | number,
@@ -180,7 +138,6 @@ function parseDefaultAppearance(appearance: string): AppearancePayload {
   };
 }
 
-// Helper function to convert internal id (uuid) to array index.
 function internalIdToIndex(placeables: IPlaceable[], id: string) {
   return placeables.findIndex((p) => p.internalId === id);
 }
@@ -271,7 +228,6 @@ function convertShapeAnnotationToPlaceable({
   const borderColor =
     c && borderWidth ? convertRawRGBToColor(c[0], c[1], c[2]) : DEFAULT_COLOR;
   const ic = annotation.rawInteriorColor;
-  // If interior color wasn't set, make sure alpha gets set to 0
   const fillColor = ic
     ? convertRawRGBToColor(ic[0], ic[1], ic[2])
     : DEFAULT_COLOR;
@@ -314,7 +270,6 @@ export function annotationsToPlaceables({
   pageViewport: PageViewport;
 }): IPlaceable[] {
   let placeables: IPlaceable[] = [];
-  // let threads = new Array<IThread>();
 
   // We will increment this when we come across annotation placeables
   // The list that increments it needs to match the pdfserver as they
@@ -335,23 +290,6 @@ export function annotationsToPlaceables({
       validAnnotationPlaceableIndex += 1;
     }
 
-    // TODO: fully deprecate
-    // Handle plain text annotations for comments & threads
-    // if (annotation.subtype === 'Text' && !!annotation.contentsObj?.str) {
-    //   if (annotation.inReplyTo == null) {
-    //     threads.push(convertTextAnnotationToThread(annotation, pageIndex));
-    //   }
-    //   if (annotation.inReplyTo != null) {
-    //     // eslint-disable-next-line no-loop-func
-    //     const replyTo = threads.find((t) => t.headID === annotation.inReplyTo);
-    //     if (replyTo) {
-    //       const comment = convertTextAnnotationToComment(annotation);
-    //       replyTo.comments.push(comment);
-    //     }
-    //   }
-    // }
-
-    // Handle free text annotations that convert to activateable placeables
     if (annotation.subtype === 'FreeText') {
       placeables.push(
         convertFreeTextToPlaceable({
@@ -363,7 +301,6 @@ export function annotationsToPlaceables({
       );
     }
 
-    // Handle shape annotations that convert to activateable placeables
     if (['Circle', 'Square', 'Polygon'].includes(annotation.subtype)) {
       placeables.push(
         convertShapeAnnotationToPlaceable({
@@ -376,34 +313,6 @@ export function annotationsToPlaceables({
     }
   }
 
-  // Zip threads and replies back together
-  // const finalThreads = threads.map((thread) => {
-  //   const payload: IThread = thread;
-  //   let headAnnot = annotations.find((a) => a.id === thread.headID);
-  //   const position = getPlaceablePosition(headAnnot?.rect, pageViewport);
-  //   const threadPlaceable: IPlaceable = {
-  //     allowableEdits: {
-  //       allowResize: false,
-  //       allowTranslate: true,
-  //       allowRotate: false,
-  //       allowDelete: true,
-  //       lockAspectRatio: true,
-  //     },
-  //     pageRange: new Set<number>([pageIndex]),
-  //     position,
-  //     shouldLockOnSave: false,
-  //     originalPage: pageIndex,
-  //     originalIndex: -1,
-  //     payload,
-  //     payloadType: 'thread',
-  //     wasEdited: false,
-  //     wasDeleted: false,
-  //   };
-  //   return threadPlaceable;
-  // });
-
-  // Return all placeables together
-  // return [finalThreads, placeables].flat(1);
   return placeables;
 }
 
@@ -478,15 +387,7 @@ function useMakeThread() {
 function useMakeSignature() {
   const getViewer = useGetPopupContextViewer();
   const currentScale = useCurrentScale();
-  // previously created signatures
-  // const selectedSavedSignature = useSignatureValue();
   const defaultSignature: ISignature | undefined = undefined;
-  // const defaultSignature = useMemo(
-  //   () => selectedSavedSignature.options.at(0),
-  //   [selectedSavedSignature.options]
-  // );
-
-  // const prompt = usePrompt();
 
   return (e: MouseEvent, pageRef: HTMLElement, index: number): IPlaceable => {
     const curViewer = getViewer();
@@ -494,13 +395,6 @@ function useMakeSignature() {
 
     let payload: ISignature | undefined = defaultSignature;
     if (!payload) {
-      // // prompt the user for their initial signature
-      // const res = await prompt<typeof EditSignatureDialog>((args) => (
-      //   <EditSignatureDialog {...args} />
-      // ));
-      // // short circuit if user declined, we wont create a signature
-      // if (res.isErr()) return null;
-      // payload = res.value;
       payload = {
         base64: null,
         dateTime: Date.now(),
@@ -659,10 +553,10 @@ export function useSyncActivePlaceableWithCommentThread() {
   const placeableIdMap = usePlaceableIdMap();
   const pdf = usePdfDocument();
   const activeId = pdf.markup.activeId;
-  const [activeCommentThread] = pdf.state.signals.activeCommentThread;
+  const activeCommentThreadId = pdf.interaction.activeCommentThreadId;
 
   createEffect(() => {
-    const activeThreadId = activeCommentThread();
+    const activeThreadId = activeCommentThreadId();
     const activeIdValue = activeId();
     const activePlaceable = activeIdValue
       ? placeableIdMap()[activeIdValue]
@@ -694,7 +588,6 @@ export function useCreatePlaceable() {
   const makeTextAnnotation = useMakeTextAnnotation();
   const makeSignature = useMakeSignature();
   const pdf = usePdfDocument();
-  const [, setActiveCommentThread] = pdf.state.signals.activeCommentThread;
 
   return async (e: MouseEvent) => {
     let placeable: IPlaceable | null;
@@ -723,7 +616,7 @@ export function useCreatePlaceable() {
       if (!isThreadPlaceable(placeable)) {
         pdf.model.commands.appendPlaceable(placeable);
       } else {
-        setActiveCommentThread(-1);
+        pdf.interaction.commands.activateCommentThread(-1);
       }
       pdf.markup.commands.activate(placeable.internalId);
       pdf.markup.commands.setDraft(placeable);

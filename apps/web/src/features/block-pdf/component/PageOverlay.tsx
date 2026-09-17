@@ -57,8 +57,8 @@ export interface IHighlightObj {
   height: number;
   color: IColor;
   threadId: number | null;
-  highlightId: string; // uuid of the highlight that contains this rect
-  rectId: string; // unique identifier of this rect
+  highlightId: string;
+  rectId: string;
   text?: string;
   isActive: boolean;
 }
@@ -67,7 +67,6 @@ export function PageOverlay(props: IPageOverlayProps) {
   const analytics = useAnalytics();
 
   const pdf = usePdfDocument();
-  const { signals, stores } = pdf.state;
   let pageOverlayRef!: HTMLDivElement;
   const pageViewDivProp = () => props.pageViewDiv;
 
@@ -86,7 +85,6 @@ export function PageOverlay(props: IPageOverlayProps) {
   const createPlaceable = useCreatePlaceable();
   const commentPlaceables = useCommentPlaceables();
   const overlayClicksDisabled = pdf.interaction.overlayClicksDisabled;
-  const setActiveThreadId = signals.activeCommentThread[1];
   const pageClicksDisabled = pdf.interaction.pageClicksDisabled;
 
   const onClick = (e: MouseEvent) => {
@@ -185,7 +183,6 @@ export function PageOverlay(props: IPageOverlayProps) {
   });
 
   const onKeyDown = (e: KeyboardEvent) => {
-    // Ignore custom handling if editing inside a text placeable
     if (
       document.activeElement &&
       (document.activeElement.tagName === 'TEXTAREA' ||
@@ -194,7 +191,6 @@ export function PageOverlay(props: IPageOverlayProps) {
       return;
     }
     const browser = detect();
-    // Handle copy/cut here since clipboard event listeners are blocked with some placeable types
     if (
       e.key === 'c' &&
       ((browser?.os !== 'Mac OS' && e.ctrlKey) ||
@@ -251,7 +247,7 @@ export function PageOverlay(props: IPageOverlayProps) {
 
   onMount(() => {
     const resetMode = (_e: MouseEvent) => {
-      setActiveThreadId(null);
+      pdf.interaction.commands.clearActiveCommentThread();
       pdf.markup.commands.cancelPlacement();
     };
     const el = pdf.rootElement();
@@ -273,11 +269,10 @@ export function PageOverlay(props: IPageOverlayProps) {
     return textModes.includes(mode) ? 'pointer' : 'text';
   };
 
-  const [selectionStoreValue, setSelectionStore] = stores.selection;
+  const annotationSelection = pdf.interaction.annotationSelection;
 
   const addNewHighlights = useAddNewHighlights();
   const doEdit = useDoEdit();
-  const setActiveHighlightId = signals.activeHighlight[1];
   const currentPageViewport = () => {
     const pageNumber = (
       isPopup ? pdf.viewer.popup : pdf.viewer.root
@@ -292,10 +287,11 @@ export function PageOverlay(props: IPageOverlayProps) {
   };
 
   const addHighlight = () => {
-    if (!selectionStoreValue.selection) return;
+    const nativeSelection = annotationSelection().nativeSelection;
+    if (!nativeSelection) return;
 
     const highlights = getHighlightsFromSelection(
-      selectionStoreValue.selection,
+      nativeSelection,
       null,
       undefined,
       null,
@@ -313,26 +309,29 @@ export function PageOverlay(props: IPageOverlayProps) {
     batch(() => {
       setTimeout(doEdit);
       addNewHighlights(highlightsUnderSelection);
-      setSelectionStore('highlightsUnderSelection', highlightsUnderSelection);
+      pdf.interaction.commands.replaceSelectedHighlights(
+        highlightsUnderSelection
+      );
 
       const selection = highlightsUnderSelection.at(0);
       if (!selection) return;
 
-      setActiveHighlightId(selection.uuid);
+      pdf.interaction.commands.activateHighlight(selection.uuid);
     });
   };
 
   const removeHighlight = useRemoveHighlight();
 
   const removeCurrentHighlight = () => {
-    if (selectionStoreValue.highlightsUnderSelection.length < 1) return;
+    const selectedHighlights = annotationSelection().selectedHighlights;
+    if (selectedHighlights.length < 1) return;
 
     batch(() => {
       setTimeout(doEdit);
-      selectionStoreValue.highlightsUnderSelection.forEach((h) =>
-        removeHighlight(h.uuid)
+      selectedHighlights.forEach((highlight) =>
+        removeHighlight(highlight.uuid)
       );
-      setSelectionStore('highlightsUnderSelection', []);
+      pdf.interaction.commands.replaceSelectedHighlights([]);
     });
   };
 
@@ -341,7 +340,7 @@ export function PageOverlay(props: IPageOverlayProps) {
     useCreateHighlightCommentAtSelection();
 
   const commentProps = createMemo(() => {
-    const currentHighlight = selectionStoreValue.highlightsUnderSelection.at(0);
+    const currentHighlight = annotationSelection().selectedHighlights.at(0);
     const uuid = currentHighlight?.uuid;
     // Although the user can technically take ownership of a highlight
     // when making a comment, deleting the highlight-comment will remove the highlight
@@ -361,7 +360,7 @@ export function PageOverlay(props: IPageOverlayProps) {
   });
 
   const highlightProps = createMemo(() => {
-    const currentHighlight = selectionStoreValue.highlightsUnderSelection.at(0);
+    const currentHighlight = annotationSelection().selectedHighlights.at(0);
     const uuid = currentHighlight?.uuid;
     const canEdit =
       isDocumentOwner() || (!!uuid && ownedHighlightSelector(uuid));
@@ -527,17 +526,21 @@ function UserHighlightNodes(props: {
   pageIndex: number;
   viewport: PageViewport;
 }) {
-  const { signals, stores } = usePdfDocument().state;
+  const pdf = usePdfDocument();
   const thisPageHighlights = createMemo(() =>
-    Object.values(stores.highlights[0][props.pageIndex] ?? {}).filter(
-      (h) => !!h
-    )
+    Object.values(
+      pdf.annotations.highlightsByPage[props.pageIndex] ?? {}
+    ).filter((h) => !!h)
   );
 
   const viewportHeight = createMemo(() => props.viewport.height);
   const viewportWidth = createMemo(() => props.viewport.width);
-  const isActiveHighlightSelector = createSelector(signals.activeHighlight[0]);
-  const isActiveThreadSelector = createSelector(signals.activeCommentThread[0]);
+  const isActiveHighlightSelector = createSelector(
+    pdf.interaction.activeHighlightId
+  );
+  const isActiveThreadSelector = createSelector(
+    pdf.interaction.activeCommentThreadId
+  );
 
   return (
     <For each={thisPageHighlights()}>

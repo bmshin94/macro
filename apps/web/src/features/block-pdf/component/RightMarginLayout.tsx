@@ -17,6 +17,7 @@ import {
 } from '@core/comments/Thread';
 import { useUserId } from '@core/context/user';
 import { createSelector, For } from 'solid-js';
+import { usePdfComments } from '../context/pdf-comments-context';
 import { usePdfDocument } from '../context/pdf-document-context';
 
 const rightMarginStyle = {
@@ -40,8 +41,14 @@ const useCommentsContext = (
   setThreadHeight: CommentsContextType['setThreadHeight']
 ): CommentsContextType => {
   const pdf = usePdfDocument();
-  const { signals, derived } = pdf.state;
-  const setActiveThread = signals.activeCommentThread[1];
+  const commentsById = usePdfComments().byId;
+  const setActiveThread = (threadId: number | null) => {
+    if (threadId == null) {
+      pdf.interaction.commands.clearActiveCommentThread();
+    } else {
+      pdf.interaction.commands.activateCommentThread(threadId);
+    }
+  };
 
   const createComment = useCreateComment();
   const updateComment = useUpdateComment();
@@ -51,11 +58,10 @@ const useCommentsContext = (
   const ownedComment = (id: number) => {
     const currentUserId = userId();
     return (
-      currentUserId != null &&
-      derived.commentMap()?.get(id)?.owner === currentUserId
+      currentUserId != null && commentsById().get(id)?.owner === currentUserId
     );
   };
-  const getCommentById = (id: number) => derived.commentMap()?.get(id);
+  const getCommentById = (id: number) => commentsById().get(id);
 
   const commentsContext: CommentsContextType = {
     setActiveThread,
@@ -79,13 +85,13 @@ const useCommentsContext = (
 
 function CommentsAndSuggestions(props: { pageIndex: number }) {
   const pdf = usePdfDocument();
-  const { signals } = pdf.state;
   const { threads, setThreadHeight } = usePageCommentLayout(
     () => props.pageIndex
   );
 
-  const [activeCommentThread, setActiveThreadId] = signals.activeCommentThread;
-  const isActiveThreadSelector = createSelector(activeCommentThread);
+  const isActiveThreadSelector = createSelector(
+    pdf.interaction.activeCommentThreadId
+  );
 
   const isSelectingThreadSelector = createSelector(
     pdf.interaction.selectedCommentThread
@@ -109,7 +115,7 @@ function CommentsAndSuggestions(props: { pageIndex: number }) {
 
     const handleMouseUp = (e: MouseEvent) => {
       e.stopPropagation();
-      setActiveThreadId(threadId);
+      pdf.interaction.commands.activateCommentThread(threadId);
       document.removeEventListener('mouseup', handleMouseUp, true);
     };
     document.addEventListener('mouseup', handleMouseUp, true);

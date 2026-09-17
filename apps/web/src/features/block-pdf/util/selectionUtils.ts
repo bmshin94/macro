@@ -64,17 +64,9 @@ function nodeToString(node: Node): string {
 
 export function useResetSelection() {
   const pdf = usePdfDocument();
-  const { signals, stores } = pdf.state;
-  const setActiveHighlight = signals.activeHighlight[1];
-  const setSelection = stores.selection[1];
 
   return (selection?: Selection) => {
     selection?.removeAllRanges();
-    pdf.interaction.commands.closeSelectionMenu();
-    setSelection({
-      highlightsUnderSelection: [],
-      selection: null,
-    });
-    setActiveHighlight(null);
+    pdf.interaction.commands.resetSelection();
   };
 }

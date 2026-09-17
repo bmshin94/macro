@@ -14,21 +14,14 @@ import { usePopupContextUpdate } from '../signal/definitionPopup';
 import { useIsPopup } from '../signal/pdfViewer';
 import type { IHighlightObj } from './PageOverlay';
 
-// TODO: only check for highlight IDs within the block DOM subtree
 export const highlightIdSelector = (highlightId: string) =>
   `[data-highlight-id="${highlightId}"]`;
 
 export const useResetUserHighlights = () => {
-  const { activeCommentThread, activeHighlight, hoverHighlight } =
-    usePdfDocument().state.signals;
-  const setActiveThread = activeCommentThread[1];
-  const setHoverHighlight = hoverHighlight[1];
-  const setActiveHighlight = activeHighlight[1];
+  const interaction = usePdfDocument().interaction;
 
   return createCallback(() => {
-    setActiveThread(null);
-    setActiveHighlight(null);
-    setHoverHighlight(null);
+    interaction.commands.clearUserHighlightFocus();
   });
 };
 
@@ -38,20 +31,22 @@ const isHighlightComment = (highlight: IHighlight) =>
 // TODO: handle highlight selection in a different document
 export const useHighlightSelection = () => {
   const pdf = usePdfDocument();
-  const { signals, stores, derived } = pdf.state;
-  const setSelectionStore = stores.selection[1];
-  const setActiveThread = signals.activeCommentThread[1];
-  const setActiveHighlight = signals.activeHighlight[1];
+  const interaction = pdf.interaction;
 
   return (highlightId: string, element?: HTMLElement) => {
-    const highlight = derived.highlightsUuidMap()?.[highlightId];
+    const highlight = pdf.annotations.highlightsByUuid()[highlightId];
     if (!highlight) return;
 
     if (isHighlightComment(highlight)) {
-      setActiveThread(highlight.thread?.threadId ?? null);
+      const threadId = highlight.thread?.threadId;
+      if (threadId == null) {
+        interaction.commands.clearActiveCommentThread();
+      } else {
+        interaction.commands.activateCommentThread(threadId);
+      }
     } else {
-      setActiveHighlight(highlightId);
-      setActiveThread(null);
+      interaction.commands.activateHighlight(highlightId);
+      interaction.commands.clearActiveCommentThread();
     }
 
     const highlightElement =
@@ -70,8 +65,8 @@ export const useHighlightSelection = () => {
       rect.right <= (window.innerWidth || document.documentElement.clientWidth);
 
     if (!isHighlightComment(highlight)) {
-      setSelectionStore('highlightsUnderSelection', [highlight]);
-      pdf.interaction.commands.openSelectionMenu({
+      interaction.commands.replaceSelectedHighlights([highlight]);
+      interaction.commands.openSelectionMenu({
         pageIndex: highlight.pageNum,
         element: highlightElement,
       });
@@ -95,20 +90,15 @@ export const useHighlightSelection = () => {
   };
 };
 
-/** User Highlight object which stores both regular highlights and comments.
- * Note that comments have a thread id associated with them. */
 export function UserHighlight(props: VoidProps<IHighlightObj>) {
   let highlightRef!: HTMLDivElement;
   let textRef!: HTMLDivElement;
 
   const pdf = usePdfDocument();
-  const { signals } = pdf.state;
+  const interaction = pdf.interaction;
   const isPopup = useIsPopup();
   const popupDispatchCtx = usePopupContextUpdate(isPopup);
   const highlightSelection = useHighlightSelection();
-  const setActiveThread = signals.activeCommentThread[1];
-  const [hoverHighlight, setHoverHighlight] = signals.hoverHighlight;
-  const setActiveHighlight = signals.activeHighlight[1];
 
   onMount(() => {
     const handleSelectStart = (e: MouseEvent) => {
@@ -146,7 +136,8 @@ export function UserHighlight(props: VoidProps<IHighlightObj>) {
   };
 
   const isHover = createMemo(
-    () => hoverHighlight() === (props.threadId || props.highlightId)
+    () =>
+      interaction.hoveredHighlightId() === (props.threadId || props.highlightId)
   );
 
   const alphaColor = createMemo((): IColor => {
@@ -164,10 +155,8 @@ export function UserHighlight(props: VoidProps<IHighlightObj>) {
     };
   });
 
-  const setNoScroll = signals.noScrollToActiveCommentThread[1];
   const clickHandler: JSX.EventHandler<HTMLDivElement, MouseEvent> =
     createCallback((e) => {
-      // prevents the page overlay from receiving the click event and resetting
       e.stopPropagation();
       e.stopImmediatePropagation();
 
@@ -177,17 +166,24 @@ export function UserHighlight(props: VoidProps<IHighlightObj>) {
       pdf.interaction.commands.closeSelectionMenu();
 
       if (props.threadId) {
-        setNoScroll(true);
-        setActiveThread(props.isActive ? null : props.threadId);
-        setTimeout(() => setNoScroll(false), 10);
+        interaction.commands.suppressActiveThreadScrolling();
+        if (props.isActive) {
+          interaction.commands.clearActiveCommentThread();
+        } else {
+          interaction.commands.activateCommentThread(props.threadId);
+        }
+        setTimeout(
+          () => interaction.commands.restoreActiveThreadScrolling(),
+          10
+        );
       } else {
-        setActiveThread(null);
+        interaction.commands.clearActiveCommentThread();
         highlightSelection(
           props.highlightId,
           e.target instanceof HTMLElement ? e.target : undefined
         );
       }
-      setActiveHighlight(props.highlightId);
+      interaction.commands.activateHighlight(props.highlightId);
     });
 
   return (
@@ -214,8 +210,10 @@ export function UserHighlight(props: VoidProps<IHighlightObj>) {
             props.isActive && props.threadId ? '2px solid #FACC15' : undefined,
         }}
         on:click={clickHandler}
-        onMouseOver={() => setHoverHighlight(props.highlightId)}
-        onMouseOut={() => setHoverHighlight(null)}
+        onMouseOver={() =>
+          interaction.commands.hoverHighlight(props.highlightId)
+        }
+        onMouseOut={() => interaction.commands.clearHoveredHighlight()}
       >
         <div
           ref={textRef}

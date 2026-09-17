@@ -1,19 +1,19 @@
 import { usePdfDocument } from '@block-pdf/context/pdf-document-context';
 import { usePdfCommentRealtimeBehavior } from '@block-pdf/store/commentsResource';
-import { createEffect, createMemo } from 'solid-js';
+import { createEffect } from 'solid-js';
+import { usePdfComments } from '../../context/pdf-comments-context';
 import {
   useDeleteNewComments,
   useScrollToCommentThread,
 } from './commentOperations';
-import { useCommentStoreBehavior } from './commentStore';
 
 const useDeleteNewCommentEffect = () => {
   const deleteNewComments = useDeleteNewComments();
-  const [activeCommentThread] =
-    usePdfDocument().state.signals.activeCommentThread;
+  const activeCommentThreadId =
+    usePdfDocument().interaction.activeCommentThreadId;
 
   createEffect(() => {
-    const activeThreadId = activeCommentThread();
+    const activeThreadId = activeCommentThreadId();
     if (!activeThreadId || activeThreadId !== -1) {
       deleteNewComments();
     }
@@ -22,31 +22,27 @@ const useDeleteNewCommentEffect = () => {
 
 const useScrollToActiveThreadEffect = () => {
   const scrollToCommentThread = useScrollToCommentThread();
-  const { signals, stores } = usePdfDocument().state;
-  const [comments] = stores.comments;
-  const [activeCommentThread] = signals.activeCommentThread;
-  const [noScrollToActiveCommentThread] = signals.noScrollToActiveCommentThread;
-  const noScroll = createMemo(() => {
-    return noScrollToActiveCommentThread();
-  });
-  const hasMatch = createMemo(() => {
-    return comments.find((c) => c.threadId === activeCommentThread()) != null;
-  });
+  const pdf = usePdfDocument();
+  const comments = usePdfComments().all;
+  const activeCommentThreadId = pdf.interaction.activeCommentThreadId;
+  const activeThreadScrollingSuppressed =
+    pdf.interaction.activeThreadScrollingSuppressed;
 
   createEffect(() => {
-    if (noScroll()) return;
+    if (activeThreadScrollingSuppressed()) return;
 
-    const activeThreadId = activeCommentThread();
+    const activeThreadId = activeCommentThreadId();
     if (activeThreadId == null) return;
 
-    if (!hasMatch()) return;
+    if (!comments().some((comment) => comment.threadId === activeThreadId)) {
+      return;
+    }
 
     scrollToCommentThread(activeThreadId);
   });
 };
 
 export const usePdfCommentEffects = () => {
-  useCommentStoreBehavior();
   usePdfCommentRealtimeBehavior();
   useDeleteNewCommentEffect();
   useScrollToActiveThreadEffect();

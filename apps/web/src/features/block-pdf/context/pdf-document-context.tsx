@@ -8,6 +8,10 @@ import {
   useContext,
 } from 'solid-js';
 import {
+  createPdfAnnotations,
+  type PdfAnnotations,
+} from '../primitives/pdf-annotations';
+import {
   createPdfDefinitions,
   type PdfDefinitions,
 } from '../primitives/pdf-definitions';
@@ -35,10 +39,6 @@ import {
   type PdfViewerRuntime,
 } from '../primitives/pdf-viewer-runtime';
 import type { LocationSearchParams } from '../signal/location';
-import {
-  createPdfDocumentState,
-  type PdfDocumentState,
-} from './pdf-document-state';
 
 export type PdfDocumentPermissions = {
   canComment: boolean;
@@ -61,6 +61,7 @@ export type PdfDocumentContextValue = {
   locationParams: Accessor<LocationSearchParams>;
   rootElement: Accessor<HTMLElement | undefined>;
   setRootElement: (element: HTMLElement | undefined) => void;
+  annotations: PdfAnnotations;
   definitions: PdfDefinitions;
   interaction: PdfInteraction;
   markup: PdfMarkup;
@@ -70,7 +71,6 @@ export type PdfDocumentContextValue = {
   tabs: PdfTabs;
   viewer: PdfViewerRuntime;
   outline: PdfOutline;
-  state: PdfDocumentState;
 };
 
 export type PdfDocumentProviderProps = {
@@ -100,6 +100,7 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
   const tabs = createPdfTabs();
   const viewer = createPdfViewerRuntime();
   const outline = createPdfOutline();
+  const annotations = createPdfAnnotations(documentId);
   const context: PdfDocumentContextValue = {
     documentId,
     documentProxy: () => props.documentProxy,
@@ -115,6 +116,7 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
     locationParams: () => props.locationParams ?? {},
     rootElement,
     setRootElement,
+    annotations,
     definitions,
     interaction,
     markup,
@@ -124,7 +126,6 @@ export const PdfDocumentProvider: FlowComponent<PdfDocumentProviderProps> = (
     tabs,
     viewer,
     outline,
-    state: createPdfDocumentState(documentId),
   };
 
   return (

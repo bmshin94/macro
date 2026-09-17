@@ -112,7 +112,6 @@ function InnerDocument() {
           const pageViewDiv = view.div;
           const viewport = view.textLayer?.viewport ?? view.viewport;
 
-          // Use the cached page view if it exists and nothing changed
           if (
             cachedPageView &&
             cachedPageView.pageViewDiv === pageViewDiv &&
@@ -207,7 +206,6 @@ export function Document() {
     const viewer = getRootViewer();
     const size = documentSize();
     if (!size) return;
-    // wait for valid dimensions
     if (size.width === 0 || size.height === 0) {
       return;
     }
@@ -219,7 +217,7 @@ export function Document() {
     setDestroying(true);
 
     if (!rootViewer) {
-      console.warn('unable to detach signals');
+      console.warn('unable to detach viewer listeners');
       return;
     }
 
@@ -549,8 +547,6 @@ export function Document() {
     const debouncedSaveLocation = debounce(saveLocation, 1000);
 
     createEffect(() => {
-      // listen to root viewer changed view area
-      // e.g. scroll, zoom, go to, etc.
       viewChanged();
 
       if (untrack(isSaving)) return;

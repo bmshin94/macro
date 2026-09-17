@@ -8,14 +8,15 @@ export const FreeCommentPlaceable: Component<{
   payload: NonNullable<IThreadPlaceable['payload']>;
 }> = (props) => {
   const isActiveThreadSelector = useIsActiveThreadSelector();
-  const [, setActiveThreadId] =
-    usePdfDocument().state.signals.activeCommentThread;
+  const interaction = usePdfDocument().interaction;
 
   return (
     <CommentIndicator
       threadId={props.payload.threadId}
       isActive={isActiveThreadSelector(props.payload.threadId)}
-      setActive={() => setActiveThreadId(props.payload.threadId)}
+      setActive={() =>
+        interaction.commands.activateCommentThread(props.payload.threadId)
+      }
       numComments={props.payload.comments.length}
     />
   );
@@ -31,10 +32,8 @@ function CommentIndicator(props: {
   isActive: boolean;
   setActive?: () => void;
 }) {
-  const [, setNoScrollToActiveCommentThread] =
-    usePdfDocument().state.signals.noScrollToActiveCommentThread;
+  const interaction = usePdfDocument().interaction;
 
-  // SCUFFED, decide how to define this color
   return (
     <div
       class={cn(
@@ -44,11 +43,11 @@ function CommentIndicator(props: {
           : 'bg-[oklch(0.93_0.034_272.788)] text-[oklch(0.585_0.233_277.117)] hover:bg-[oklch(0.87_0.065_274.039)] hover:text-[oklch(0.511_0.262_276.966)]'
       )}
       on:mousedown={() => {
-        setNoScrollToActiveCommentThread(true);
+        interaction.commands.suppressActiveThreadScrolling();
         props.setActive?.();
       }}
       on:mouseup={() => {
-        setNoScrollToActiveCommentThread(false);
+        interaction.commands.restoreActiveThreadScrolling();
       }}
     >
       {props.numComments > 1 && !props.isActive && (
