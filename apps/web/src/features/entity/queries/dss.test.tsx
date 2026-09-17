@@ -4,12 +4,16 @@ import {
   QueryClient,
   QueryClientProvider,
 } from '@tanstack/solid-query';
+import { err, ok } from 'neverthrow';
 import { render } from 'solid-js/web';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   graphqlEnabled: vi.fn(() => true),
   deleteItem: vi.fn(),
+  deleteCall: vi.fn(),
+  deleteReminder: vi.fn(),
+  deleteSchedule: vi.fn(),
   removeSoup: vi.fn(),
   removeSearch: vi.fn(),
   rollbackSoup: vi.fn(),
@@ -44,18 +48,27 @@ vi.mock('@queries/soup/cache', () => ({
 vi.mock('@queries/soup/graphql/active-queries', () => ({
   refreshActiveGraphqlSoupQueries: mocks.refresh,
 }));
-vi.mock('@service-call/client', () => ({ callServiceClient: {} }));
-vi.mock('@service-scheduled-action/client', () => ({
-  scheduledActionClient: {},
+vi.mock('@service-call/client', () => ({
+  callServiceClient: { deleteCallRecord: mocks.deleteCall },
 }));
-vi.mock('@service-storage/client', () => ({ storageServiceClient: {} }));
+vi.mock('@service-scheduled-action/client', () => ({
+  scheduledActionClient: { deleteSchedule: mocks.deleteSchedule },
+}));
+vi.mock('@service-storage/client', () => ({
+  storageServiceClient: { reminders: { deleteReminder: mocks.deleteReminder } },
+}));
 
+import { scheduledActionKeys } from '@queries/agent-schedule/keys';
+import { callKeys } from '@queries/call/keys';
+import { notificationKeys } from '@queries/notification/keys';
+import { reminderKeys } from '@queries/reminders/keys';
 import {
   GRAPHQL_SOUP_DELETE_MUTATION_KEY,
   GRAPHQL_SOUP_DELETE_RETENTION_MS,
   type GraphqlSoupDeleteContext,
   usePendingGraphqlSoupDeleteIds,
 } from '@queries/soup/graphql/optimistic-deletions';
+import { BulkDeleteFailure } from './bulk-delete-result';
 import { createBulkDeleteDssItemsMutation } from './dss';
 
 let client: QueryClient;
@@ -118,7 +131,166 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+function cacheRows(
+  remove: typeof mocks.removeSoup,
+  rollback: typeof mocks.rollbackSoup,
+  initial: string[]
+) {
+  let rows = new Set(initial);
+  remove.mockImplementation((ids: Set<string>) => {
+    const previous = new Set(rows);
+    rows = new Set([...rows].filter((id) => !ids.has(id)));
+    return {
+      rollback: () => {
+        rollback();
+        rows = new Set(previous);
+      },
+    };
+  });
+  return () => [...rows].sort();
+}
+
 describe('bulk delete GraphQL optimism', () => {
+  it.each(['throw', 'false'] as const)(
+    'restores only failed rows in Soup and search after a partial %s failure',
+    async (failure) => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const soup = cacheRows(mocks.removeSoup, mocks.rollbackSoup, [
+        'failed',
+        'deleted',
+        'other',
+      ]);
+      const search = cacheRows(mocks.removeSearch, mocks.rollbackSearch, [
+        'failed',
+        'deleted',
+        'other',
+      ]);
+      const failed = entity('failed');
+      const deleted = entity('deleted');
+      if (failure === 'throw')
+        mocks.deleteItem.mockRejectedValueOnce(new Error('failed delete'));
+      else mocks.deleteItem.mockResolvedValueOnce(false);
+      mocks.deleteItem.mockResolvedValueOnce(true);
+      const refreshed = deferred<void>();
+      mocks.refresh.mockReturnValue(refreshed.promise);
+      const { mutation, pendingIds } = mount();
+      try {
+        await expect(
+          mutation.mutateAsync([failed, deleted])
+        ).rejects.toMatchObject({
+          results: [false, true],
+          deletedEntities: [deleted],
+          failedEntities: [failed],
+        });
+        expect(soup()).toEqual(['failed', 'other']);
+        expect(search()).toEqual(['failed', 'other']);
+        expect([...pendingIds()]).toEqual(['deleted']);
+        expect(mocks.failure).toHaveBeenCalledWith(
+          'Deleted 1 of 2 items; 1 failed'
+        );
+        expect(mocks.removeSoup).toHaveBeenLastCalledWith(new Set(['deleted']));
+        expect(mocks.removeSearch).toHaveBeenLastCalledWith(
+          new Set(['deleted'])
+        );
+      } finally {
+        refreshed.resolve();
+      }
+    }
+  );
+
+  it('reconciles successful call/reminder/automation deletes despite sibling failures', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const invalidate = vi
+      .spyOn(client, 'invalidateQueries')
+      .mockResolvedValue(undefined);
+    const schedules = [
+      { id: 'deleted-auto' },
+      { id: 'failed-auto' },
+      { id: 'other-auto' },
+    ];
+    client.setQueryData(scheduledActionKeys.list.queryKey, schedules);
+    mocks.deleteItem.mockRejectedValue(new Error('document delete failed'));
+    mocks.deleteCall.mockResolvedValue(ok(undefined));
+    mocks.deleteReminder.mockResolvedValue(ok(undefined));
+    mocks.deleteSchedule.mockImplementation(
+      async ({ scheduleId }: { scheduleId: string }) =>
+        scheduleId === 'deleted-auto'
+          ? ok(undefined)
+          : err([{ code: 'FORBIDDEN', message: 'schedule delete failed' }])
+    );
+    const { mutation } = mount();
+    await expect(
+      mutation.mutateAsync([
+        entity('failed-document'),
+        entity('deleted-call', 'call'),
+        entity('deleted-reminder', 'reminder'),
+        entity('deleted-auto', 'automation'),
+        entity('failed-auto', 'automation'),
+      ])
+    ).rejects.toBeInstanceOf(BulkDeleteFailure);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: callKeys._def });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: reminderKeys._def });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: notificationKeys._def,
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: scheduledActionKeys.list.queryKey,
+    });
+    expect(client.getQueryData(scheduledActionKeys.list.queryKey)).toEqual([
+      schedules[1],
+      schedules[2],
+    ]);
+    expect(mocks.failure).toHaveBeenCalledWith(
+      'Deleted 3 of 5 items; 2 failed'
+    );
+  });
+
+  it('does not remove or invalidate unsuccessful side-effect entities', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const invalidate = vi
+      .spyOn(client, 'invalidateQueries')
+      .mockResolvedValue(undefined);
+    const schedules = [{ id: 'failed-auto' }];
+    client.setQueryData(scheduledActionKeys.list.queryKey, schedules);
+    mocks.deleteCall.mockRejectedValue(new Error('failed call'));
+    mocks.deleteReminder.mockRejectedValue(new Error('failed reminder'));
+    mocks.deleteSchedule.mockRejectedValue(new Error('failed schedule'));
+    const { mutation } = mount();
+    await expect(
+      mutation.mutateAsync([
+        entity('failed-call', 'call'),
+        entity('failed-reminder', 'reminder'),
+        entity('failed-auto', 'automation'),
+      ])
+    ).rejects.toThrow('failed call');
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(client.getQueryData(scheduledActionKeys.list.queryKey)).toEqual(
+      schedules
+    );
+  });
+
+  it.each([true, false])(
+    'handles boolean-only total failure without changing the disabled path (%s)',
+    async (graphql) => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      mocks.graphqlEnabled.mockReturnValue(graphql);
+      mocks.deleteItem.mockResolvedValue(false);
+      const { mutation } = mount();
+      const result = mutation.mutateAsync([entity('failed')]);
+      if (graphql) {
+        await expect(result).rejects.toThrow('Failed to delete items');
+        expect(mocks.rollbackSoup).toHaveBeenCalledOnce();
+        expect(mocks.rollbackSearch).toHaveBeenCalledOnce();
+        expect(mocks.failure).toHaveBeenCalledWith('Failed to delete items');
+      } else {
+        await expect(result).resolves.toEqual([false]);
+        expect(mocks.rollbackSoup).not.toHaveBeenCalled();
+        expect(mocks.rollbackSearch).not.toHaveBeenCalled();
+        expect(mocks.failure).not.toHaveBeenCalled();
+      }
+    }
+  );
+
   it('hides only deletable ids until deletion and GraphQL refresh both finish', async () => {
     const network = deferred<boolean>();
     const refreshed = deferred<void>();
@@ -174,7 +346,10 @@ describe('bulk delete GraphQL optimism', () => {
     const { mutation, pendingIds } = mount();
     await expect(
       mutation.mutateAsync([entity('deleted'), entity('retained')])
-    ).resolves.toEqual([true, false]);
+    ).rejects.toMatchObject({
+      results: [true, false],
+      message: 'Deleted 1 of 2 items; 1 failed',
+    });
     expect(mocks.refresh).toHaveBeenCalledOnce();
     expect([...pendingIds()]).toEqual(['deleted']);
     refreshed.resolve();
@@ -226,6 +401,25 @@ describe('bulk delete GraphQL optimism', () => {
     expect(client.getQueryCache().getAll()).toEqual([]);
   });
 
+  it('does not restore old snapshots when a partial failure arrives after client clearing', async () => {
+    const network = deferred<boolean>();
+    mocks.deleteItem
+      .mockReturnValueOnce(network.promise)
+      .mockResolvedValueOnce(true);
+    const { mutation } = mount();
+    const result = expect(
+      mutation.mutateAsync([entity('failed'), entity('deleted')])
+    ).rejects.toBeInstanceOf(BulkDeleteFailure);
+    await vi.waitFor(() => expect(mocks.deleteItem).toHaveBeenCalledTimes(2));
+    client.clear();
+    network.resolve(false);
+    await result;
+    expect(mocks.rollbackSoup).not.toHaveBeenCalled();
+    expect(mocks.rollbackSearch).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    expect(client.getQueryCache().getAll()).toEqual([]);
+  });
+
   it('retains successful deletes after a refresh error and clears them on retry success', async () => {
     vi.useFakeTimers();
     mocks.refresh
@@ -254,7 +448,7 @@ describe('bulk delete GraphQL optimism', () => {
     const { mutation, pendingIds } = mount();
     const result = expect(
       mutation.mutateAsync([entity('failed'), entity('deleted')])
-    ).rejects.toThrow('delete failed');
+    ).rejects.toThrow('Deleted 1 of 2 items; 1 failed');
     await vi.waitFor(() => expect(mocks.deleteItem).toHaveBeenCalledTimes(2));
     expect(mocks.refresh).not.toHaveBeenCalled();
     slowSuccess.resolve(true);

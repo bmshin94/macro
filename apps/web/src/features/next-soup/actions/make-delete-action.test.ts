@@ -1,9 +1,13 @@
+import { BulkDeleteFailure } from '@app/features/entity/queries/bulk-delete-result';
 import type { EntityData } from '@entity';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   openBulkEditModal: vi.fn(),
   bulkDeleteMutateAsync: vi.fn(async () => []),
+  splitManager: undefined as object | undefined,
+  removeHistory: vi.fn(),
+  success: vi.fn(),
 }));
 
 // The action pulls in the bulk-edit modal, split manager and toast at module
@@ -12,13 +16,13 @@ vi.mock('@app/features/entity/bulk-edit/BulkEditEntityModal', () => ({
   openBulkEditModal: mocks.openBulkEditModal,
 }));
 vi.mock('@app/signal/splitLayout', () => ({
-  globalSplitManager: () => undefined,
+  globalSplitManager: () => mocks.splitManager,
 }));
 vi.mock('@components/app/split-layout/layoutUtils', () => ({
-  globalRemoveFromSplitHistory: vi.fn(),
+  globalRemoveFromSplitHistory: mocks.removeHistory,
 }));
 vi.mock('@core/component/Toast/Toast', () => ({
-  toast: { success: vi.fn(), failure: vi.fn(), dismiss: vi.fn() },
+  toast: { success: mocks.success, failure: vi.fn(), dismiss: vi.fn() },
 }));
 // The real barrel reaches the query clients, which open websockets under jsdom.
 vi.mock('@entity', () => ({
@@ -43,7 +47,10 @@ const entity = (
 
 const { canExecute, execute } = makeDeleteAction({ userId: () => ME });
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.splitManager = undefined;
+});
 
 describe('makeDeleteAction.execute', () => {
   const reminder = entity('reminder', { ownerId: '' });
@@ -53,6 +60,25 @@ describe('makeDeleteAction.execute', () => {
 
     expect(mocks.bulkDeleteMutateAsync).toHaveBeenCalledWith([reminder]);
     expect(mocks.openBulkEditModal).not.toHaveBeenCalled();
+  });
+
+  it('reports and removes history only for reminders that succeeded in a partial batch', async () => {
+    const deleted = entity('reminder', { id: 'deleted-reminder' });
+    const failed = entity('reminder', { id: 'failed-reminder' });
+    mocks.bulkDeleteMutateAsync.mockRejectedValueOnce(
+      new BulkDeleteFailure([deleted, failed], [true, false])
+    );
+    mocks.splitManager = {};
+    const onDeleted = vi.fn();
+    const action = makeDeleteAction({ userId: () => ME, onDeleted });
+    await action.execute([deleted, failed]);
+    await vi.waitFor(() => expect(onDeleted).toHaveBeenCalledWith([deleted]));
+    expect(mocks.success).not.toHaveBeenCalled();
+    const predicate = mocks.removeHistory.mock.calls[0][1] as (entry: {
+      id: string;
+    }) => boolean;
+    expect(predicate({ id: deleted.id })).toBe(true);
+    expect(predicate({ id: failed.id })).toBe(false);
   });
 
   it('still confirms for everything else', async () => {

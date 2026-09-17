@@ -51,8 +51,11 @@ also show up in Files/`All` and in AI-chat document listings.
 Select task rows with their leading checkboxes, choose **Actions → Delete items**,
 then confirm **Delete**. With GraphQL Soup enabled, selected rows disappear while
 requests are pending, including rows loaded through grouped pagination. The
-confirmation closes when deletion finishes. Failed items return immediately;
-successfully deleted items stay hidden until all enabled GraphQL Soup lists
+confirmation closes when the whole batch succeeds. After a partial failure it
+reports how many items were deleted and keeps only failed items in the dialog for
+retry; successful items must not be submitted again. Failed items return to Soup
+and search immediately, while successful removals remain absent from both.
+Successfully deleted items stay hidden until all enabled GraphQL Soup lists
 revalidate successfully, even if the first refresh fails. Refresh is attempted
 at most three times (one- and two-second retry delays); suppression expires one
 minute after deletion finishes if revalidation remains unavailable. The

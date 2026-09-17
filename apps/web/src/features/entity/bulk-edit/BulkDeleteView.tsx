@@ -6,7 +6,8 @@ import {
 import { Dialog } from '@kobalte/core/dialog';
 import CloseIcon from '@phosphor-icons/core/regular/x.svg?component-solid';
 import { Button, cn } from '@ui';
-import { For, onMount, Show } from 'solid-js';
+import { createSignal, For, onMount, Show } from 'solid-js';
+import { BulkDeleteFailure } from '../queries/bulk-delete-result';
 
 export const BulkDeleteView = (props: {
   entities: EntityData[];
@@ -15,6 +16,10 @@ export const BulkDeleteView = (props: {
   onError?: (error: unknown) => void;
 }) => {
   const bulkDelete = createBulkDeleteDssItemsMutation();
+  const [remainingEntities, setRemainingEntities] =
+    createSignal<EntityData[]>();
+  const [partialMessage, setPartialMessage] = createSignal<string>();
+  const entities = () => remainingEntities() ?? props.entities;
   let deleteButton: HTMLButtonElement | undefined;
 
   const focusDeleteButton = () => {
@@ -26,10 +31,19 @@ export const BulkDeleteView = (props: {
   onMount(focusDeleteButton);
 
   const handleDelete = async () => {
+    setPartialMessage(undefined);
     try {
-      await bulkDelete.mutateAsync(props.entities);
+      await bulkDelete.mutateAsync(entities());
       props.onFinish();
     } catch (error) {
+      if (
+        error instanceof BulkDeleteFailure &&
+        error.deletedEntities.length > 0
+      ) {
+        setRemainingEntities(error.failedEntities);
+        setPartialMessage(error.message);
+        return;
+      }
       console.error('Failed to delete entities:', error);
       props.onError?.(error);
     }
@@ -47,21 +61,19 @@ export const BulkDeleteView = (props: {
         </Dialog.CloseButton>
         <Dialog.Title as="span" class="text-sm font-medium p-0 m-0">
           Delete{' '}
-          {props.entities.length === 1
-            ? 'Item'
-            : `${props.entities.length} Items`}
+          {entities().length === 1 ? 'Item' : `${entities().length} Items`}
         </Dialog.Title>
       </div>
 
       <div class="p-2 border-b border-edge-muted">
         <div class="flex items-center gap-2">
-          <For each={props.entities.slice(0, 2)}>
+          <For each={entities().slice(0, 2)}>
             {(entity) => (
               <div
                 class={cn(
                   'bg-hover border border-edge-muted px-2 py-1 truncate text-xs rounded-xs',
                   {
-                    'max-w-[50%]': props.entities.length === 2,
+                    'max-w-[50%]': entities().length === 2,
                   }
                 )}
               >
@@ -69,19 +81,26 @@ export const BulkDeleteView = (props: {
               </div>
             )}
           </For>
-          <Show when={props.entities.length > 2}>
+          <Show when={entities().length > 2}>
             <div class="text-ink-muted text-xs px-2 py-1">
-              +{props.entities.length - 2} more
+              +{entities().length - 2} more
             </div>
           </Show>
         </div>
       </div>
 
       <div class="p-3 flex flex-col gap-3">
+        <Show when={partialMessage()}>
+          {(message) => (
+            <p role="status" class="text-sm text-ink-muted">
+              {message()}. Only failed items remain for retry.
+            </p>
+          )}
+        </Show>
         <p class="text-sm text-ink-muted">
-          {props.entities.length === 1
+          {entities().length === 1
             ? 'You are about to delete this item. This action cannot be undone.'
-            : `You are about to delete ${props.entities.length} items. This action cannot be undone.`}
+            : `You are about to delete ${entities().length} items. This action cannot be undone.`}
         </p>
 
         <div class="flex justify-end gap-2">

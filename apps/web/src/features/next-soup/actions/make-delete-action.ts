@@ -1,4 +1,5 @@
 import { openBulkEditModal } from '@app/features/entity/bulk-edit/BulkEditEntityModal';
+import { BulkDeleteFailure } from '@app/features/entity/queries/bulk-delete-result';
 import { globalSplitManager } from '@app/signal/splitLayout';
 import { globalRemoveFromSplitHistory } from '@components/app/split-layout/layoutUtils';
 import { toast } from '@core/component/Toast/Toast';
@@ -34,25 +35,37 @@ export const makeDeleteAction = (options: MakeDeleteOptions) => {
   const deleteRemindersNow = async (reminders: EntityData[]) => {
     if (reminders.length === 0) return;
     try {
-      await bulkDelete.mutateAsync(reminders);
+      let deleted = reminders;
+      try {
+        await bulkDelete.mutateAsync(reminders);
+      } catch (error) {
+        if (
+          !(error instanceof BulkDeleteFailure) ||
+          error.deletedEntities.length === 0
+        )
+          throw error;
+        deleted = error.deletedEntities;
+      }
       // Only after the delete lands: the mutation restores the rows on
       // failure, and a dropped split-history entry cannot be restored with
       // them.
       const splitManager = globalSplitManager();
       if (splitManager) {
-        const ids = new Set(reminders.map(({ id }) => id));
+        const ids = new Set(deleted.map(({ id }) => id));
         globalRemoveFromSplitHistory(splitManager, (entry) =>
           ids.has(entry.id)
         );
       }
-      toast.success(
-        reminders.length > 1
-          ? `Deleted ${reminders.length} reminders`
-          : 'Reminder deleted'
-      );
-      options.onDeleted?.(reminders);
+      if (deleted.length === reminders.length) {
+        toast.success(
+          reminders.length > 1
+            ? `Deleted ${reminders.length} reminders`
+            : 'Reminder deleted'
+        );
+      }
+      options.onDeleted?.(deleted);
     } catch {
-      // createBulkDeleteDssItemsMutation already toasts and restores the rows.
+      // The mutation already reports failure and restores the failed rows.
     }
   };
 
