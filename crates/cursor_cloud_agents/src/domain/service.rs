@@ -199,8 +199,9 @@ fn explain_repository_rejection(error: SessionError) -> SessionError {
     };
     tracing::warn!(
         repo = %unavailable.repo,
+        reason = %unavailable.reason,
         detail = %unavailable.detail,
-        "cursor rejected the prompt: the repository is not connected to this cursor account"
+        "cursor rejected the prompt: it could not use the session's repository"
     );
     SessionError::Rejected(unavailable.user_message())
 }
