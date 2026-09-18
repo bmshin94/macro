@@ -1,3 +1,24 @@
+# Macro (macro-inc/macro)
+
+## 프로젝트 개요
+이메일, 메신저 채팅, 공유 문서, 프로젝트 할 일 목록을 단 하나의 깔끔한 창으로 통합해주는 "팀 생산성 올인원 통합 작업실"
+수십 개의 앱 창을 번갈아 띄우느라 정신없던 하루를 하나의 통합 공간으로 모아 업무 몰입도를 극대화
+흩어진 업무 소통과 문서 작업을 한곳에서 정리하고 팀의 협업 속도를 비약적으로 끌어올리고 싶은 현대 팀의 본부
+
+## 핵심 특징 & 추천 분야
+- 올인원통합작업실
+- 이메일채팅문서통합
+- 앱창전환피로제로
+- 팀협업속도극대화
+- 모던워크스페이스
+
+---
+*이 문서는 오픈소스 큐레이터(Curator-Agent)에 의해 자동 생성된 가이드 문서입니다.*
+
+
+---
+## 기존 CLAUDE.md 내용
+
 # Repository guide for coding agents
 
 Macro is a document and collaboration app with a Rust backend and a web frontend.
