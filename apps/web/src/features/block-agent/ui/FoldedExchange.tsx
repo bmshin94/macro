@@ -173,7 +173,7 @@ function CopyButton(props: { text: string; label: string }): JSX.Element {
     }
     setCopied(true);
     clearTimeout(timer);
-    timer = setTimeout(() => setCopied(false), 1500);
+    timer = setTimeout(() => setCopied(false), 2000);
   };
 
   return (

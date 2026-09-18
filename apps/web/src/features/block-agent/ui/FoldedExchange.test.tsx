@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render } from '@solidjs/testing-library';
+import { cleanup, render, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { exchangeText, FoldedExchange } from './FoldedExchange';
 
@@ -101,9 +101,19 @@ describe('FoldedExchange', () => {
       <FoldedExchange response={{ answer: 42, nested: { deep: [1, 2] } }} />
     ));
     view.getByRole('button', { name: 'Copy response' }).click();
-    await Promise.resolve();
     expect(writeText).toHaveBeenCalledWith(
       JSON.stringify({ answer: 42, nested: { deep: [1, 2] } }, null, 2)
+    );
+    // The button says so for a moment, then offers to copy again.
+    await waitFor(() =>
+      expect(view.getByRole('button', { name: 'Copied' })).toBeTruthy()
+    );
+    await waitFor(
+      () =>
+        expect(
+          view.getByRole('button', { name: 'Copy response' })
+        ).toBeTruthy(),
+      { timeout: 3000 }
     );
   });
 });
